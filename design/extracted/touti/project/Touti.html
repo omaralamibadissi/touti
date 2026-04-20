@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Touti — Moroccan Card Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #1a1410; min-height: 100vh; font-family: "Inter", sans-serif; }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { display: none; }
+  body { -webkit-font-smoothing: antialiased; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="cards.jsx"></script>
+<script type="text/babel" src="patterns.jsx"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel" src="game-engine.jsx"></script>
+<script type="text/babel" src="screen-table.jsx"></script>
+<script type="text/babel" src="screen-home.jsx"></script>
+<script type="text/babel" src="screen-others.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "tableColor": "midnight",
+  "turnState": "left",
+  "showPartnerCards": true,
+  "activeScreen": "settings",
+  "showAllScreens": false
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweaks] = React.useState(() => {
+    const saved = localStorage.getItem('touti-tweaks');
+    return saved ? { ...TWEAKS, ...JSON.parse(saved) } : TWEAKS;
+  });
+  const [editMode, setEditMode] = React.useState(false);
+
+  const updateTweaks = (edits) => {
+    const next = { ...tweaks, ...edits };
+    setTweaks(next);
+    localStorage.setItem('touti-tweaks', JSON.stringify(next));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  };
+
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setEditMode(true);
+      if (e.data?.type === '__deactivate_edit_mode') setEditMode(false);
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const screens = [
+    { id: 'home',     label: '01 Home',         comp: <HomeScreen onNav={(s) => updateTweaks({ activeScreen: s })}/> },
+    { id: 'match',    label: '02 Matchmaking',  comp: <MatchmakingScreen onNav={(s) => updateTweaks({ activeScreen: s })}/> },
+    { id: 'table',    label: '03 In-Game Table (HERO)', comp: <GameTable tableColor={tweaks.tableColor} turnState={tweaks.turnState} showPartner={tweaks.showPartnerCards}/> },
+    { id: 'trick',    label: '04 Trick Won',    comp: <TrickWonScreen onNav={(s) => updateTweaks({ activeScreen: s })}/> },
+    { id: 'score',    label: '05 Scoreboard',   comp: <ScoreboardScreen onNav={(s) => updateTweaks({ activeScreen: s })}/> },
+    { id: 'profile',  label: '06 Profile',      comp: <ProfileScreen onNav={(s) => updateTweaks({ activeScreen: s })}/> },
+    { id: 'settings', label: '07 Settings',     comp: <SettingsScreen onNav={(s) => updateTweaks({ activeScreen: s })}/> },
+  ];
+
+  if (!tweaks.showAllScreens) {
+    // single focused view with quick navigation
+    const active = screens.find(s => s.id === tweaks.activeScreen) || screens[0];
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', padding: '20px',
+        background: `radial-gradient(ellipse at top, #2B1810 0%, #0D0806 100%)`,
+      }}>
+        <QuickNav active={tweaks.activeScreen} screens={screens} onNav={(id) => updateTweaks({ activeScreen: id })}/>
+        <div data-screen-label={active.label} style={{ position: 'relative' }}>
+          <IOSDevice dark>
+            {active.comp}
+          </IOSDevice>
+        </div>
+        <TweaksPanel editMode={editMode} tweaks={tweaks} update={updateTweaks} screens={screens}/>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: `radial-gradient(ellipse at top, #2B1810 0%, #0D0806 100%)`,
+      padding: '48px 32px 80px',
+      position: 'relative',
+    }}>
+      {/* Decorative ambient pattern */}
+      <div style={{ position: 'fixed', inset: 0, opacity: 0.04, pointerEvents: 'none' }}>
+        <ZelligeBg color="#2B1810" accent="#D4A04C" size={100}/>
+      </div>
+
+      {/* Title */}
+      <div style={{ textAlign: 'center', marginBottom: 36, position: 'relative', zIndex: 2 }}>
+        <div style={{ fontFamily: 'Cormorant Garamond', fontSize: 12, letterSpacing: 8, color: '#D4A04C', fontWeight: 600 }}>
+          JEU · DE · CARTES · MAROCAIN · iOS
+        </div>
+        <div style={{ fontFamily: 'Cormorant Garamond', fontSize: 72, letterSpacing: 14, color: '#F4D89E', fontWeight: 700, marginTop: 8, textShadow: '0 2px 40px rgba(232,161,48,0.4)' }}>
+          TOUTI
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <ArabesqueDivider width={280} color="#D4A04C"/>
+        </div>
+        <div style={{ fontFamily: 'Inter', fontSize: 13, color: '#F5EBD6aa', marginTop: 14, maxWidth: 600, margin: '14px auto 0', lineHeight: 1.6 }}>
+          Concept haute fidélité pour le jeu de cartes marocain (4 joueurs, 2 contre 2). Motifs zellige, tons terre chauds & laiton. Interface en français avec termes de jeu en darija arabizi (bazza, touti, 7na/homa…).
+        </div>
+      </div>
+
+      {/* Screens grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(402px, 1fr))',
+        gap: 48, justifyContent: 'center', justifyItems: 'center',
+        maxWidth: 1720, margin: '0 auto', position: 'relative', zIndex: 2,
+      }}>
+        {screens.map((s, i) => (
+          <div key={s.id} data-screen-label={s.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Cormorant Garamond', fontSize: 10, letterSpacing: 4, color: '#D4A04C', fontWeight: 600 }}>SCREEN · {String(i+1).padStart(2,'0')}</div>
+              <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#F5EBD6', fontWeight: 700, letterSpacing: 1, marginTop: 2 }}>{s.label.replace(/^\d+\s/, '')}</div>
+            </div>
+            <IOSDevice dark>{s.comp}</IOSDevice>
+          </div>
+        ))}
+      </div>
+
+      <TweaksPanel editMode={editMode} tweaks={tweaks} update={updateTweaks} screens={screens}/>
+    </div>
+  );
+}
+
+function QuickNav({ active, screens, onNav }) {
+  const icons = {
+    home: 'M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6h-6v6H5a1 1 0 01-1-1v-9z',
+    match: 'M9 12a3 3 0 100-6 3 3 0 000 6zM17 14a2 2 0 100-4 2 2 0 000 4zM3 20c0-3 3-5 6-5s6 2 6 5M15 20c0-2 2-3.5 4-3.5',
+    table: 'M4 6h16v12H4zM8 10l4-2 4 2M8 14l4 2 4-2',
+    trick: 'M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z',
+    score: 'M7 4h10v4a5 5 0 01-10 0V4zM4 4h3v3a3 3 0 01-3 0M17 4h3v3a3 3 0 01-3 0M12 13v4M8 20h8',
+    profile: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c1-4 4-6 8-6s7 2 8 6',
+    settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12l2-1-1-2-2 1a7 7 0 00-1-1l1-2-2-1-1 2a7 7 0 00-2 0l-1-2-2 1 1 2a7 7 0 00-1 1l-2-1-1 2 2 1a7 7 0 000 2l-2 1 1 2 2-1a7 7 0 001 1l-1 2 2 1 1-2a7 7 0 002 0l1 2 2-1-1-2a7 7 0 001-1l2 1 1-2-2-1a7 7 0 000-2z',
+  };
+  const labels = {
+    home: 'Accueil', match: 'Recherche', table: 'Table',
+    trick: 'Bazza', score: 'Classement', profile: 'Profil', settings: 'Réglages',
+  };
+  return (
+    <div style={{
+      position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 9000, display: 'flex', gap: 4, padding: 6,
+      background: 'rgba(20,12,8,0.85)',
+      border: '0.5px solid rgba(212,160,76,0.4)',
+      borderRadius: 18, backdropFilter: 'blur(12px)',
+      fontFamily: 'Inter',
+    }}>
+      {screens.map(s => {
+        const isA = active === s.id;
+        return (
+          <div key={s.id} onClick={() => onNav(s.id)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 11px', borderRadius: 12,
+            background: isA ? 'linear-gradient(180deg, #E8A130, #B8791C)' : 'transparent',
+            color: isA ? '#2B1810' : '#F5EBD6',
+            fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+            cursor: 'pointer', transition: 'background 0.15s',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d={icons[s.id]} stroke={isA ? '#2B1810' : '#F5EBD6'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>{labels[s.id]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TweaksPanel({ editMode, tweaks, update, screens }) {
+  if (!editMode) return null;
+  const pillStyle = (active) => ({
+    padding: '5px 10px', borderRadius: 10,
+    background: active ? 'linear-gradient(180deg, #E8A130, #B8791C)' : 'rgba(255,255,255,0.06)',
+    color: active ? '#2B1810' : '#F5EBD6',
+    fontSize: 11, fontWeight: 700, cursor: 'pointer',
+    border: `0.5px solid ${active ? '#E8A130' : 'rgba(212,160,76,0.3)'}`,
+    letterSpacing: 0.5,
+  });
+  return (
+    <div style={{
+      position: 'fixed', bottom: 20, right: 20, zIndex: 9999,
+      width: 300, padding: 16,
+      background: 'rgba(20,12,8,0.96)',
+      border: '0.5px solid rgba(212,160,76,0.4)',
+      borderRadius: 16,
+      backdropFilter: 'blur(14px)',
+      color: '#F5EBD6', fontFamily: 'Inter',
+      boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+    }}>
+      <div style={{ fontFamily: 'Cormorant Garamond', fontSize: 11, letterSpacing: 4, color: '#D4A04C', fontWeight: 700 }}>TWEAKS · تعديل</div>
+      <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2, marginBottom: 14 }}>Touti</div>
+
+      <Section label="LAYOUT">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={pillStyle(tweaks.showAllScreens)} onClick={() => update({ showAllScreens: true })}>All screens</div>
+          <div style={pillStyle(!tweaks.showAllScreens)} onClick={() => update({ showAllScreens: false })}>Single</div>
+        </div>
+      </Section>
+
+      {!tweaks.showAllScreens && (
+        <Section label="ACTIVE SCREEN">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {screens.map(s => (
+              <div key={s.id} style={pillStyle(tweaks.activeScreen === s.id)} onClick={() => update({ activeScreen: s.id })}>
+                {s.id}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      <Section label="TABLE COLOR">
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['felt', 'terracotta', 'midnight'].map(c => (
+            <div key={c} style={pillStyle(tweaks.tableColor === c)} onClick={() => update({ tableColor: c })}>{c}</div>
+          ))}
+        </div>
+      </Section>
+
+      <Section label="TURN STATE">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['yours', 'partner', 'left', 'right'].map(t => (
+            <div key={t} style={pillStyle(tweaks.turnState === t)} onClick={() => update({ turnState: t })}>{t}</div>
+          ))}
+        </div>
+      </Section>
+
+      <Section label="PARTNER CARDS">
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div style={pillStyle(!tweaks.showPartnerCards)} onClick={() => update({ showPartnerCards: false })}>Hidden</div>
+          <div style={pillStyle(tweaks.showPartnerCards)} onClick={() => update({ showPartnerCards: true })}>Revealed</div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function Section({ label, children }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4A04Caa', fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
