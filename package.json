@@ -8,13 +8,17 @@
     "mobile"
   ],
   "scripts": {
+    "dev": "concurrently -n server,mobile -c yellow,cyan \"npm:dev:server\" \"npm:dev:mobile\"",
     "dev:server": "npm --workspace server run dev",
     "dev:mobile": "npm --workspace mobile run start",
+    "dev:ios": "npm --workspace mobile run ios",
+    "dev:web": "npm --workspace mobile run web",
     "build:shared": "npm --workspace shared run build",
     "build": "npm --workspaces --if-present run build",
     "typecheck": "npm --workspaces --if-present run typecheck"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "typescript": "^5.4.5"
   }
 }
