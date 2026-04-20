@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git checkout *)",
+      "Bash(git branch*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)"
+    ]
+  },
+  "enabledPlugins": {
+    "design@knowledge-work-plugins": true,
+    "engineering@knowledge-work-plugins": true
+  }
+}
