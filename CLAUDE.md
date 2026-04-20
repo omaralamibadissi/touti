@@ -24,15 +24,23 @@ l'infrastructure, on code les règles dans un second temps.
 # Installation initiale (à la racine)
 npm install
 
-# Lancer le serveur de jeu en dev
-npm run dev:server          # http://localhost:2567 (monitor: /colyseus)
+# TOUT lancer + ouvrir Chrome (recommandé pour Omar)
+# Double-clic sur "Lancer Touti web.command" sur le Desktop du projet
+# → serveur + expo web, logs dans .logs/server.log et .logs/web.log
 
-# Lancer l'app mobile
-npm run dev:mobile          # puis scanner le QR avec Expo Go
+# Ou manuellement :
+npm run dev:server          # http://localhost:2567 (monitor: /colyseus)
+npm run dev:mobile          # Expo Go via QR
+npm run dev:web             # preview web dans le navigateur
 
 # Typecheck global
 npm run typecheck
 ```
+
+## Lire les logs en cours
+
+Quand `Lancer Touti web.command` tourne, les logs sont dans `.logs/`. Pour les
+consulter pendant une session de debug, utilise la slash command `/logs`.
 
 ## Architecture
 
