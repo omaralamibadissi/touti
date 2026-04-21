@@ -3,6 +3,19 @@ import { create } from "zustand";
 
 export type MatchType = "solo-ai" | "private" | "tournament" | "irl";
 
+// Snapshot d'une manche dans la partie (pour la vue détaillée)
+export interface RoundDetail {
+  round: number;
+  scoreA: number;            // total cumulé après cette manche
+  scoreB: number;
+  deltaA: number;            // points marqués pendant cette manche
+  deltaB: number;
+  bidWinner: number | null;  // siège (0..3) du gagnant des enchères
+  bidAmount: number | null;
+  bidTeam: "A" | "B" | null;
+  trump?: string;            // suit choisi (oros/copas/espadas/bastos)
+}
+
 export interface MatchEntry {
   id: string;
   type: MatchType;
@@ -13,6 +26,7 @@ export interface MatchEntry {
   scoreB: number;
   roundsPlayed: number;
   tournamentName?: string;      // si type = tournament
+  rounds?: RoundDetail[];       // détail manche par manche (parties app uniquement)
 }
 
 interface MatchHistoryState {

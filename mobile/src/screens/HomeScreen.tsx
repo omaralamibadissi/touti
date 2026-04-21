@@ -15,6 +15,8 @@ import { ZelligeBg, ArabesqueDivider, StarBurst } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useAuthStore } from "../store/authStore";
+import { useMatchHistoryStore } from "../store/matchHistoryStore";
+import { totalXp, levelProgress } from "../lib/leveling";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -22,6 +24,10 @@ export default function HomeScreen({ navigation }: Props) {
   const user = useAuthStore((s) => s.user);
   const name = user?.username ?? "";
   const canPlay = name.length > 0;
+
+  const matches = useMatchHistoryStore((s) => s.matches);
+  const xp = totalXp(matches);
+  const prog = levelProgress(xp);
 
   return (
     <View style={styles.root}>
@@ -57,15 +63,24 @@ export default function HomeScreen({ navigation }: Props) {
         <View style={styles.header}>
           <Pressable style={styles.profile} onPress={() => navigation.navigate("Profile")}>
             <Avatar initials={name.trim()[0]?.toUpperCase() || "?"} size={40} color={COLORS.teal} />
-            <Text style={styles.greeting}>Salut{name.trim() ? `, ${name.trim()}` : ""}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.greeting}>Salut{name.trim() ? `, ${name.trim()}` : ""}</Text>
+              <View style={styles.levelRow}>
+                <Text style={styles.levelText}>NIV. {prog.level}</Text>
+                <View style={styles.levelBarBg}>
+                  <View style={[styles.levelBarFill, { width: `${Math.max(2, prog.ratio * 100)}%` }]} />
+                </View>
+                <Text style={styles.levelXp}>{prog.xpIntoLevel}/{prog.xpForNextLevel}</Text>
+              </View>
+            </View>
           </Pressable>
         </View>
 
         {/* Titre hero */}
         <View style={styles.hero}>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-          <Text style={styles.title}>KBIRKBIR</Text>
-          <Text style={styles.subtitle}>LE TOUTI MAROCAIN</Text>
+          <Text style={styles.title}>TOUTI</Text>
+          <Text style={styles.subtitle}>LE JEU DE CARTES MAROCAIN</Text>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
         </View>
 
@@ -73,15 +88,22 @@ export default function HomeScreen({ navigation }: Props) {
         <View style={{ paddingHorizontal: SPACING.lg, marginTop: SPACING.xl }}>
           <View style={styles.grid}>
             <ModeTile
+              fr="Solo"
+              sub="Contre 3 IA · hors-ligne"
+              accent={COLORS.brass}
+              icon="bolt"
+              onPress={() => navigation.navigate("Game", { mode: "local" })}
+            />
+            <ModeTile
               fr="Partie rapide"
-              sub="Solo · trouve 3 joueurs"
+              sub="En ligne · code ou pool"
               accent={COLORS.brassDeep}
               icon="bolt"
               onPress={() => navigation.navigate("QuickMatch")}
             />
             <ModeTile
-              fr="Avec des amis"
-              sub="Invite par code"
+              fr="Partie perso"
+              sub="Invite + bots si besoin"
               accent={COLORS.teal}
               icon="people"
               onPress={() => navigation.navigate("PrivateGame")}
@@ -92,6 +114,13 @@ export default function HomeScreen({ navigation }: Props) {
               accent="#8B4A7F"
               icon="trophy"
               onPress={() => navigation.navigate("TournamentHome")}
+            />
+            <ModeTile
+              fr="Mes ligues"
+              sub="Cercle de potes"
+              accent="#2E7A8C"
+              icon="people"
+              onPress={() => navigation.navigate("Leagues")}
             />
             <ModeTile
               fr="Score"
@@ -113,6 +142,13 @@ export default function HomeScreen({ navigation }: Props) {
               accent="#8B5A12"
               icon="history"
               onPress={() => navigation.navigate("MatchHistory")}
+            />
+            <ModeTile
+              fr="Classement"
+              sub="Leaderboard global"
+              accent={COLORS.brassDeep}
+              icon="trophy"
+              onPress={() => navigation.navigate("Leaderboard")}
             />
           </View>
         </View>
@@ -225,6 +261,27 @@ const styles = StyleSheet.create({
   },
   profile: { flexDirection: "row", alignItems: "center", gap: 10 },
   greeting: { color: COLORS.cream, fontFamily: FONT_UI_BOLD, fontSize: 15, fontWeight: "700" },
+  levelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
+  levelText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: COLORS.saffronSoft,
+    fontWeight: "700",
+  },
+  levelBarBg: {
+    height: 4,
+    width: 90,
+    borderRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    overflow: "hidden",
+  },
+  levelBarFill: { height: 4, backgroundColor: COLORS.saffron, borderRadius: 2 },
+  levelXp: {
+    fontFamily: FONT_UI,
+    fontSize: 9,
+    color: "rgba(245,235,214,0.55)",
+  },
   level: {
     color: "rgba(245,235,214,0.65)",
     fontSize: 10,
@@ -271,9 +328,9 @@ const styles = StyleSheet.create({
   hero: { alignItems: "center", marginTop: 20, gap: 6 },
   title: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 58,
+    fontSize: 72,
     color: COLORS.saffronSoft,
-    letterSpacing: 2,
+    letterSpacing: 4,
     fontWeight: "700",
     textShadowColor: "rgba(232,161,48,0.55)",
     textShadowOffset: { width: 0, height: 4 },

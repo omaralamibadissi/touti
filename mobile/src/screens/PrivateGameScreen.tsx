@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, Share, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, Share, ActivityIndicator, AppState } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -26,10 +26,29 @@ export default function PrivateGameScreen({ navigation }: Props) {
   const myUsername = useAuthStore((s) => s.user?.username) ?? "Player";
 
   const store = useNetGameStore();
-  const { room, connected, error, players, locked, roomCode } = store;
+  const { room, connected, connecting, error, players, locked, roomCode } = store;
 
-  // Pas d'auto-disconnect — le store est nettoyé explicitement via le bouton
-  // "Quitter" ou quand l'utilisateur fait Créer/Rejoindre une nouvelle partie.
+  // Au montage : tente un reconnect silencieux si on avait une session
+  // persistée (app killée). Sinon laisse le menu "Créer / Rejoindre".
+  useEffect(() => {
+    (async () => {
+      if (!room) {
+        const ok = await store.tryReconnect();
+        if (ok) setMode("lobby");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reconnect automatique quand l'app revient au foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", async (next) => {
+      if (next === "active" && !connected && !connecting) {
+        await store.tryReconnect();
+      }
+    });
+    return () => sub.remove();
+  }, [connected, connecting, store]);
 
   // Auto-navigation vers le jeu quand la partie démarre (locked → true)
   useEffect(() => {
@@ -59,7 +78,7 @@ export default function PrivateGameScreen({ navigation }: Props) {
     if (!roomCode) return;
     try {
       await Share.share({
-        message: `🃏 Rejoins ma partie Touti !\nCode : ${roomCode}\nDemarre l'app KbirKbir.`,
+        message: `🃏 Rejoins ma partie Touti !\nCode : ${roomCode}\nOuvre l'app Touti.`,
       });
     } catch {}
   };
@@ -86,8 +105,8 @@ export default function PrivateGameScreen({ navigation }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>PARTIE PRIVÉE</Text>
-          <Text style={styles.title}>Avec des amis</Text>
+          <Text style={styles.eyebrow}>PARTIE PERSO</Text>
+          <Text style={styles.title}>Personnalisée</Text>
         </View>
       </View>
 
@@ -95,7 +114,7 @@ export default function PrivateGameScreen({ navigation }: Props) {
         {mode === "menu" && (
           <View style={{ gap: 12 }}>
             <Text style={styles.intro}>
-              Joue en réseau avec 3 potes — partage un code à 4 lettres.
+              Crée une table sur-mesure : invite 1 à 3 potes par code, les sièges vides sont remplis par des bots si tu veux démarrer plus vite.
             </Text>
 
             <Pressable onPress={create} style={styles.bigBtn}>
@@ -154,10 +173,46 @@ export default function PrivateGameScreen({ navigation }: Props) {
 
         {mode === "lobby" && (
           <View style={{ gap: 14 }}>
-            {!connected && !error && (
+            {connecting && (
               <View style={styles.centerBlock}>
                 <ActivityIndicator color={COLORS.saffron} size="large" />
                 <Text style={styles.dim}>Connexion au serveur…</Text>
+              </View>
+            )}
+            {!connecting && !connected && !error && (
+              <View style={styles.centerBlock}>
+                <Text style={styles.dim}>
+                  Déconnecté du serveur{roomCode ? ` · code ${roomCode}` : ""}
+                </Text>
+                {roomCode && (
+                  <Pressable
+                    onPress={async () => {
+                      // Essaye d'abord un vrai reconnect (token), puis fallback
+                      // sur un joinOrCreate qui recrée une session dans la même room
+                      const ok = await store.tryReconnect();
+                      if (!ok) {
+                        await store.connectPrivate(roomCode, myUsername);
+                      }
+                    }}
+                    style={[styles.bigBtn, { marginTop: 14 }]}
+                  >
+                    <LinearGradient
+                      colors={[COLORS.saffron, COLORS.brassDeep]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <Text style={styles.bigBtnTitle}>Reconnecter</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={cancel}
+                  style={[styles.bigBtn, styles.bigBtnSecondary, { marginTop: 8 }]}
+                >
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>
+                    Retour au menu
+                  </Text>
+                </Pressable>
               </View>
             )}
 
@@ -197,10 +252,20 @@ export default function PrivateGameScreen({ navigation }: Props) {
                         connected={p?.connected}
                         ready={p?.ready}
                         isMe={p?.id === mySessionId}
+                        reserved={store.reservedSeat === seat}
+                        canReserve={isHost && !p}
+                        onReserve={() =>
+                          store.reserveSeat(store.reservedSeat === seat ? null : (seat as 0|1|2|3))
+                        }
                       />
                     );
                   })}
                 </View>
+                {isHost && store.reservedSeat !== null && (
+                  <Text style={styles.reservedHint}>
+                    Le prochain joueur qui rejoindra ira à la place {placeLabel(store.reservedSeat)}.
+                  </Text>
+                )}
 
                 {isHost ? (
                   <Pressable
@@ -240,25 +305,36 @@ export default function PrivateGameScreen({ navigation }: Props) {
 
 // ─── Sous-composants ──────────────────────────────────────────────
 
+function placeLabel(seat: number): string {
+  const team = seat % 2 === 0 ? "NOUS" : "EUX";
+  return `${team} (siège ${seat})`;
+}
+
 function PlayerSlot({
   seat,
   name,
   connected,
   ready,
   isMe,
+  reserved,
+  canReserve,
+  onReserve,
 }: {
   seat: number;
   name?: string;
   connected?: boolean;
   ready?: boolean;
   isMe?: boolean;
+  reserved?: boolean;
+  canReserve?: boolean;
+  onReserve?: () => void;
 }) {
   const team = (seat % 2) as 0 | 1;
   const teamColor = team === 0 ? COLORS.teal : "#C8551D";
   const teamLabel = team === 0 ? "NOUS" : "EUX";
 
   return (
-    <View style={styles.slotRow}>
+    <View style={[styles.slotRow, reserved && { borderColor: COLORS.saffron, borderWidth: 1 }]}>
       {name ? (
         <>
           <Avatar
@@ -284,9 +360,23 @@ function PlayerSlot({
         <>
           <View style={styles.emptyCircle} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.slotEmptyName}>En attente…</Text>
-            <Text style={[styles.slotTeam, { color: teamColor, opacity: 0.5 }]}>{teamLabel}</Text>
+            <Text style={styles.slotEmptyName}>
+              {reserved ? "Réservé pour prochain invité" : "En attente…"}
+            </Text>
+            <Text style={[styles.slotTeam, { color: teamColor, opacity: reserved ? 1 : 0.5 }]}>
+              {teamLabel}
+            </Text>
           </View>
+          {canReserve && onReserve && (
+            <Pressable
+              onPress={onReserve}
+              style={[styles.reserveBtn, reserved && styles.reserveBtnActive]}
+            >
+              <Text style={[styles.reserveBtnText, reserved && { color: COLORS.terracottaDark }]}>
+                {reserved ? "Annuler" : "Inviter ici"}
+              </Text>
+            </Pressable>
+          )}
         </>
       )}
     </View>
@@ -487,5 +577,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.5,
     fontWeight: "700",
+  },
+  reserveBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}66`,
+  },
+  reserveBtnActive: {
+    backgroundColor: COLORS.saffron,
+    borderColor: COLORS.saffron,
+  },
+  reserveBtnText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: COLORS.cream,
+    fontWeight: "700",
+  },
+  reservedHint: {
+    fontFamily: FONT_UI,
+    fontSize: 11,
+    color: COLORS.saffronSoft,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 6,
+    paddingHorizontal: 6,
   },
 });

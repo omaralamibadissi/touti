@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Animated, Easing, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, Animated, Easing, ScrollView, TextInput, Share, AppState } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -8,111 +8,93 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { StarBurst, ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useAuthStore } from "../store/authStore";
+import { useNetGameStore } from "../store/netGameStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuickMatch">;
 
-// Données mock d'amis (serait normalement depuis le serveur/store amis)
-const MOCK_FRIENDS: Friend[] = [
-  { id: "1", name: "Karim", online: true, color: COLORS.brass },
-  { id: "2", name: "Yasmine", online: true, color: "#8B4A7F" },
-  { id: "3", name: "Amine", online: true, color: COLORS.teal },
-  { id: "4", name: "Fatima", online: false, color: COLORS.terracotta },
-  { id: "5", name: "Rachid", online: true, color: COLORS.brassDeep },
-];
+type Mode = "menu" | "pool" | "create" | "join" | "lobby";
 
-interface Friend {
-  id: string;
-  name: string;
-  online: boolean;
-  color: string;
+function randomCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 4; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
 }
 
-interface Slot {
-  kind: "me" | "friend" | "empty" | "searching";
-  name?: string;
-  color?: string;
-}
+export default function QuickMatchScreen({ navigation, route }: Props) {
+  const myName = useAuthStore((s) => s.user?.username) ?? "Moi";
+  const store = useNetGameStore();
+  const { room, connected, connecting, error, players, locked, roomCode } = store;
 
-export default function QuickMatchScreen({ navigation }: Props) {
-  const user = useAuthStore((s) => s.user);
-  const myName = user?.username ?? "Moi";
-
-  // Slots : toi + 3 autres (par défaut vides)
-  const [slots, setSlots] = useState<Slot[]>([
-    { kind: "me", name: myName, color: COLORS.teal },
-    { kind: "empty" },
-    { kind: "empty" },
-    { kind: "empty" },
-  ]);
-  const [searching, setSearching] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState<number | null>(null); // index du slot à remplir
+  const prefilledCode = route.params?.code;
+  const [mode, setMode] = useState<Mode>(prefilledCode ? "lobby" : "menu");
+  const [typedCode, setTypedCode] = useState("");
   const [elapsed, setElapsed] = useState(0);
 
-  // Timer quand on cherche des joueurs
+  // Si un code est passé en params, on rejoint direct ce salon
   useEffect(() => {
-    if (!searching) return;
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
-  }, [searching]);
+    if (prefilledCode && prefilledCode.length === 4) {
+      store.connectQuickCode(prefilledCode, myName).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Simulation : trouve un random toutes les 3s, remplit les slots vides
+  // Chrono pendant la recherche / attente
   useEffect(() => {
-    if (!searching) return;
-    const emptyIdx = slots.findIndex((s) => s.kind === "empty" || s.kind === "searching");
-    if (emptyIdx === -1) {
-      // Tous les slots sont pleins → démarre la partie après un court délai
-      const t = setTimeout(() => {
-        navigation.replace("Game");
-      }, 800);
-      return () => clearTimeout(t);
-    }
-    // Marque le prochain slot vide comme "searching"
-    if (slots[emptyIdx].kind !== "searching") {
-      const next = [...slots];
-      next[emptyIdx] = { kind: "searching" };
-      setSlots(next);
-    }
-    // Après ~2-3s, remplace par un joueur random fictif
-    const t = setTimeout(() => {
-      const names = ["Mehdi", "Salma", "Youssef", "Nadia", "Omar", "Laila"];
-      const colors = ["#2E7A8C", "#B8791C", "#8B4A7F", "#C8551D"];
-      const next = [...slots];
-      next[emptyIdx] = {
-        kind: "friend",
-        name: names[Math.floor(Math.random() * names.length)],
-        color: colors[Math.floor(Math.random() * colors.length)],
-      };
-      setSlots(next);
-    }, 2200 + Math.random() * 800);
-    return () => clearTimeout(t);
-  }, [searching, slots, navigation]);
-
-  const inviteFriend = (idx: number, friend: Friend) => {
-    const next = [...slots];
-    next[idx] = { kind: "friend", name: friend.name, color: friend.color };
-    setSlots(next);
-    setPickerOpen(null);
-  };
-
-  const removeSlot = (idx: number) => {
-    if (searching) return;
-    const next = [...slots];
-    next[idx] = { kind: "empty" };
-    setSlots(next);
-  };
-
-  const startSearch = () => {
-    setSearching(true);
+    if (mode !== "pool" && mode !== "lobby") return;
+    const start = Date.now();
     setElapsed(0);
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [mode]);
+
+  // Navigation auto quand partie démarre (locked=true)
+  useEffect(() => {
+    if (locked) navigation.replace("Game", { mode: "net" });
+  }, [locked, navigation]);
+
+  // AppState reconnect
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", async (next) => {
+      if (next === "active" && !connected && !connecting) {
+        await store.tryReconnect();
+      }
+    });
+    return () => sub.remove();
+  }, [connected, connecting, store]);
+
+  const startPool = async () => {
+    setMode("pool");
+    await store.connectQuickMatch(myName);
   };
 
-  const cancelSearch = () => {
-    setSearching(false);
-    // Remet les slots "searching" en empty
-    setSlots(slots.map((s) => (s.kind === "searching" ? { kind: "empty" } : s)));
+  const createCodeRoom = async () => {
+    const code = randomCode();
+    setMode("lobby");
+    await store.connectQuickCode(code, myName);
   };
 
-  const invitedCount = slots.filter((s) => s.kind === "friend").length;
+  const joinCodeRoom = async () => {
+    if (typedCode.length !== 4) return;
+    setMode("lobby");
+    await store.connectQuickCode(typedCode, myName);
+  };
+
+  const cancel = async () => {
+    await store.disconnect();
+    setMode("menu");
+    setTypedCode("");
+  };
+
+  const share = async () => {
+    if (!roomCode) return;
+    try {
+      await Share.share({
+        message: `🃏 Rejoins ma Partie rapide Touti !\nCode : ${roomCode}\n\nApp Touti → Partie rapide → Rejoindre avec code.`,
+      });
+    } catch {}
+  };
+
   const timeLabel = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
 
   return (
@@ -126,276 +108,226 @@ export default function QuickMatchScreen({ navigation }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      {/* Header */}
       <View style={styles.topBar}>
-        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.backBtn} onPress={() => (mode === "menu" ? navigation.goBack() : cancel())}>
           <Svg width={14} height={14} viewBox="0 0 24 24">
             <Path d="M15 18l-6-6 6-6" stroke={COLORS.cream} strokeWidth={2.5} fill="none" strokeLinecap="round" />
           </Svg>
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
           <Text style={styles.eyebrow}>PARTIE RAPIDE</Text>
-          <Text style={styles.title}>{searching ? "Recherche…" : "Prépare ta table"}</Text>
+          <Text style={styles.title}>{titleForMode(mode)}</Text>
         </View>
         <View style={{ width: 38 }} />
       </View>
 
-      {/* Étoile centrale animée quand on cherche */}
-      {searching && (
-        <View pointerEvents="none" style={styles.starWrap}>
-          <SpinningStar size={280} color={COLORS.saffronSoft} stroke={0.8} duration={12000} />
-          <View style={{ position: "absolute", alignItems: "center", justifyContent: "center" }}>
-            <SpinningStar size={180} color={COLORS.brass} stroke={1} duration={18000} reverse opacity={0.5} />
-          </View>
-        </View>
-      )}
-
-      {/* Titre attente */}
-      {searching && (
-        <View style={styles.waitBlock}>
-          <Text style={styles.waitTitle}>On cherche ton équipe</Text>
-          <Text style={styles.waitSub}>{timeLabel}</Text>
-        </View>
-      )}
-
-      {/* Table : coéquipier en face, adversaires à gauche/droite, toi en bas */}
-      <View style={styles.tableWrap}>
-        <Text style={styles.sectionLabel}>
-          TABLE DE 4 · {invitedCount > 0 ? `${invitedCount} ami${invitedCount > 1 ? "s" : ""} invité${invitedCount > 1 ? "s" : ""}` : "solo"}
-        </Text>
-
-        <View style={styles.table}>
-          {/* Coéquipier (en face) */}
-          <View style={styles.seatTop}>
-            <Text style={styles.seatLabel}>COÉQUIPIER</Text>
-            <SlotCard
-              slot={slots[2]}
-              canEdit={!searching}
-              onInvite={() => setPickerOpen(2)}
-              onRemove={() => removeSlot(2)}
-              orientation="top"
-            />
-          </View>
-
-          {/* Adversaires gauche / droite */}
-          <View style={styles.seatsMiddle}>
-            <View style={styles.seatSide}>
-              <Text style={[styles.seatLabel, styles.seatLabelAdv]}>ADVERSAIRE</Text>
-              <SlotCard
-                slot={slots[1]}
-                canEdit={!searching}
-                onInvite={() => setPickerOpen(1)}
-                onRemove={() => removeSlot(1)}
-                orientation="side"
-              />
-            </View>
-
-            {/* Centre : ornement */}
-            <View style={styles.tableCenter}>
-              <View style={styles.vsLine} />
-              <Text style={styles.vsText}>VS</Text>
-              <View style={styles.vsLine} />
-            </View>
-
-            <View style={styles.seatSide}>
-              <Text style={[styles.seatLabel, styles.seatLabelAdv]}>ADVERSAIRE</Text>
-              <SlotCard
-                slot={slots[3]}
-                canEdit={!searching}
-                onInvite={() => setPickerOpen(3)}
-                onRemove={() => removeSlot(3)}
-                orientation="side"
-              />
-            </View>
-          </View>
-
-          {/* Toi en bas */}
-          <View style={styles.seatBottom}>
-            <SlotCard
-              slot={slots[0]}
-              canEdit={false}
-              onInvite={() => {}}
-              onRemove={() => {}}
-              orientation="bottom"
-            />
-            <Text style={styles.seatLabel}>VOUS</Text>
-          </View>
-        </View>
-
-        <Text style={styles.teamHint}>
-          <Text style={{ color: COLORS.teal }}>■ NOUS</Text>   ·   <Text style={{ color: "#C8551D" }}>■ EUX</Text>
-        </Text>
-      </View>
-
-      {/* Boutons */}
-      <View style={styles.actions}>
-        {!searching ? (
-          <Pressable onPress={startSearch} style={styles.ctaPrimary}>
-            <LinearGradient
-              colors={[COLORS.saffron, COLORS.brassDeep]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <Text style={styles.ctaPrimaryText}>
-              {invitedCount === 0 ? "Commencer la recherche" : "Lancer avec ces joueurs"}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        {mode === "menu" && (
+          <View style={{ gap: 12 }}>
+            <Text style={styles.intro}>
+              Joue en ligne — invite tes potes ou laisse le serveur trouver d'autres joueurs pour toi.
             </Text>
-            <Text style={styles.ctaPrimarySub}>
-              {invitedCount === 3
-                ? "4 joueurs invités"
-                : `${3 - invitedCount} joueur${3 - invitedCount > 1 ? "s" : ""} seront trouvés en ligne`}
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable onPress={cancelSearch} style={styles.ctaCancel}>
-            <Text style={styles.ctaCancelText}>Annuler la recherche</Text>
-          </Pressable>
-        )}
-      </View>
 
-      {/* Picker d'amis */}
-      {pickerOpen !== null && (
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Inviter un ami</Text>
-            <ScrollView style={{ maxHeight: 280 }}>
-              {MOCK_FRIENDS.filter(
-                (f) => !slots.find((s) => s.kind === "friend" && s.name === f.name),
-              ).map((f) => (
-                <Pressable
-                  key={f.id}
-                  onPress={() => inviteFriend(pickerOpen, f)}
-                  style={styles.friendItem}
-                >
-                  <Avatar initials={f.name[0]} size={34} color={f.color} online={f.online} />
-                  <Text style={styles.friendName}>{f.name}</Text>
-                  <Text style={[styles.friendStatus, { color: f.online ? COLORS.statusGreen : "rgba(245,235,214,0.4)" }]}>
-                    {f.online ? "En ligne" : "Hors ligne"}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <Pressable onPress={() => setPickerOpen(null)} style={styles.pickerClose}>
-              <Text style={styles.pickerCloseText}>Fermer</Text>
+            <Pressable onPress={createCodeRoom} style={styles.bigBtn}>
+              <LinearGradient
+                colors={[COLORS.saffron, COLORS.brassDeep]}
+                start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.bigBtnTitle}>Créer un salon</Text>
+              <Text style={styles.bigBtnSub}>Code à partager · attend 4 humains</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setMode("join")} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Rejoindre avec code</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>Entre le code d'un salon</Text>
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable onPress={startPool} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Chercher des joueurs aléatoires</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
+                Matchmaking public · le serveur te place avec 3 randoms
+              </Text>
             </Pressable>
           </View>
-        </View>
-      )}
+        )}
+
+        {mode === "join" && (
+          <View style={{ gap: 14 }}>
+            <View>
+              <Text style={styles.inputLabel}>CODE DU SALON</Text>
+              <TextInput
+                value={typedCode}
+                onChangeText={(t) => setTypedCode(t.toUpperCase().slice(0, 4))}
+                placeholder="AB12"
+                placeholderTextColor="rgba(245,235,214,0.3)"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={4}
+                style={[styles.input, { textAlign: "center", letterSpacing: 8, fontSize: 28 }]}
+              />
+              <Text style={styles.hint}>4 caractères exactement</Text>
+            </View>
+            <Pressable
+              onPress={joinCodeRoom}
+              disabled={typedCode.length !== 4}
+              style={[styles.bigBtn, typedCode.length !== 4 && { opacity: 0.4 }]}
+            >
+              <LinearGradient
+                colors={[COLORS.saffron, COLORS.brassDeep]}
+                start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.bigBtnTitle}>Rejoindre</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {(mode === "pool" || mode === "lobby") && (
+          <View style={{ gap: 16 }}>
+            {error ? (
+              <View style={styles.errorBlock}>
+                <Text style={styles.errorTitle}>Oups</Text>
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary, { marginTop: 12 }]}>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Retour</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                {/* Code share (lobby mode only) */}
+                {mode === "lobby" && roomCode && (
+                  <View style={styles.codeBlock}>
+                    <Text style={styles.codeLabel}>CODE DU SALON</Text>
+                    <Text style={styles.codeValue}>{roomCode}</Text>
+                    <Pressable onPress={share} style={styles.shareRow}>
+                      <Text style={styles.shareText}>↗ Partager</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                {/* Status */}
+                <View style={styles.statusBlock}>
+                  {connecting ? (
+                    <Text style={styles.statusTitle}>Connexion…</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.statusTitle}>
+                        {mode === "pool"
+                          ? `Recherche · ${players.length}/4`
+                          : `Salon · ${players.length}/4`}
+                      </Text>
+                      <Text style={styles.statusSub}>{timeLabel}</Text>
+                    </>
+                  )}
+                </View>
+
+                {/* Slots 2x2 */}
+                {(() => {
+                  const iAmHost = players.find((x) => x.seat === 0)?.id === room?.sessionId;
+                  return (
+                    <View style={styles.slotsGrid}>
+                      {[0, 1, 2, 3].map((seat) => {
+                        const p = players.find((x) => x.seat === seat);
+                        return (
+                          <SlotCard
+                            key={seat}
+                            seat={seat}
+                            name={p?.name}
+                            isMe={p?.id === room?.sessionId}
+                            reserved={store.reservedSeat === seat}
+                            canReserve={iAmHost && !p && mode === "lobby"}
+                            onReserve={() =>
+                              store.reserveSeat(
+                                store.reservedSeat === seat ? null : (seat as 0 | 1 | 2 | 3),
+                              )
+                            }
+                          />
+                        );
+                      })}
+                    </View>
+                  );
+                })()}
+
+                <Text style={styles.hint}>
+                  La partie démarre auto dès que les 4 sièges sont occupés par des humains.
+                </Text>
+
+                <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Annuler</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-// ─── Sous-composants ──────────────────────────────────────────────
-
-type Orientation = "top" | "bottom" | "side";
-
-function SlotCard({
-  slot,
-  canEdit,
-  onInvite,
-  onRemove,
-  orientation,
-}: {
-  slot: Slot;
-  canEdit: boolean;
-  onInvite: () => void;
-  onRemove: () => void;
-  orientation: Orientation;
-}) {
-  // Taille selon position — plus petit sur les côtés
-  const size = orientation === "side" ? 86 : 108;
-  const avatarSize = orientation === "side" ? 32 : 44;
-  const fontSize = orientation === "side" ? 11 : 13;
-
-  const base = [
-    styles.seatSlot,
-    { width: size, height: size, borderRadius: size / 2 },
-  ];
-
-  if (slot.kind === "me") {
-    return (
-      <View style={[base, styles.slotMe]}>
-        <Avatar initials={slot.name?.[0]?.toUpperCase() ?? "M"} size={avatarSize} color={slot.color ?? COLORS.teal} />
-        <Text style={[styles.seatName, { fontSize }]} numberOfLines={1}>{slot.name}</Text>
-      </View>
-    );
+function titleForMode(m: Mode): string {
+  switch (m) {
+    case "menu": return "En ligne";
+    case "pool": return "Recherche random…";
+    case "create":
+    case "lobby": return "Salon en attente";
+    case "join": return "Rejoindre un salon";
   }
-
-  if (slot.kind === "friend") {
-    return (
-      <View style={[base, { backgroundColor: `${slot.color}22`, borderColor: `${slot.color}88` }]}>
-        <Avatar initials={slot.name?.[0]?.toUpperCase() ?? "?"} size={avatarSize} color={slot.color ?? COLORS.brass} />
-        <Text style={[styles.seatName, { fontSize }]} numberOfLines={1}>{slot.name}</Text>
-        {canEdit && (
-          <Pressable onPress={onRemove} style={styles.removeBtn} hitSlop={6}>
-            <Text style={styles.removeBtnText}>×</Text>
-          </Pressable>
-        )}
-      </View>
-    );
-  }
-
-  if (slot.kind === "searching") {
-    return (
-      <View style={[base, styles.slotSearching]}>
-        <DashedPulse />
-        <Text style={[styles.searchingText, { fontSize: orientation === "side" ? 9 : 10 }]}>CHERCHE…</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={onInvite}
-      disabled={!canEdit}
-      style={[base, styles.slotEmpty, !canEdit && { opacity: 0.5 }]}
-    >
-      <View style={[styles.dashedAvatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
-        <Text style={[styles.plusText, { fontSize: avatarSize * 0.55 }]}>+</Text>
-      </View>
-      <Text style={[styles.slotInviteText, { fontSize: orientation === "side" ? 9 : 10 }]}>
-        {orientation === "side" ? "Inviter" : "Inviter un ami"}
-      </Text>
-    </Pressable>
-  );
 }
 
-function SpinningStar({
-  size,
-  color,
-  stroke,
-  duration,
-  reverse = false,
-  opacity = 1,
+function SlotCard({
+  seat,
+  name,
+  isMe,
+  reserved,
+  canReserve,
+  onReserve,
 }: {
-  size: number;
-  color: string;
-  stroke: number;
-  duration: number;
-  reverse?: boolean;
-  opacity?: number;
+  seat: number;
+  name?: string;
+  isMe?: boolean;
+  reserved?: boolean;
+  canReserve?: boolean;
+  onReserve?: () => void;
 }) {
-  const [anim] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(anim, {
-        toValue: 1,
-        duration,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
+  const team = seat % 2 === 0 ? "NOUS" : "EUX";
+  const teamColor = seat % 2 === 0 ? COLORS.teal : "#C8551D";
+  if (name) {
+    return (
+      <View style={[styles.slot, isMe ? styles.slotMe : styles.slotFilled]}>
+        <Avatar initials={name[0]?.toUpperCase() ?? "?"} size={36} color={isMe ? COLORS.teal : COLORS.brass} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.slotName} numberOfLines={1}>{name}</Text>
+          <Text style={[styles.slotTag, { color: teamColor }]}>{isMe ? "VOUS" : team}</Text>
+        </View>
+      </View>
     );
-    loop.start();
-    return () => loop.stop();
-  }, [anim, duration]);
-  const rotate = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: reverse ? ["360deg", "0deg"] : ["0deg", "360deg"],
-  });
+  }
   return (
-    <Animated.View style={{ transform: [{ rotate }], opacity }}>
-      <StarBurst size={size} color={color} strokeW={stroke} />
-    </Animated.View>
+    <View
+      style={[
+        styles.slot,
+        styles.slotEmpty,
+        reserved && { borderColor: COLORS.saffron, borderWidth: 2, borderStyle: "solid" },
+      ]}
+    >
+      <DashedPulse />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.slotEmptyText} numberOfLines={1}>
+          {reserved ? "Réservé" : "Vide"}
+        </Text>
+        <Text style={[styles.slotTag, { color: teamColor, opacity: reserved ? 1 : 0.6 }]}>{team}</Text>
+      </View>
+      {canReserve && onReserve && (
+        <Pressable onPress={onReserve} style={styles.reserveMini}>
+          <Text style={[styles.reserveMiniText, reserved && { color: COLORS.saffronSoft }]}>
+            {reserved ? "×" : "+"}
+          </Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -426,17 +358,11 @@ function DashedPulse() {
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
-
   topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    flexDirection: "row", alignItems: "center",
+    paddingTop: 60, paddingHorizontal: 16, paddingBottom: 8,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 12,
@@ -444,262 +370,144 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: `${COLORS.brass}55`,
     alignItems: "center", justifyContent: "center",
   },
-  eyebrow: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 10, letterSpacing: 3,
+  eyebrow: { fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 3, color: COLORS.brass, fontWeight: "700" },
+  title: { fontFamily: FONT_DISPLAY, fontSize: 22, color: COLORS.cream, fontWeight: "700", marginTop: 2 },
+
+  intro: {
+    fontFamily: FONT_UI, fontSize: 14,
+    color: "rgba(245,235,214,0.75)", lineHeight: 20, marginBottom: 4,
+  },
+  divider: {
+    height: 0.5, backgroundColor: "rgba(245,235,214,0.15)", marginVertical: 4,
+  },
+
+  bigBtn: {
+    paddingVertical: 18, paddingHorizontal: 20,
+    borderRadius: 16, alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
+    shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }, elevation: 6,
+  },
+  bigBtnSecondary: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}55`,
+  },
+  bigBtnTitle: {
+    fontFamily: FONT_UI_BOLD, fontSize: 16, fontWeight: "800",
+    color: COLORS.terracottaDark, letterSpacing: 0.3,
+  },
+  bigBtnSub: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(43,24,16,0.75)", marginTop: 4,
+    letterSpacing: 1, fontWeight: "700", fontStyle: "italic",
+  },
+
+  inputLabel: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 3,
+    color: COLORS.brass, fontWeight: "700", marginBottom: 6,
+  },
+  input: {
+    marginTop: 4,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 1, borderColor: `${COLORS.brass}77`,
+    borderRadius: 16, paddingVertical: 16,
+    fontFamily: FONT_DISPLAY, fontWeight: "700",
+    color: COLORS.cream,
+  },
+  hint: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(245,235,214,0.6)", fontStyle: "italic",
+    textAlign: "center", marginTop: 8, lineHeight: 16,
+  },
+
+  codeBlock: {
+    padding: 16, backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 14, borderWidth: 0.5, borderColor: `${COLORS.brass}55`,
+    alignItems: "center",
+  },
+  codeLabel: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 3,
     color: COLORS.brass, fontWeight: "700",
   },
-  title: {
-    fontFamily: FONT_DISPLAY,
-    fontSize: 24, color: COLORS.cream,
-    fontWeight: "700", marginTop: 2,
+  codeValue: {
+    fontFamily: FONT_DISPLAY, fontSize: 44,
+    color: COLORS.saffronSoft, fontWeight: "700",
+    letterSpacing: 8, marginTop: 8,
+  },
+  shareRow: {
+    marginTop: 10, paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 10, backgroundColor: `${COLORS.brass}33`,
+  },
+  shareText: {
+    color: COLORS.saffronSoft, fontFamily: FONT_UI_BOLD,
+    fontWeight: "700", fontSize: 12, letterSpacing: 1,
   },
 
-  starWrap: {
-    position: "absolute",
-    top: "22%",
-    left: 0, right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    opacity: 0.25,
-  },
-
-  waitBlock: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  waitTitle: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 20, fontWeight: "700",
+  statusBlock: { alignItems: "center", paddingVertical: 4 },
+  statusTitle: {
+    fontFamily: FONT_UI_BOLD, fontSize: 18, fontWeight: "700",
     color: COLORS.saffronSoft,
   },
-  waitSub: {
-    fontFamily: FONT_UI,
-    fontSize: 14,
-    color: "rgba(245,235,214,0.7)",
-    marginTop: 4,
-    letterSpacing: 2,
-    fontStyle: "italic",
+  statusSub: {
+    fontFamily: FONT_UI, fontSize: 13,
+    color: "rgba(245,235,214,0.7)", marginTop: 4, letterSpacing: 2, fontStyle: "italic",
   },
 
-  tableWrap: {
-    marginTop: 28,
-    paddingHorizontal: 16,
-    alignItems: "center",
-  },
-  sectionLabel: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 10, letterSpacing: 2,
-    color: "rgba(245,235,214,0.75)",
-    fontWeight: "700",
-    marginBottom: 18,
-    textAlign: "center",
-  },
-  table: {
-    width: "100%",
-    alignItems: "center",
-    gap: 14,
-  },
-  seatTop: { alignItems: "center", gap: 6 },
-  seatBottom: { alignItems: "center", gap: 6 },
-  seatsMiddle: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    paddingHorizontal: 4,
-  },
-  seatSide: { alignItems: "center", gap: 6 },
-  seatLabel: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 9, letterSpacing: 2,
-    color: COLORS.teal,
-    fontWeight: "700",
-  },
-  seatLabelAdv: {
-    color: "#E8553A",
-  },
-  seatSlot: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
+  slotsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  slot: {
+    width: "48%",
+    flexDirection: "row", alignItems: "center", gap: 10,
+    padding: 10, borderRadius: 14, borderWidth: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
-    borderWidth: 1,
     borderColor: "rgba(245,235,214,0.15)",
-    padding: 6,
-    position: "relative",
+    minHeight: 62,
   },
   slotMe: {
     backgroundColor: `${COLORS.teal}33`,
-    borderColor: `${COLORS.teal}AA`,
-    borderWidth: 2,
+    borderColor: `${COLORS.teal}AA`, borderWidth: 2,
+  },
+  slotFilled: {
+    backgroundColor: `${COLORS.brass}22`,
+    borderColor: `${COLORS.brass}66`,
   },
   slotEmpty: {
-    borderStyle: "dashed",
-    backgroundColor: "rgba(0,0,0,0.2)",
+    borderStyle: "dashed", backgroundColor: "rgba(0,0,0,0.2)",
   },
-  slotSearching: {
-    backgroundColor: `${COLORS.brassDeep}33`,
-    borderColor: `${COLORS.brass}88`,
-  },
-  seatName: {
-    fontFamily: FONT_UI_BOLD,
-    fontWeight: "700",
+  slotName: {
+    fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700",
     color: COLORS.cream,
-    marginTop: 2,
-    maxWidth: "90%",
-    textAlign: "center",
   },
-  dashedAvatar: {
-    borderWidth: 1.5, borderStyle: "dashed",
-    borderColor: "rgba(245,235,214,0.4)",
-    alignItems: "center", justifyContent: "center",
+  slotTag: {
+    fontSize: 9, letterSpacing: 1.5,
+    color: COLORS.saffronSoft, fontWeight: "700",
+    marginTop: 2, fontFamily: FONT_UI_BOLD,
   },
-  plusText: {
-    fontWeight: "300",
-    color: "rgba(245,235,214,0.5)",
-    lineHeight: 24,
+  slotEmptyText: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(245,235,214,0.5)", fontStyle: "italic",
   },
-  slotInviteText: {
-    fontFamily: FONT_UI,
-    color: "rgba(245,235,214,0.65)",
-    fontStyle: "italic",
-  },
-  searchingText: {
-    fontFamily: FONT_UI_BOLD,
-    fontWeight: "700",
-    color: COLORS.saffronSoft,
-    letterSpacing: 1,
-  },
-  tableCenter: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    gap: 4,
-  },
-  vsLine: {
-    width: 24, height: 1,
-    backgroundColor: `${COLORS.brass}77`,
-  },
-  vsText: {
-    fontFamily: FONT_DISPLAY,
-    fontSize: 16, fontWeight: "700",
-    color: COLORS.saffronSoft,
-    letterSpacing: 2,
-  },
-  teamHint: {
-    marginTop: 16,
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 10, letterSpacing: 1.5,
-    color: "rgba(245,235,214,0.65)",
-  },
-  removeBtn: {
+  reserveMini: {
     width: 24, height: 24, borderRadius: 12,
-    backgroundColor: "rgba(200,70,45,0.25)",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}55`,
     alignItems: "center", justifyContent: "center",
   },
-  removeBtnText: {
-    fontSize: 16, lineHeight: 18,
-    color: "#E8553A", fontWeight: "700",
+  reserveMiniText: {
+    color: COLORS.cream, fontSize: 14, fontWeight: "700",
   },
 
-  actions: {
-    position: "absolute",
-    bottom: 32,
-    left: 16, right: 16,
-    gap: 10,
-  },
-  ctaPrimary: {
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  ctaPrimaryText: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 17, fontWeight: "800",
-    color: COLORS.terracottaDark,
-    letterSpacing: 0.3,
-  },
-  ctaPrimarySub: {
-    fontFamily: FONT_UI,
-    fontSize: 11,
-    color: "rgba(43,24,16,0.75)",
-    letterSpacing: 1,
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  ctaCancel: {
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    borderWidth: 0.5,
-    borderColor: "rgba(232,85,58,0.5)",
+  errorBlock: {
+    padding: 20, backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 14, borderWidth: 0.5, borderColor: "rgba(232,85,58,0.6)",
     alignItems: "center",
   },
-  ctaCancelText: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 14, fontWeight: "700",
+  errorTitle: {
+    fontFamily: FONT_UI_BOLD, fontSize: 16, fontWeight: "800",
     color: "#E8553A",
   },
-
-  pickerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.65)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    zIndex: 100,
-  },
-  pickerCard: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: "#140b06",
-    borderWidth: 0.5,
-    borderColor: `${COLORS.brass}77`,
-    borderRadius: 18,
-    padding: 20,
-  },
-  pickerTitle: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 17, fontWeight: "800",
-    color: COLORS.saffronSoft,
-    marginBottom: 14,
-  },
-  friendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
-  friendName: {
-    flex: 1,
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 14, fontWeight: "700",
-    color: COLORS.cream,
-  },
-  friendStatus: {
-    fontSize: 10, letterSpacing: 1,
-    fontWeight: "700",
-    fontFamily: FONT_UI_BOLD,
-  },
-  pickerClose: {
-    marginTop: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 12,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  pickerCloseText: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 13, fontWeight: "700",
-    color: COLORS.cream,
+  errorText: {
+    fontFamily: FONT_UI, fontSize: 13,
+    color: COLORS.cream, textAlign: "center",
+    marginTop: 8, lineHeight: 18,
   },
 });

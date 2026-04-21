@@ -19,5 +19,8 @@ export class GameState extends Schema {
   @type("string") phase: "lobby" | "in-game" | "finished" = "lobby";
   @type("string") roomCode = "";
   @type({ map: PlayerSchema }) players = new MapSchema<PlayerSchema>();
-  @type("boolean") locked = false; // true = partie démarrée, plus de join
+  @type("boolean") locked = false;          // true = partie démarrée, plus de join
+  @type("number") reservedSeat: -1 | 0 | 1 | 2 | 3 = -1;
+  // Siège réservé par l'host pour le prochain joueur invité.
+  // -1 = pas de réservation ; le prochain joueur prend le 1er siège libre.
 }

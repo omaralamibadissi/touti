@@ -1,0 +1,408 @@
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../App";
+import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
+import { ZelligeBg } from "../components/Patterns";
+import { Avatar } from "../components/Avatar";
+import { useMatchHistoryStore } from "../store/matchHistoryStore";
+import { useLeagueStore } from "../store/leagueStore";
+import { useFriendsStore } from "../store/friendsStore";
+import { useAuthStore } from "../store/authStore";
+import {
+  computeIndividualRanking,
+  computePairRanking,
+  computeLeagueRanking,
+  computeFriendsRanking,
+  type PlayerStat,
+  type PairStat,
+} from "../lib/leaderboard";
+
+type Props = NativeStackScreenProps<RootStackParamList, "Leaderboard">;
+
+type Scope = "league" | "friends" | "global";
+type Sub = "indiv" | "pairs";
+
+export default function LeaderboardScreen({ navigation, route }: Props) {
+  const initialScope: Scope = route.params?.scope ?? "global";
+  const initialSub: Sub = route.params?.sub ?? "indiv";
+  const [scope, setScope] = useState<Scope>(initialScope);
+  const [sub, setSub] = useState<Sub>(initialSub);
+
+  const matches = useMatchHistoryStore((s) => s.matches);
+  const myName = useAuthStore((s) => s.user?.username) ?? "Joueur";
+
+  const leagues = useLeagueStore((s) => s.leagues);
+  const activeLeagueId = useLeagueStore((s) => s.activeLeagueId);
+  const activeLeague = leagues.find((l) => l.id === activeLeagueId) || leagues[0];
+
+  const friends = useFriendsStore((s) => s.friends);
+
+  // Calculs ────────────────────────────────────────────────────────
+  const globalIndiv = useMemo(() => computeIndividualRanking(matches), [matches]);
+  const globalPairs = useMemo(() => computePairRanking(matches), [matches]);
+
+  const friendsRanking = useMemo(
+    () => computeFriendsRanking(matches, friends.map((f) => f.name), myName),
+    [matches, friends, myName],
+  );
+
+  const leagueRanking = useMemo(
+    () => (activeLeague ? computeLeagueRanking(matches, activeLeague) : null),
+    [matches, activeLeague],
+  );
+
+  const handleNamePress = (name: string) => {
+    if (name === myName) {
+      navigation.navigate("Profile");
+    } else {
+      navigation.navigate("PlayerProfile", { name });
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      <LinearGradient colors={["#1a2840", "#0a1428", "#05060c"]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { opacity: 0.08 }]} pointerEvents="none">
+        <ZelligeBg color="#1a2840" accent={COLORS.saffronSoft} size={70} />
+      </View>
+
+      <View style={styles.topBar}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
+          <Text style={styles.iconBtnText}>←</Text>
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eyebrow}>CLASSEMENT</Text>
+          <Text style={styles.title}>Leaderboard</Text>
+        </View>
+      </View>
+
+      {/* Scope tabs (Ligue / Amis / Général) */}
+      <View style={styles.scopeTabs}>
+        <ScopeBtn label="Ligue" active={scope === "league"} onPress={() => setScope("league")} />
+        <ScopeBtn label="Amis" active={scope === "friends"} onPress={() => setScope("friends")} />
+        <ScopeBtn label="Général" active={scope === "global"} onPress={() => setScope("global")} />
+      </View>
+
+      {/* Sub tabs (Individuel / Paires) */}
+      <View style={styles.subTabs}>
+        <SubBtn label="Individuel" active={sub === "indiv"} onPress={() => setSub("indiv")} />
+        <SubBtn label="Paires" active={sub === "pairs"} onPress={() => setSub("pairs")} />
+      </View>
+
+      <View style={styles.disclaimer}>
+        <Text style={styles.disclaimerText}>
+          Seules les parties à <Text style={{ color: COLORS.saffronSoft, fontWeight: "700" }}>4 vrais joueurs</Text> comptent. Les parties contre IA n'apportent pas de points.
+        </Text>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        {scope === "global" && (
+          sub === "indiv" ? (
+            <IndivList list={globalIndiv} onPress={handleNamePress} myName={myName} />
+          ) : (
+            <PairsList list={globalPairs} onPress={handleNamePress} />
+          )
+        )}
+
+        {scope === "friends" && (
+          friends.length === 0 ? (
+            <Empty
+              title="Pas d'amis ajoutés"
+              sub="Va dans Social pour ajouter tes potes."
+              cta="Aller dans Social"
+              onPress={() => navigation.navigate("Social")}
+            />
+          ) : sub === "indiv" ? (
+            <IndivList list={friendsRanking.individual} onPress={handleNamePress} myName={myName} />
+          ) : (
+            <PairsList list={friendsRanking.pairs} onPress={handleNamePress} />
+          )
+        )}
+
+        {scope === "league" && (
+          !activeLeague ? (
+            <Empty
+              title="Tu n'es dans aucune ligue"
+              sub="Crée ou rejoins une ligue pour voir un classement filtré."
+              cta="Mes ligues"
+              onPress={() => navigation.navigate("Leagues")}
+            />
+          ) : (
+            <View style={{ gap: 14 }}>
+              <View style={[styles.leagueHeader, { backgroundColor: `${activeLeague.color || COLORS.teal}22`, borderColor: `${activeLeague.color || COLORS.teal}77` }]}>
+                <Text style={styles.leagueHeaderName}>{activeLeague.name}</Text>
+                <Text style={styles.leagueHeaderSub}>
+                  {activeLeague.members.length} membres · ligue active
+                </Text>
+              </View>
+              {sub === "indiv" ? (
+                leagueRanking && leagueRanking.individual.length > 0 ? (
+                  <IndivList list={leagueRanking.individual} onPress={handleNamePress} myName={myName} />
+                ) : (
+                  <Empty title="Aucune partie de ligue jouée" sub="Joue avec des membres de la ligue (4 humains) pour les voir ici." />
+                )
+              ) : (
+                leagueRanking && leagueRanking.pairs.length > 0 ? (
+                  <PairsList list={leagueRanking.pairs} onPress={handleNamePress} />
+                ) : (
+                  <Empty title="Aucune paire de ligue" sub="Aucune paire d'humains de ta ligue encore enregistrée." />
+                )
+              )}
+            </View>
+          )
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Sous-composants ──────────────────────────────────────────────
+
+function ScopeBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.scopeBtn, active && styles.scopeBtnActive]}>
+      <Text style={[styles.scopeText, active && styles.scopeTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function SubBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.subBtn, active && styles.subBtnActive]}>
+      <Text style={[styles.subText, active && styles.subTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function IndivList({
+  list,
+  onPress,
+  myName,
+}: {
+  list: PlayerStat[];
+  onPress: (name: string) => void;
+  myName: string;
+}) {
+  if (list.length === 0) {
+    return <Empty title="Pas encore de classement" sub="Joue des parties à 4 humains pour voir des scores ici." />;
+  }
+  return (
+    <View style={{ gap: 6 }}>
+      {list.map((p, i) => (
+        <Pressable key={p.name} onPress={() => onPress(p.name)} style={[styles.row, p.name === myName && styles.rowMe]}>
+          {p.name === myName && (
+            <LinearGradient
+              colors={[`${COLORS.brassDeep}55`, `${COLORS.brassDeep}11`]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
+          <Text style={[styles.rank, i < 3 && styles.rankTop, p.name === myName && { color: COLORS.saffronSoft }]}>
+            {i + 1}
+          </Text>
+          <Avatar initials={p.name[0]?.toUpperCase() ?? "?"} size={34} color={COLORS.teal} ring={p.name === myName} />
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+              <Text style={styles.rowName}>{p.name}</Text>
+              {p.name === myName && <Text style={styles.youTag}>VOUS</Text>}
+            </View>
+            <Text style={styles.rowMeta}>
+              {p.games}p · {p.wins}V · {p.ratio}% · {p.pointsFor}pts
+            </Text>
+          </View>
+          <Text style={styles.rowScore}>{p.wins}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function PairsList({
+  list,
+  onPress,
+}: {
+  list: PairStat[];
+  onPress: (name: string) => void;
+}) {
+  if (list.length === 0) {
+    return <Empty title="Pas encore de paires" sub="Joue plusieurs parties avec les mêmes coéquipiers pour les voir ici." />;
+  }
+  return (
+    <View style={{ gap: 6 }}>
+      {list.map((p, i) => (
+        <View key={p.key} style={styles.row}>
+          <Text style={[styles.rank, i < 3 && styles.rankTop]}>{i + 1}</Text>
+          <View style={styles.pairAvatars}>
+            <Pressable onPress={() => onPress(p.names[0])}>
+              <Avatar initials={p.names[0][0]?.toUpperCase() ?? "?"} size={30} color={COLORS.teal} ring={false} />
+            </Pressable>
+            <Pressable onPress={() => onPress(p.names[1])} style={{ marginLeft: -10 }}>
+              <Avatar initials={p.names[1][0]?.toUpperCase() ?? "?"} size={30} color={COLORS.brass} ring={false} />
+            </Pressable>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowName}>
+              {p.names[0]} & {p.names[1]}
+            </Text>
+            <Text style={styles.rowMeta}>
+              {p.games}p · {p.wins}V / {p.losses}D · {p.ratio}%
+            </Text>
+          </View>
+          <Text style={styles.rowScore}>{p.wins}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Empty({
+  title,
+  sub,
+  cta,
+  onPress,
+}: {
+  title: string;
+  sub: string;
+  cta?: string;
+  onPress?: () => void;
+}) {
+  return (
+    <View style={styles.emptyBox}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyText}>{sub}</Text>
+      {cta && onPress && (
+        <Pressable onPress={onPress} style={styles.emptyCta}>
+          <LinearGradient
+            colors={[COLORS.saffron, COLORS.brassDeep]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <Text style={styles.emptyCtaText}>{cta}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  topBar: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingTop: 60, paddingHorizontal: 16, paddingBottom: 8,
+  },
+  iconBtn: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}44`,
+    alignItems: "center", justifyContent: "center",
+  },
+  iconBtnText: { color: COLORS.cream, fontSize: 18, fontWeight: "700", fontFamily: FONT_UI_BOLD },
+  eyebrow: { fontFamily: FONT_UI_BOLD, fontSize: 11, letterSpacing: 3, color: COLORS.brass, fontWeight: "700" },
+  title: { fontFamily: FONT_DISPLAY, fontSize: 28, color: COLORS.cream, fontWeight: "700", marginTop: 2 },
+
+  scopeTabs: {
+    flexDirection: "row", gap: 6,
+    paddingHorizontal: 16, marginTop: 6,
+  },
+  scopeBtn: {
+    flex: 1,
+    paddingVertical: 10, borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center",
+    borderWidth: 0.5, borderColor: "rgba(212,160,76,0.3)",
+  },
+  scopeBtnActive: {
+    backgroundColor: COLORS.saffron,
+    borderColor: COLORS.saffron,
+  },
+  scopeText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 12, fontWeight: "700",
+    color: COLORS.cream, letterSpacing: 0.5,
+  },
+  scopeTextActive: { color: COLORS.terracottaDark },
+
+  subTabs: {
+    flexDirection: "row", gap: 6,
+    paddingHorizontal: 16, marginTop: 6,
+  },
+  subBtn: {
+    flex: 1,
+    paddingVertical: 8, borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    alignItems: "center",
+    borderWidth: 0.5, borderColor: "rgba(245,235,214,0.1)",
+  },
+  subBtnActive: {
+    backgroundColor: `${COLORS.brassDeep}55`,
+    borderColor: COLORS.brass,
+  },
+  subText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 11, fontWeight: "700",
+    color: "rgba(245,235,214,0.65)", letterSpacing: 0.5,
+  },
+  subTextActive: { color: COLORS.cream },
+
+  disclaimer: {
+    marginHorizontal: 16, marginTop: 8, marginBottom: 4,
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderRadius: 8,
+    borderLeftWidth: 2, borderLeftColor: COLORS.saffron,
+  },
+  disclaimerText: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(245,235,214,0.7)",
+    fontStyle: "italic", lineHeight: 16,
+  },
+
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 10,
+    borderWidth: 0.5, borderColor: "rgba(245,235,214,0.1)",
+    overflow: "hidden",
+  },
+  rowMe: { borderColor: COLORS.brass },
+  rank: {
+    fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: "700",
+    color: "rgba(245,235,214,0.5)", width: 24, textAlign: "center",
+  },
+  rankTop: { color: COLORS.saffronSoft },
+  rowName: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: COLORS.cream },
+  youTag: { fontSize: 9, color: COLORS.brass, letterSpacing: 1, fontFamily: FONT_UI_BOLD, fontWeight: "700" },
+  rowMeta: { fontFamily: FONT_UI, fontSize: 10, color: "rgba(245,235,214,0.55)", marginTop: 2 },
+  rowScore: { fontFamily: FONT_DISPLAY, fontSize: 20, fontWeight: "700", color: COLORS.saffronSoft },
+  pairAvatars: { flexDirection: "row" },
+
+  emptyBox: {
+    padding: 22, gap: 10,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderRadius: 12,
+    borderWidth: 0.5, borderColor: "rgba(245,235,214,0.1)",
+    alignItems: "center",
+  },
+  emptyTitle: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: COLORS.cream },
+  emptyText: { fontFamily: FONT_UI, fontSize: 12, color: "rgba(245,235,214,0.6)", textAlign: "center", lineHeight: 18 },
+  emptyCta: {
+    marginTop: 6,
+    paddingVertical: 10, paddingHorizontal: 20,
+    borderRadius: 10, overflow: "hidden",
+  },
+  emptyCtaText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "800",
+    color: COLORS.terracottaDark,
+  },
+
+  leagueHeader: {
+    padding: 14, borderRadius: 12, borderWidth: 0.5,
+  },
+  leagueHeaderName: { fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: "700", color: COLORS.cream },
+  leagueHeaderSub: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(245,235,214,0.6)", marginTop: 4, fontStyle: "italic",
+  },
+});

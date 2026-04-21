@@ -18,6 +18,19 @@ export async function joinPrivateRoom(opts: PrivateRoomOpts): Promise<Room> {
   });
 }
 
+/** Matchmaking public : rejoint la première room quick dispo, ou en crée une. */
+export async function joinQuickRoom(opts: { name: string }): Promise<Room> {
+  return colyClient.joinOrCreate("touti_quick", { name: opts.name });
+}
+
+/** Partie rapide avec code d'invitation : amis rejoignent via code, auto-start à 4 humains. */
+export async function joinQuickCodeRoom(opts: { code: string; name: string }): Promise<Room> {
+  return colyClient.joinOrCreate("touti_quick_code", {
+    code: opts.code.toUpperCase(),
+    name: opts.name,
+  });
+}
+
 /** Reconnecte à une room après coupure (token obtenu via room.reconnectionToken). */
 export async function reconnect(token: string): Promise<Room> {
   return colyClient.reconnect(token);

@@ -41,12 +41,21 @@ export class GameRoom extends Room<GameState> {
   // Mapping siège → identifiant du joueur : sessionId humain, "AI", ou null (vide)
   private seatOwners: (string | "AI" | null)[] = [null, null, null, null];
 
-  onCreate(options: { code?: string } = {}) {
+  // Mode de la room : "private" = code + host démarre manuellement,
+  // "quick" = matchmaking public, auto-start dès qu'on a 4 clients
+  private roomMode: "private" | "quick" = "private";
+
+  onCreate(options: { code?: string; mode?: "private" | "quick" } = {}) {
     this.setState(new GameState());
+    // Le mode est inféré du nom de la room ou surchargé par options.mode
+    const quickByName =
+      this.roomName === "touti_quick" || this.roomName === "touti_quick_code";
+    this.roomMode = options.mode === "quick" || quickByName ? "quick" : "private";
     const code = (options.code || "").toUpperCase().trim() || this.makeCode();
     this.state.roomCode = code;
-    this.setMetadata({ code });
-    this.setPrivate(true); // ne pas apparaître dans les listings publics
+    this.setMetadata({ code, mode: this.roomMode });
+    // NB: on n'utilise PAS setPrivate(true) — Colyseus exclut les rooms privées
+    // de joinOrCreate, du coup les invités ne retrouveraient jamais la room.
 
     this.onMessage("ready", (client) => {
       const p = this.state.players.get(client.sessionId);
@@ -103,39 +112,70 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.onMessage("ghna.announce", (client, msg: { suit: Suit }) => {
-      this.requireGame();
-      const seat = this.seatOfClient(client);
-      if (seat == null || !this.engineState) return;
-      this.engineState = announceGhna(this.engineState, seat, msg.suit);
-      this.afterMutation();
+      try {
+        this.requireGame();
+        const seat = this.seatOfClient(client);
+        if (seat == null || !this.engineState) return;
+        this.engineState = announceGhna(this.engineState, seat, msg.suit);
+        this.afterMutation();
+      } catch (e: any) {
+        client.send("error", { reason: e?.message ?? "ghna failed" });
+      }
     });
 
     this.onMessage("ghna.dismiss", (client) => {
-      this.requireGame();
-      const seat = this.seatOfClient(client);
-      if (seat == null || !this.engineState) return;
-      this.engineState = dismissGhna(this.engineState);
-      this.afterMutation();
+      try {
+        this.requireGame();
+        const seat = this.seatOfClient(client);
+        if (seat == null || !this.engineState) return;
+        this.engineState = dismissGhna(this.engineState);
+        this.afterMutation();
+      } catch (e: any) {
+        client.send("error", { reason: e?.message ?? "ghna dismiss failed" });
+      }
     });
 
     this.onMessage("nextTrick", (client) => {
-      this.requireGame();
-      if (!this.engineState) return;
-      // Anybody can advance from trick-end — safer than relying on a single player
-      if (this.engineState.phase === "trick-end") {
-        this.engineState = nextTrick(this.engineState);
-        this.afterMutation();
+      try {
+        this.requireGame();
+        if (!this.engineState) return;
+        if (this.engineState.phase === "trick-end") {
+          this.engineState = nextTrick(this.engineState);
+          this.afterMutation();
+        }
+      } catch (e: any) {
+        client.send("error", { reason: e?.message ?? "nextTrick failed" });
       }
     });
 
     this.onMessage("nextRound", (client) => {
-      this.requireGame();
-      if (!this.engineState) return;
-      // endRound est auto-appliqué dans afterMutation ; ici on avance juste
-      if (this.engineState.phase === "round-end") {
-        this.engineState = startNextRound(this.engineState);
-        this.afterMutation();
+      try {
+        this.requireGame();
+        if (!this.engineState) return;
+        if (this.engineState.phase === "round-end") {
+          this.engineState = startNextRound(this.engineState);
+          this.afterMutation();
+        }
+      } catch (e: any) {
+        client.send("error", { reason: e?.message ?? "nextRound failed" });
       }
+    });
+
+    this.onMessage("reserveSeat", (client, msg: { seat: -1 | 0 | 1 | 2 | 3 }) => {
+      // Seul l'host (premier joueur = siège 0) peut réserver un siège pour
+      // le prochain invité. -1 = annule la réservation.
+      const hostId = this.seatOwners[0];
+      if (hostId !== client.sessionId) return;
+      const seat = msg?.seat;
+      if (seat == null) return;
+      if (seat === -1) {
+        this.state.reservedSeat = -1;
+        return;
+      }
+      if (seat < 0 || seat > 3) return;
+      // On ne peut pas réserver un siège déjà occupé
+      if (this.seatOwners[seat] != null) return;
+      this.state.reservedSeat = seat;
     });
 
     this.onMessage("chat", (client, msg: { text: string }) => {
@@ -155,7 +195,17 @@ export class GameRoom extends Room<GameState> {
       throw new Error("Game already started");
     }
 
-    const seat = this.nextFreeSeat();
+    // Priorité : siège réservé par l'host si disponible, sinon 1er libre
+    let seat: 0 | 1 | 2 | 3 | null;
+    if (
+      this.state.reservedSeat !== -1 &&
+      this.seatOwners[this.state.reservedSeat] == null
+    ) {
+      seat = this.state.reservedSeat;
+      this.state.reservedSeat = -1; // une fois consommé, on reset
+    } else {
+      seat = this.nextFreeSeat();
+    }
     if (seat === null) throw new Error("Room is full");
 
     const p = new PlayerSchema();
@@ -167,6 +217,11 @@ export class GameRoom extends Room<GameState> {
     p.isAi = false;
     this.state.players.set(client.sessionId, p);
     this.seatOwners[seat] = client.sessionId;
+
+    // En mode quick : dès qu'on a 4 joueurs, on lance la partie automatiquement
+    if (this.roomMode === "quick" && this.state.players.size === 4) {
+      this.startGame();
+    }
   }
 
   onDispose() {
@@ -188,11 +243,12 @@ export class GameRoom extends Room<GameState> {
       return;
     }
 
-    // En partie → on garde le siège jusqu'à 24h pour permettre la reconnexion
-    // (iOS qui ferme la WS en arrière-plan, pause repas, changement de wifi…).
-    // Pas d'infini pour éviter qu'un slot fantôme bloque la mémoire pour toujours.
+    // En partie → on garde le siège 5 minutes pour permettre la reconnexion
+    // (iOS qui ferme la WS en arrière-plan, pause brève, changement de wifi…).
+    // Après 5 min, le slot est libéré pour éviter des rooms bloquées à vie
+    // avec des slots fantômes.
     try {
-      await this.allowReconnection(client, 24 * 60 * 60);
+      await this.allowReconnection(client, 5 * 60);
       p.connected = true;
       // Ré-envoie la main privée + dernier state
       if (this.engineState) {
@@ -200,8 +256,15 @@ export class GameRoom extends Room<GameState> {
         client.send("state", publicView(this.engineState));
       }
     } catch {
-      // Timeout long dépassé → on garde quand même le siège (no-op).
-      // Le joueur pourra toujours tenter de rejoindre par code plus tard.
+      // Timeout (5 min) dépassé → on libère le siège. Si la partie est en
+      // cours, on le remplace par une IA pour que les autres puissent finir.
+      if (p) {
+        this.seatOwners[p.seat] = "AI";
+        p.isAi = true;
+        p.name = `Bot ${p.seat}`;
+        p.connected = true;
+        this.afterMutation();
+      }
     }
   }
 

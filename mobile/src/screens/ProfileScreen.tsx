@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -7,10 +7,66 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD, shade } from "../theme";
 import { StarBurst, ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
+import { useAuthStore } from "../store/authStore";
+import { useMatchHistoryStore, type MatchEntry } from "../store/matchHistoryStore";
+import { totalXp, levelProgress, rankLabel } from "../lib/leveling";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
 export default function ProfileScreen({ navigation }: Props) {
+  const user = useAuthStore((s) => s.user);
+  const username = user?.username?.trim() || "Joueur";
+  const initials = (username[0] ?? "?").toUpperCase();
+
+  const history = useMatchHistoryStore((s) => s.matches) as MatchEntry[];
+
+  // Calculs statistiques dérivés de l'historique (écarte les parties IRL du scoring)
+  const stats = useMemo(() => {
+    const appMatches = history.filter((m: MatchEntry) => m.type !== "irl");
+    const games = appMatches.length;
+    const wins = appMatches.filter((m: MatchEntry) => m.winnerTeam === "A").length;
+    const losses = games - wins;
+    const ratio = games === 0 ? 0 : Math.round((wins / games) * 100);
+
+    let streak = 0;
+    for (const m of appMatches) {
+      if (m.winnerTeam === "A") streak++;
+      else break;
+    }
+
+    const totalPoints = appMatches.reduce((acc: number, m: MatchEntry) => acc + m.scoreA, 0);
+    const bazzat =
+      totalPoints >= 1000
+        ? (totalPoints / 1000).toFixed(1).replace(".", ",") + "k"
+        : String(totalPoints);
+
+    const xp = totalXp(appMatches);
+    const prog = levelProgress(xp);
+    const xpLabel =
+      xp >= 1000 ? (xp / 1000).toFixed(1).replace(".", ",") + "k" : String(xp);
+
+    return {
+      games,
+      wins,
+      losses,
+      ratio,
+      streak,
+      bazzat,
+      xpLabel,
+      xp,
+      level: prog.level,
+      xpIntoLevel: prog.xpIntoLevel,
+      xpForNextLevel: prog.xpForNextLevel,
+      progressRatio: prog.ratio,
+      rank: rankLabel(prog.level),
+    };
+  }, [history]);
+
+  const recent = useMemo<MatchEntry[]>(
+    () => history.filter((m: MatchEntry) => m.type !== "irl").slice(0, 3),
+    [history],
+  );
+
   return (
     <View style={styles.root}>
       <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
@@ -37,7 +93,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
           <View style={styles.idRow}>
             <View>
-              <Avatar initials="S" size={84} color={COLORS.teal} />
+              <Avatar initials={initials} size={84} color={COLORS.teal} />
               <View style={styles.levelBadge}>
                 <LinearGradient
                   colors={[COLORS.saffron, COLORS.brassDeep]}
@@ -45,49 +101,56 @@ export default function ProfileScreen({ navigation }: Props) {
                   end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.levelText}>14</Text>
+                <Text style={styles.levelText}>{stats.level}</Text>
               </View>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>Sara A.</Text>
-              <Text style={styles.handle}>@sara_touti</Text>
+              <Text style={styles.name}>{username}</Text>
+              <Text style={styles.handle}>@{username.toLowerCase().replace(/\s+/g, "_")}</Text>
               <View style={styles.tagsRow}>
                 <View style={styles.expertTag}>
-                  <Text style={styles.expertText}>EXPERT</Text>
+                  <Text style={styles.expertText}>{stats.rank}</Text>
                 </View>
-                <Text style={styles.location}>CASABLANCA, MA</Text>
+              </View>
+              {/* Barre de progression vers le niveau suivant */}
+              <View style={styles.xpBarWrap}>
+                <View style={styles.xpBarBg}>
+                  <View style={[styles.xpBarFill, { width: `${Math.max(2, stats.progressRatio * 100)}%` }]} />
+                </View>
+                <Text style={styles.xpBarText}>
+                  {stats.xpIntoLevel} / {stats.xpForNextLevel} XP → niv. {stats.level + 1}
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Stats */}
+        {/* Stats — descendu pour ne plus empiéter sur la bannière */}
         <View style={styles.statsCard}>
           <View style={styles.statsGrid}>
-            <StatBlock label="Parties" value="284" />
-            <StatBlock label="Victoires" value="192" highlight />
-            <StatBlock label="Ratio" value="67%" />
+            <StatBlock label="Parties" value={String(stats.games)} />
+            <StatBlock label="Victoires" value={String(stats.wins)} highlight />
+            <StatBlock label="Ratio" value={stats.games ? `${stats.ratio}%` : "—"} />
           </View>
           <View style={styles.divider} />
           <View style={styles.statsGrid}>
-            <StatBlock label="Série" value="7" />
-            <StatBlock label="Bazzat" value="2,1k" />
-            <StatBlock label="XP" value="14,9k" />
+            <StatBlock label="Série" value={String(stats.streak)} />
+            <StatBlock label="Bazzat" value={stats.bazzat} />
+            <StatBlock label="XP" value={stats.xpLabel} />
           </View>
         </View>
 
-        {/* Trophées */}
+        {/* Trophées — palette basée sur stats réelles */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Trophées</Text>
-            <Text style={styles.sectionCount}>+8</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
             {[
-              { icon: "★", label: "Champion", unlocked: true, color: COLORS.saffron },
-              { icon: "◆", label: "7 bazzat", unlocked: true, color: COLORS.terracotta },
-              { icon: "✦", label: "Série 10", unlocked: false, color: "rgba(245,235,214,0.2)" },
-              { icon: "♦", label: "Niveau 20", unlocked: false, color: "rgba(245,235,214,0.2)" },
+              { icon: "★", label: "Champion", unlocked: stats.wins >= 1, color: COLORS.saffron },
+              { icon: "◆", label: "5 bazzat", unlocked: stats.wins >= 5, color: COLORS.terracotta },
+              { icon: "✦", label: "Série 3", unlocked: stats.streak >= 3, color: "#8B4A7F" },
+              { icon: "♦", label: "Niveau 5", unlocked: stats.level >= 5, color: COLORS.brass },
             ].map((a, i) => (
               <View
                 key={i}
@@ -128,30 +191,49 @@ export default function ProfileScreen({ navigation }: Props) {
           </ScrollView>
         </View>
 
-        {/* Parties récentes */}
+        {/* Parties récentes — 3 dernières réelles */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Parties récentes</Text>
+            {history.length > 3 && (
+              <Pressable onPress={() => navigation.navigate("MatchHistory")}>
+                <Text style={styles.sectionCount}>Voir tout →</Text>
+              </Pressable>
+            )}
           </View>
           <View style={{ gap: 6, marginTop: 4 }}>
-            {[
-              { won: true, score: "604-512", partner: "Karim", ts: "il y a 2h" },
-              { won: true, score: "620-584", partner: "Khalid", ts: "il y a 5h" },
-              { won: false, score: "498-602", partner: "Layla", ts: "hier" },
-            ].map((g, i) => (
-              <View key={i} style={styles.gameRow}>
-                <View style={[styles.wonBar, { backgroundColor: g.won ? "#3FC26A" : "#E8553A" }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.gameTitle}>
-                    {g.won ? "Victoire" : "Défaite"} · avec {g.partner}
-                  </Text>
-                  <Text style={styles.gameSub}>{g.ts}</Text>
-                </View>
-                <Text style={[styles.gameScore, { color: g.won ? COLORS.saffronSoft : "rgba(245,235,214,0.7)" }]}>
-                  {g.score}
-                </Text>
+            {recent.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>Aucune partie jouée pour l'instant</Text>
               </View>
-            ))}
+            ) : (
+              recent.map((m) => {
+                const won = m.winnerTeam === "A";
+                const partnerName = m.playerNames[2] || "partenaire";
+                return (
+                  <Pressable
+                    key={m.id}
+                    onPress={() => navigation.navigate("MatchDetail", { id: m.id })}
+                    style={styles.gameRow}
+                  >
+                    <View style={[styles.wonBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.gameTitle}>
+                        {won ? "Victoire" : "Défaite"} · avec {partnerName}
+                      </Text>
+                      <Text style={styles.gameSub}>
+                        {formatRelativeDate(m.finishedAt)}
+                        {m.type === "tournament" && m.tournamentName ? ` · ${m.tournamentName}` : ""}
+                      </Text>
+                    </View>
+                    <Text style={[styles.gameScore, { color: won ? COLORS.saffronSoft : "rgba(245,235,214,0.7)" }]}>
+                      {m.scoreA}-{m.scoreB}
+                    </Text>
+                    <Text style={{ color: "rgba(245,235,214,0.4)", fontSize: 18, marginLeft: 6 }}>›</Text>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         </View>
       </ScrollView>
@@ -167,6 +249,18 @@ function StatBlock({ label, value, highlight }: { label: string; value: string; 
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
+}
+
+function formatRelativeDate(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60_000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (mins < 1) return "à l'instant";
+  if (mins < 60) return `il y a ${mins} min`;
+  if (hours < 24) return `il y a ${hours}h`;
+  if (days < 7) return `il y a ${days}j`;
+  return new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
 const styles = StyleSheet.create({
@@ -234,16 +328,29 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     fontFamily: FONT_UI_BOLD,
   },
-  location: {
-    fontSize: 10,
-    color: "rgba(245,235,214,0.6)",
-    letterSpacing: 1,
+  xpBarWrap: { marginTop: 10, gap: 4 },
+  xpBarBg: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    overflow: "hidden",
+    width: 200,
+  },
+  xpBarFill: {
+    height: 4,
+    backgroundColor: COLORS.saffron,
+    borderRadius: 2,
+  },
+  xpBarText: {
     fontFamily: FONT_UI,
+    fontSize: 9,
+    color: "rgba(245,235,214,0.65)",
+    letterSpacing: 0.5,
   },
 
   statsCard: {
     marginHorizontal: 16,
-    marginTop: -24,
+    marginTop: 14, // ← plus de chevauchement avec la bannière
     padding: 14,
     backgroundColor: "rgba(0,0,0,0.45)",
     borderRadius: 16,
@@ -310,4 +417,19 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   gameScore: { fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: "700" },
+
+  emptyBox: {
+    padding: 20,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 0.5,
+    borderColor: "rgba(245,235,214,0.1)",
+  },
+  emptyText: {
+    fontFamily: FONT_UI,
+    fontSize: 12,
+    color: "rgba(245,235,214,0.5)",
+    fontStyle: "italic",
+  },
 });

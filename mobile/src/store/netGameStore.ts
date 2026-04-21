@@ -1,9 +1,14 @@
 // Store Zustand qui tient l'état côté client d'une partie réseau Colyseus.
 // Le moteur tourne côté serveur ; ce store n'est qu'un miroir des messages
 // `state` (vue publique) + `hand` (main privée) reçus de la room.
+//
+// Persistance : le token de reconnexion est écrit en AsyncStorage pour
+// survivre au kill de l'app. Au reload, on tente `client.reconnect(token)`
+// avant tout, ce qui reattache la MEME session (pas de slot fantôme).
 
 import { create } from "zustand";
 import type { Room } from "colyseus.js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
   BidAction,
   Card,
@@ -11,10 +16,44 @@ import type {
   Seat,
   Suit,
 } from "@touti/shared";
-import { joinPrivateRoom, reconnect } from "../net/client";
+import { joinPrivateRoom, joinQuickRoom, joinQuickCodeRoom, reconnect } from "../net/client";
 
 // Vue publique broadcastée par le serveur = moteur sans les mains
 export type PublicGameState = Omit<EngineState, "hands">;
+
+// Clé AsyncStorage pour persister le token
+const RECONNECT_KEY = "touti.reconnect.v1";
+
+interface PersistedReconnect {
+  token: string;
+  roomCode: string;
+  ts: number;
+}
+
+async function savePersisted(token: string, roomCode: string) {
+  try {
+    const payload: PersistedReconnect = { token, roomCode, ts: Date.now() };
+    await AsyncStorage.setItem(RECONNECT_KEY, JSON.stringify(payload));
+  } catch {}
+}
+
+async function clearPersisted() {
+  try { await AsyncStorage.removeItem(RECONNECT_KEY); } catch {}
+}
+
+async function loadPersisted(): Promise<PersistedReconnect | null> {
+  try {
+    const raw = await AsyncStorage.getItem(RECONNECT_KEY);
+    if (!raw) return null;
+    const obj: PersistedReconnect = JSON.parse(raw);
+    // Expire après 10 minutes (allowReconnection côté serveur = 5 min, marge safe)
+    if (Date.now() - obj.ts > 10 * 60 * 1000) {
+      await clearPersisted();
+      return null;
+    }
+    return obj;
+  } catch { return null; }
+}
 
 // Joueur tel que vu dans la schema Colyseus
 export interface NetPlayer {
@@ -28,32 +67,33 @@ export interface NetPlayer {
 }
 
 interface NetGameState {
-  // ─── Connexion ──────────────────────────────────────────────
   room: Room | null;
   connected: boolean;
+  connecting: boolean;
   roomCode: string | null;
   reconnectToken: string | null;
   error: string | null;
 
-  // ─── Lobby ──────────────────────────────────────────────────
   players: NetPlayer[];
-  locked: boolean;           // true = partie démarrée
+  locked: boolean;
   mySeat: Seat | null;
+  reservedSeat: Seat | null;  // siège réservé par l'host pour le prochain invité
 
-  // ─── Jeu ────────────────────────────────────────────────────
   publicState: PublicGameState | null;
   myHand: Card[];
 
-  // ─── Événements ponctuels ───────────────────────────────────
   chatLog: { from: string; seat: number; text: string; ts: number }[];
   lastTrickWon: { winnerSeat: number; points: number } | null;
   lastRoundEnd: { winningTeam: 0 | 1; bid: number; delta: [number, number] } | null;
 
-  // ─── Actions ────────────────────────────────────────────────
   connectPrivate: (code: string, name: string) => Promise<void>;
+  connectQuickMatch: (name: string) => Promise<void>;
+  connectQuickCode: (code: string, name: string) => Promise<void>;
+  tryReconnect: () => Promise<boolean>;
   disconnect: () => Promise<void>;
   toggleReady: () => void;
   startGame: () => void;
+  reserveSeat: (seat: Seat | null) => void;
 
   bid: (action: BidAction) => void;
   chooseTrump: (suit: Suit) => void;
@@ -70,6 +110,7 @@ interface NetGameState {
 export const useNetGameStore = create<NetGameState>((set, get) => ({
   room: null,
   connected: false,
+  connecting: false,
   roomCode: null,
   reconnectToken: null,
   error: null,
@@ -77,6 +118,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
   players: [],
   locked: false,
   mySeat: null,
+  reservedSeat: null,
 
   publicState: null,
   myHand: [],
@@ -86,29 +128,135 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
   lastRoundEnd: null,
 
   connectPrivate: async (code, name) => {
-    // Nettoie une room précédente si besoin
     const prev = get().room;
     if (prev) {
-      try { await prev.leave(); } catch {}
+      try { await prev.leave(true); } catch {}
     }
-    set({ error: null });
+    set({ error: null, connecting: true, connected: false });
     try {
-      const room = await joinPrivateRoom({ code, name });
+      const room = await Promise.race([
+        joinPrivateRoom({ code, name }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+        ),
+      ]);
       wireRoom(room, set, get);
-      set({ room, connected: true, roomCode: code.toUpperCase() });
+      set({ room, connected: true, connecting: false, roomCode: code.toUpperCase() });
     } catch (e: any) {
-      set({ error: e?.message ?? "Impossible de rejoindre la partie", connected: false });
+      await clearPersisted();
+      set({
+        error: e?.message ?? "Impossible de rejoindre la partie",
+        connected: false,
+        connecting: false,
+        room: null,
+        roomCode: null,
+        players: [],
+        locked: false,
+        mySeat: null,
+        reconnectToken: null,
+      });
+    }
+  },
+
+  connectQuickMatch: async (name) => {
+    const prev = get().room;
+    if (prev) {
+      try { await prev.leave(true); } catch {}
+    }
+    set({ error: null, connecting: true, connected: false });
+    try {
+      const room = await Promise.race([
+        joinQuickRoom({ name }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+        ),
+      ]);
+      wireRoom(room, set, get);
+      // Le code est reçu via onStateChange
+      set({ room, connected: true, connecting: false });
+    } catch (e: any) {
+      await clearPersisted();
+      set({
+        error: e?.message ?? "Impossible de rejoindre une partie rapide",
+        connected: false,
+        connecting: false,
+        room: null,
+        roomCode: null,
+        players: [],
+        locked: false,
+        mySeat: null,
+        reconnectToken: null,
+      });
+    }
+  },
+
+  connectQuickCode: async (code, name) => {
+    const prev = get().room;
+    if (prev) { try { await prev.leave(true); } catch {} }
+    set({ error: null, connecting: true, connected: false });
+    try {
+      const room = await Promise.race([
+        joinQuickCodeRoom({ code, name }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+        ),
+      ]);
+      wireRoom(room, set, get);
+      set({ room, connected: true, connecting: false, roomCode: code.toUpperCase() });
+    } catch (e: any) {
+      await clearPersisted();
+      set({
+        error: e?.message ?? "Impossible de créer la partie rapide",
+        connected: false, connecting: false,
+        room: null, roomCode: null, players: [], locked: false, mySeat: null,
+        reconnectToken: null,
+      });
+    }
+  },
+
+  // Reconnecte à la session précédente (token persisté). Retourne true si réussi.
+  tryReconnect: async () => {
+    // Si déjà connecté, rien à faire
+    if (get().connected && get().room) return true;
+    const persisted = await loadPersisted();
+    if (!persisted) return false;
+    set({ connecting: true, error: null });
+    try {
+      const room = await Promise.race([
+        reconnect(persisted.token),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 6000),
+        ),
+      ]);
+      wireRoom(room, set, get);
+      set({
+        room,
+        connected: true,
+        connecting: false,
+        roomCode: persisted.roomCode,
+      });
+      return true;
+    } catch {
+      // Token invalide/expiré → on nettoie le token mais on garde le code
+      // pour que l'utilisateur puisse retenter manuellement via "Reconnecter"
+      await clearPersisted();
+      set({
+        connecting: false,
+        reconnectToken: null,
+        // roomCode conservé pour permettre un retry manuel
+      });
+      return false;
     }
   },
 
   disconnect: async () => {
-    const room = get().room;
-    if (room) {
-      try { await room.leave(true); } catch {}
-    }
+    const prev = get().room;
+    // Clear state IMMÉDIATEMENT pour débloquer l'UI — le leave() peut
+    // hanger sur une WS morte et on ne veut pas que l'utilisateur attende.
     set({
       room: null,
       connected: false,
+      connecting: false,
       roomCode: null,
       reconnectToken: null,
       players: [],
@@ -119,11 +267,22 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       chatLog: [],
       lastTrickWon: null,
       lastRoundEnd: null,
+      error: null,
     });
+    clearPersisted().catch(() => {});
+    // Leave en fire-and-forget, timeout 1s pour pas hanger
+    if (prev) {
+      Promise.race([
+        (prev.leave(true) as unknown as Promise<void>),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]).catch(() => {});
+    }
   },
 
   toggleReady: () => get().room?.send("ready"),
   startGame: () => get().room?.send("start"),
+  reserveSeat: (seat) =>
+    get().room?.send("reserveSeat", { seat: seat == null ? -1 : seat }),
 
   bid: (action) => get().room?.send("bid", { action }),
   chooseTrump: (suit) => get().room?.send("chooseTrump", { suit }),
@@ -144,7 +303,16 @@ function wireRoom(
   set: (partial: Partial<NetGameState>) => void,
   get: () => NetGameState,
 ) {
-  // État du lobby (schema) — sync automatique, on le lit à chaque changement
+  // Persist le reconnect token dès qu'on est connecté pour survivre au kill
+  const token = (room as any).reconnectionToken as string | undefined;
+  if (token) {
+    set({ reconnectToken: token });
+    // Sauvegarde async (on a besoin du roomCode — on le récupère via state change)
+    // On sauvegarde ici avec un placeholder si roomCode pas encore connu
+    const code = get().roomCode || "";
+    if (code) savePersisted(token, code);
+  }
+
   room.onStateChange((state: any) => {
     const playersArr: NetPlayer[] = [];
     state.players.forEach((p: any) => {
@@ -160,32 +328,32 @@ function wireRoom(
     });
     playersArr.sort((a, b) => a.seat - b.seat);
 
-    // Mon siège = celui du joueur dont sessionId == ma sessionId
     const me = playersArr.find((p) => p.id === room.sessionId);
     set({
       players: playersArr,
       locked: state.locked,
       mySeat: me ? me.seat : null,
       roomCode: state.roomCode || null,
+      reservedSeat: state.reservedSeat === -1 ? null : (state.reservedSeat as Seat),
     });
+
+    // Ré-sauvegarde le token avec le bon roomCode dès qu'on l'a
+    const tok = (room as any).reconnectionToken as string | undefined;
+    if (tok && state.roomCode) savePersisted(tok, state.roomCode);
   });
 
-  // État du moteur de jeu (message "state")
   room.onMessage("state", (payload: PublicGameState) => {
     set({ publicState: payload });
   });
 
-  // Main privée
   room.onMessage("hand", (payload: { cards: Card[] }) => {
     set({ myHand: payload.cards || [] });
   });
 
-  // Erreurs métier (ex: enchère invalide)
   room.onMessage("error", (payload: { reason: string }) => {
     set({ error: payload.reason });
   });
 
-  // Chat
   room.onMessage("chat", (payload: { from: string; seat: number; text: string }) => {
     const existing = get().chatLog;
     set({
@@ -196,14 +364,13 @@ function wireRoom(
     });
   });
 
-  // Token de reconnexion (Colyseus l'émet via une propriété, pas un event — on la lit ici)
-  try {
-    set({ reconnectToken: (room as any).reconnectionToken || null });
-  } catch {}
-
-  // Déconnexion
-  room.onLeave(() => {
+  room.onLeave((code) => {
     set({ connected: false });
+    // code 1000 = normal close (leave volontaire). Pas de retry.
+    // Autres codes = déconnexion réseau → on tente auto-reconnect avec backoff.
+    if (code !== 1000) {
+      scheduleAutoReconnect();
+    }
   });
 
   room.onError((code, message) => {
@@ -211,17 +378,34 @@ function wireRoom(
   });
 }
 
-// ─── Helper de reconnexion (à appeler sur foreground app) ──────────
-export async function tryReconnect(): Promise<boolean> {
-  const state = useNetGameStore.getState();
-  if (!state.reconnectToken) return false;
-  try {
-    const room = await reconnect(state.reconnectToken);
-    wireRoom(room, useNetGameStore.setState, useNetGameStore.getState);
-    useNetGameStore.setState({ room, connected: true });
-    return true;
-  } catch {
-    useNetGameStore.setState({ reconnectToken: null, connected: false });
-    return false;
-  }
+// ─── Auto-reconnect avec backoff ────────────────────────────────────
+// Quand la WS drop (perte réseau), on retente toutes les 2s pendant ~1min.
+// Ça couvre les sorties d'app, changement de Wifi/4G, etc.
+
+let autoReconnectTimer: NodeJS.Timeout | null = null;
+let autoReconnectAttempts = 0;
+const MAX_ATTEMPTS = 15; // ~30s de retries (backoff léger)
+
+function scheduleAutoReconnect() {
+  if (autoReconnectTimer) return; // déjà planifié
+  autoReconnectAttempts = 0;
+
+  const attempt = async () => {
+    autoReconnectTimer = null;
+    autoReconnectAttempts++;
+    const s = useNetGameStore.getState();
+    if (s.connected) return; // déjà reconnecté
+    if (autoReconnectAttempts > MAX_ATTEMPTS) {
+      // Abandon silencieux — l'utilisateur peut taper Reconnecter manuellement
+      return;
+    }
+    const ok = await useNetGameStore.getState().tryReconnect();
+    if (!ok && !useNetGameStore.getState().connected) {
+      // backoff : 2s, 2s, 3s, 3s, 4s, 4s, 5s, 5s ...
+      const delay = Math.min(2000 + Math.floor(autoReconnectAttempts / 2) * 1000, 5000);
+      autoReconnectTimer = setTimeout(attempt, delay);
+    }
+  };
+
+  autoReconnectTimer = setTimeout(attempt, 1500);
 }

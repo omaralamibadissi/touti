@@ -76,7 +76,11 @@ export default function MatchHistoryScreen({ navigation }: Props) {
         ) : (
           <View style={{ gap: 8, marginTop: 16 }}>
             {matches.map((m) => (
-              <MatchRow key={m.id} match={m} />
+              <MatchRow
+                key={m.id}
+                match={m}
+                onPress={() => navigation.navigate("MatchDetail", { id: m.id })}
+              />
             ))}
           </View>
         )}
@@ -94,12 +98,12 @@ function StatBlock({ label, value, highlight }: { label: string; value: string; 
   );
 }
 
-function MatchRow({ match }: { match: MatchEntry }) {
+function MatchRow({ match, onPress }: { match: MatchEntry; onPress: () => void }) {
   const won = match.winnerTeam === "A";
   const dateLabel = formatDate(match.finishedAt);
   const typeLabel = typeName(match.type);
   return (
-    <View style={styles.matchRow}>
+    <Pressable onPress={onPress} style={styles.matchRow}>
       <View style={[styles.sideBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
@@ -118,7 +122,8 @@ function MatchRow({ match }: { match: MatchEntry }) {
         <Text style={styles.scoreDash}>—</Text>
         <Text style={[styles.scoreNum, { color: COLORS.cream }]}>{match.scoreB}</Text>
       </View>
-    </View>
+      <Text style={{ color: "rgba(245,235,214,0.4)", fontSize: 18, marginLeft: 4 }}>›</Text>
+    </Pressable>
   );
 }
 

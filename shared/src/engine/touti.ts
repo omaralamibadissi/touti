@@ -41,10 +41,10 @@ export interface PlayerDef {
 }
 
 export const PLAYERS: readonly PlayerDef[] = [
-  { id: 0, pos: "bottom", name: "Sara",    sub: "VOUS",   initials: "S", color: "#2E7A8C", team: "A", human: true },
-  { id: 1, pos: "right",  name: "Aicha",   sub: "",       initials: "A", color: "#C8551D", team: "B", human: false },
-  { id: 2, pos: "top",    name: "Karim",   sub: "",       initials: "K", color: "#B8791C", team: "A", human: false },
-  { id: 3, pos: "left",   name: "Youssef", sub: "",       initials: "Y", color: "#8B4A7F", team: "B", human: false },
+  { id: 0, pos: "bottom", name: "Vous",  sub: "VOUS", initials: "V", color: "#2E7A8C", team: "A", human: true  },
+  { id: 1, pos: "right",  name: "IA 1",  sub: "",     initials: "1", color: "#C8551D", team: "B", human: false },
+  { id: 2, pos: "top",    name: "IA 2",  sub: "",     initials: "2", color: "#B8791C", team: "A", human: false },
+  { id: 3, pos: "left",   name: "IA 3",  sub: "",     initials: "3", color: "#8B4A7F", team: "B", human: false },
 ] as const;
 
 export function teamOf(seat: Seat): TeamKey {

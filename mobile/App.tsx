@@ -39,8 +39,16 @@ import PrivateGameScreen from "./src/screens/PrivateGameScreen";
 import RulesScreen from "./src/screens/RulesScreen";
 import MatchHistoryScreen from "./src/screens/MatchHistoryScreen";
 import QuickMatchScreen from "./src/screens/QuickMatchScreen";
+import LeaguesScreen from "./src/screens/LeaguesScreen";
+import LeagueDetailScreen from "./src/screens/LeagueDetailScreen";
+import LeaderboardScreen from "./src/screens/LeaderboardScreen";
+import PlayerProfileScreen from "./src/screens/PlayerProfileScreen";
+import MatchDetailScreen from "./src/screens/MatchDetailScreen";
 import { COLORS } from "./src/theme";
 import { useAuthStore } from "./src/store/authStore";
+import { useNetGameStore } from "./src/store/netGameStore";
+import { useLeagueStore } from "./src/store/leagueStore";
+import { useMatchHistoryStore } from "./src/store/matchHistoryStore";
 
 export type RootStackParamList = {
   SignIn: undefined;
@@ -51,7 +59,7 @@ export type RootStackParamList = {
   Profile: undefined;
   Settings: undefined;
   TournamentHome: undefined;
-  CreateTournament: undefined;
+  CreateTournament: { leagueId?: string } | undefined;
   JoinTournament: undefined;
   TournamentDetail: { id: string };
   ScoreSheets: undefined;
@@ -59,7 +67,12 @@ export type RootStackParamList = {
   PrivateGame: undefined;
   Rules: undefined;
   MatchHistory: undefined;
-  QuickMatch: undefined;
+  QuickMatch: { code?: string } | undefined;
+  Leagues: undefined;
+  LeagueDetail: { id: string };
+  Leaderboard: { scope?: "league" | "friends" | "global"; sub?: "indiv" | "pairs" } | undefined;
+  PlayerProfile: { name: string };
+  MatchDetail: { id: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -103,6 +116,14 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => { hydrate(); }, [hydrate]);
+
+  // Tente un reconnect silencieux à la dernière room si un token est persisté
+  useEffect(() => {
+    useNetGameStore.getState().tryReconnect().catch(() => {});
+    // Hydrate les stores persistés au démarrage
+    useLeagueStore.getState().hydrate().catch(() => {});
+    useMatchHistoryStore.getState().hydrate().catch(() => {});
+  }, []);
 
   const ready = interReady && cormorantReady && hydrated;
 
@@ -161,6 +182,11 @@ export default function App() {
               <Stack.Screen name="Rules" component={RulesScreen} />
               <Stack.Screen name="MatchHistory" component={MatchHistoryScreen} />
               <Stack.Screen name="QuickMatch" component={QuickMatchScreen} />
+              <Stack.Screen name="Leagues" component={LeaguesScreen} />
+              <Stack.Screen name="LeagueDetail" component={LeagueDetailScreen} />
+              <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
+              <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} />
+              <Stack.Screen name="MatchDetail" component={MatchDetailScreen} />
             </>
           )}
         </Stack.Navigator>

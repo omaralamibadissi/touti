@@ -7,12 +7,20 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { useTournamentStore, TournamentFormat, TournamentMode, PairingMode } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
+import { useLeagueStore } from "../store/leagueStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateTournament">;
 
-export default function CreateTournamentScreen({ navigation }: Props) {
+export default function CreateTournamentScreen({ navigation, route }: Props) {
   const create = useTournamentStore((s) => s.create);
   const user = useAuthStore((s) => s.user);
+
+  // Si un leagueId arrive en params, tournoi restreint à la ligue
+  const leagueIdFromRoute = route.params?.leagueId;
+  const leagues = useLeagueStore((s) => s.leagues);
+  const activeLeagueId = useLeagueStore((s) => s.activeLeagueId);
+  const [leagueScope, setLeagueScope] = useState<string | null>(leagueIdFromRoute || null);
+  const scopedLeague = leagues.find((l) => l.id === leagueScope);
 
   const [format, setFormat] = useState<TournamentFormat>("online");
   const [mode, setMode] = useState<TournamentMode>("classique");
@@ -45,6 +53,8 @@ export default function CreateTournamentScreen({ navigation }: Props) {
       duration: format === "irl" ? duration : undefined,
       location: format === "irl" ? location : undefined,
       tagline: format === "irl" ? tagline : undefined,
+      leagueId: leagueScope || undefined,
+      leagueName: scopedLeague?.name,
     });
     navigation.replace("TournamentDetail", { id: t.id });
   };
@@ -84,31 +94,76 @@ export default function CreateTournamentScreen({ navigation }: Props) {
           <BigTile
             active={mode === "classique"}
             title="Classique"
-            sub="Paires fixes tout le tournoi"
+            sub="Élimination directe (bracket)"
             onPress={() => setMode("classique")}
           />
           <BigTile
             active={mode === "championnat"}
             title="Championnat"
-            sub="Paires tournantes · tout le monde avec tout le monde"
+            sub="Toutes les paires se rencontrent (round-robin)"
             onPress={() => setMode("championnat")}
           />
         </View>
 
-        {/* Pairing (toujours applicable) */}
+        {/* Pairing — paires TOUJOURS fixes, juste manière de les constituer */}
         <Text style={styles.label}>CONSTITUTION DES PAIRES</Text>
         <View style={styles.pillRow}>
           <Pill label="Aléatoire" active={pairing === "random"} onPress={() => setPairing("random")} />
           <Pill label="Choisies" active={pairing === "chosen"} onPress={() => setPairing("chosen")} />
         </View>
         <Text style={styles.hint}>
+          Les paires sont fixes pendant tout le tournoi.{" "}
           {pairing === "random"
-            ? "Les paires sont tirées au sort au début du tournoi."
-            : "Chaque duo s'inscrit ensemble (une seule personne inscrit sa paire)."}
+            ? "Tirage au sort au début du tournoi."
+            : "Chaque duo s'inscrit ensemble (une personne inscrit sa paire)."}
         </Text>
 
+        {/* Restriction ligue */}
+        {leagues.length > 0 && (
+          <>
+            <Text style={styles.label}>RÉSERVÉ À UNE LIGUE ?</Text>
+            <View style={styles.leagueRow}>
+              <Pressable
+                onPress={() => setLeagueScope(null)}
+                style={[styles.leagueChip, leagueScope === null && styles.leagueChipActive]}
+              >
+                <Text style={[styles.leagueChipText, leagueScope === null && styles.leagueChipTextActive]}>
+                  Ouvert à tous
+                </Text>
+              </Pressable>
+              {leagues.map((l) => (
+                <Pressable
+                  key={l.id}
+                  onPress={() => setLeagueScope(l.id)}
+                  style={[
+                    styles.leagueChip,
+                    leagueScope === l.id && styles.leagueChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.leagueChipText,
+                      leagueScope === l.id && styles.leagueChipTextActive,
+                    ]}
+                  >
+                    {l.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {scopedLeague && (
+              <Text style={styles.hint}>
+                Seuls les {scopedLeague.members.length} membres de "{scopedLeague.name}" pourront rejoindre.
+              </Text>
+            )}
+          </>
+        )}
+
         {/* Nom */}
-        <Text style={styles.label}>NOM DU TOURNOI</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+          <Text style={styles.label}>NOM DU TOURNOI</Text>
+          <Text style={styles.counter}>{name.trim().length} car. · min 2</Text>
+        </View>
         <TextInput
           value={name}
           onChangeText={setName}
@@ -116,6 +171,7 @@ export default function CreateTournamentScreen({ navigation }: Props) {
           placeholderTextColor="rgba(245,235,214,0.4)"
           style={styles.input}
         />
+        <Text style={styles.hint}>Au moins 2 caractères pour valider</Text>
 
         {/* Nb de joueurs — multiple de 4, illimité */}
         <Text style={styles.label}>NOMBRE DE JOUEURS</Text>
@@ -278,6 +334,39 @@ const styles = StyleSheet.create({
     color: "rgba(245,235,214,0.55)",
     marginTop: 6,
     fontStyle: "italic",
+  },
+  counter: {
+    fontFamily: FONT_UI,
+    fontSize: 10,
+    color: "rgba(245,235,214,0.5)",
+    fontStyle: "italic",
+  },
+
+  leagueRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  leagueChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5,
+    borderColor: "rgba(212,160,76,0.3)",
+  },
+  leagueChipActive: {
+    backgroundColor: COLORS.saffron,
+    borderColor: COLORS.saffron,
+  },
+  leagueChipText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.cream,
+  },
+  leagueChipTextActive: {
+    color: COLORS.terracottaDark,
   },
 
   row: { flexDirection: "row", gap: 10 },

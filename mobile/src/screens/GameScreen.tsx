@@ -53,6 +53,7 @@ import { useGameSource, GameMode } from "../store/gameSource";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { useNetGameStore } from "../store/netGameStore";
+import { useAuthStore } from "../store/authStore";
 
 // Ordre d'affichage demandé : oros, copas, espadas, bastos.
 // À l'intérieur d'une couleur : plus fort → plus faible (As, Triss, Rey, Caballo, Sota, 7, 6, 5, 4, 2).
@@ -96,7 +97,45 @@ export default function GameScreen({ route, navigation }: Props) {
     0: null, 1: null, 2: null, 3: null,
   });
   const [showLastTrick, setShowLastTrick] = useState(false);
+  const [showScoreSheet, setShowScoreSheet] = useState(false);
   const { width: SW, height: SH } = useWindowDimensions();
+
+  // Historique auto des manches (pour le panneau de suivi)
+  type RoundSnap = {
+    round: number;
+    scoreA: number;
+    scoreB: number;
+    deltaA: number;
+    deltaB: number;
+    bidWinner: Seat | null;
+    bidAmount: number | null;
+    bidTeam: "A" | "B" | null;
+  };
+  const [roundHistory, setRoundHistory] = useState<RoundSnap[]>([]);
+  const lastSnapRoundRef = useRef<number>(0);
+  useEffect(() => {
+    // Snapshot à la fin de chaque manche (quand message est settlé)
+    if (state.phase !== "round-end" || state.message == null) return;
+    if (lastSnapRoundRef.current === state.roundNumber) return;
+    lastSnapRoundRef.current = state.roundNumber;
+    setRoundHistory((prev) => {
+      const prevTotalA = prev.length ? prev[prev.length - 1].scoreA : 0;
+      const prevTotalB = prev.length ? prev[prev.length - 1].scoreB : 0;
+      const bidTeam: "A" | "B" | null =
+        state.bidWinner == null ? null : state.bidWinner % 2 === 0 ? "A" : "B";
+      const snap: RoundSnap = {
+        round: state.roundNumber,
+        scoreA: state.score.A,
+        scoreB: state.score.B,
+        deltaA: state.score.A - prevTotalA,
+        deltaB: state.score.B - prevTotalB,
+        bidWinner: state.bidWinner,
+        bidAmount: state.bidAmount,
+        bidTeam,
+      };
+      return [...prev, snap];
+    });
+  }, [state.phase, state.message, state.roundNumber]);
 
   // Trigger animation de distribution à chaque nouvelle manche
   useEffect(() => {
@@ -172,13 +211,26 @@ export default function GameScreen({ route, navigation }: Props) {
     if (recordedGameId === state.roundNumber + "-" + state.score.A + state.score.B) return;
     const id = state.roundNumber + "-" + state.score.A + state.score.B;
     setRecordedGameId(id);
+    // playerNames basé sur les vrais noms (en net) ou pseudo + IA (en local)
+    const matchType = mode === "net" ? "private" : "solo-ai";
+    const names = [0, 1, 2, 3].map((s) => displayName(s as Seat).replace(" 🤖", ""));
     addMatch({
-      type: "solo-ai",
-      playerNames: PLAYERS.map((p) => p.name),
+      type: matchType,
+      playerNames: names,
       winnerTeam: state.score.A > state.score.B ? "A" : "B",
       scoreA: state.score.A,
       scoreB: state.score.B,
       roundsPlayed: state.roundNumber,
+      rounds: roundHistory.map((r) => ({
+        round: r.round,
+        scoreA: r.scoreA,
+        scoreB: r.scoreB,
+        deltaA: r.deltaA,
+        deltaB: r.deltaB,
+        bidWinner: r.bidWinner,
+        bidAmount: r.bidAmount,
+        bidTeam: r.bidTeam,
+      })),
     });
   }, [state.phase, state.score.A, state.score.B, state.roundNumber, addMatch, recordedGameId]);
 
@@ -312,15 +364,19 @@ export default function GameScreen({ route, navigation }: Props) {
 
   const resetGame = () => { src.resetGame(); setSelectedIdx(null); };
 
-  // Nom à afficher pour un siège (local = Sara/Aicha/… ; net = noms réels des joueurs)
+  // Nom à afficher pour un siège
+  // - net : nom réel reçu du serveur (humains + Bots)
+  // - local : siège 0 = pseudo de l'utilisateur, autres = "IA 1/2/3"
+  const myUsername = useAuthStore((s) => s.user?.username);
   const displayName = (seat: Seat): string => {
     if (src.netPlayers) {
       const p = src.netPlayers.find((x) => x.seat === seat);
       if (p) return p.name + (p.isAi ? " 🤖" : "");
     }
+    if (seat === 0 && myUsername) return myUsername;
     return PLAYERS[seat].name;
   };
-  // Initiales = première lettre du nom réel (pour éviter l'incohérence avatar/nom)
+  // Initiales = première lettre du nom affiché
   const displayInitials = (seat: Seat): string => {
     const name = displayName(seat).replace(" 🤖", "").trim();
     return (name[0] ?? "?").toUpperCase();
@@ -623,20 +679,6 @@ export default function GameScreen({ route, navigation }: Props) {
         />
       )}
 
-      {/* DEBUG OVERLAY (net mode) — à virer après debug */}
-      {mode === "net" && (
-        <View style={{ position: "absolute", top: 100, left: 8, backgroundColor: "rgba(0,0,0,0.8)", padding: 8, borderRadius: 6, zIndex: 9999 }}>
-          <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Inter_500Medium" }}>
-            phase={state.phase}{"\n"}
-            mySeat={useNetGameStore.getState().mySeat ?? "?"}{"\n"}
-            bidSeat={state.bidding?.currentSeat ?? "?"}{"\n"}
-            hand={state.hands[0].length}{"\n"}
-            netPub={useNetGameStore.getState().publicState ? "Y" : "N"}{"\n"}
-            locked={useNetGameStore.getState().locked ? "Y" : "N"}
-          </Text>
-        </View>
-      )}
-
       {/* Chat launcher (bouton flottant) */}
       <ChatLauncher
         bottom={HAND_H + 6}
@@ -662,6 +704,28 @@ export default function GameScreen({ route, navigation }: Props) {
           trick={state.lastTrick.entries}
           winner={state.lastTrick.winner}
           onClose={() => setShowLastTrick(false)}
+        />
+      )}
+
+      {/* Bouton "tableau de suivi" — toujours visible après la 1re manche */}
+      {roundHistory.length > 0 && (
+        <Pressable
+          onPress={() => setShowScoreSheet(true)}
+          style={[styles.scoreSheetBtn, { bottom: HAND_H + 6 }]}
+        >
+          <Text style={styles.scoreSheetIcon}>📊</Text>
+        </Pressable>
+      )}
+
+      {/* Overlay tableau de suivi */}
+      {showScoreSheet && (
+        <LiveScoreSheetOverlay
+          rounds={roundHistory}
+          currentRound={state.roundNumber}
+          scoreA={state.score.A}
+          scoreB={state.score.B}
+          onClose={() => setShowScoreSheet(false)}
+          getName={displayName}
         />
       )}
 
@@ -706,7 +770,29 @@ export default function GameScreen({ route, navigation }: Props) {
       {state.phase === "game-end" && (
         <GameEndOverlay
           winningTeam={state.score.A > state.score.B ? "A" : "B"}
-          onRestart={resetGame}
+          scoreA={state.score.A}
+          scoreB={state.score.B}
+          mode={mode}
+          onRestart={async () => {
+            if (mode === "net") {
+              // Net : on quitte la room et on retourne à l'accueil
+              await useNetGameStore.getState().disconnect();
+              navigation.navigate("Home");
+            } else {
+              resetGame();
+            }
+          }}
+          onHome={async () => {
+            if (mode === "net") {
+              await useNetGameStore.getState().disconnect();
+            }
+            navigation.navigate("Home");
+          }}
+          onSeeDetail={async () => {
+            // La dernière partie en tête de l'historique est celle qu'on vient de finir
+            const last = useMatchHistoryStore.getState().matches[0];
+            if (last) navigation.navigate("MatchDetail", { id: last.id });
+          }}
         />
       )}
 
@@ -812,6 +898,118 @@ function LastTrickOverlay({
 
         <Text style={styles.lastTrickClose}>Tape n'importe où pour fermer</Text>
       </View>
+    </Pressable>
+  );
+}
+
+// Overlay qui montre la progression manche par manche, mise à jour auto
+function LiveScoreSheetOverlay({
+  rounds,
+  currentRound,
+  scoreA,
+  scoreB,
+  onClose,
+  getName,
+}: {
+  rounds: Array<{
+    round: number;
+    scoreA: number;
+    scoreB: number;
+    deltaA: number;
+    deltaB: number;
+    bidWinner: Seat | null;
+    bidAmount: number | null;
+    bidTeam: "A" | "B" | null;
+  }>;
+  currentRound: number;
+  scoreA: number;
+  scoreB: number;
+  onClose: () => void;
+  getName: (seat: Seat) => string;
+}) {
+  return (
+    <Pressable onPress={onClose} style={styles.scoreSheetOverlay}>
+      <Pressable onPress={(e) => e.stopPropagation()} style={styles.scoreSheetCard}>
+        <Text style={styles.scoreSheetEyebrow}>TABLEAU DE SUIVI</Text>
+        <Text style={styles.scoreSheetTitle}>Manche {currentRound}</Text>
+
+        {/* Totaux des 2 équipes */}
+        <View style={styles.scoreSheetTotals}>
+          <View style={styles.scoreSheetTeam}>
+            <Text style={styles.scoreSheetTeamLabel}>NOUS</Text>
+            <Text style={[styles.scoreSheetTeamValue, { color: COLORS.saffronSoft }]}>{scoreA}</Text>
+          </View>
+          <Text style={styles.scoreSheetVs}>·</Text>
+          <View style={styles.scoreSheetTeam}>
+            <Text style={styles.scoreSheetTeamLabel}>EUX</Text>
+            <Text style={styles.scoreSheetTeamValue}>{scoreB}</Text>
+          </View>
+        </View>
+
+        {/* Liste manche par manche */}
+        <ScrollView style={{ maxHeight: 340, marginTop: 4 }} contentContainerStyle={{ paddingBottom: 8 }}>
+          <View style={styles.scoreSheetHeaderRow}>
+            <Text style={[styles.scoreSheetHCol, { width: 32 }]}>M.</Text>
+            <Text style={[styles.scoreSheetHCol, { flex: 1 }]}>Mise</Text>
+            <Text style={[styles.scoreSheetHCol, { width: 54, textAlign: "right" }]}>NOUS</Text>
+            <Text style={[styles.scoreSheetHCol, { width: 54, textAlign: "right" }]}>EUX</Text>
+          </View>
+          {rounds.length === 0 ? (
+            <Text style={styles.scoreSheetEmpty}>
+              Le tableau se remplira après la 1ère manche.
+            </Text>
+          ) : (
+            rounds.map((r) => {
+              const success = r.bidTeam === "A" ? r.deltaA >= 0 : r.deltaB >= 0;
+              return (
+                <View key={r.round} style={styles.scoreSheetRow}>
+                  <Text style={[styles.scoreSheetNum, { width: 32 }]}>{r.round}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.scoreSheetBidder}>
+                      {r.bidWinner != null ? getName(r.bidWinner) : "—"}
+                      {r.bidAmount ? ` · ${r.bidAmount}` : ""}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.scoreSheetBidStatus,
+                        { color: success ? "#3FC26A" : "#E8553A" },
+                      ]}
+                    >
+                      {success ? "réussie" : "ratée"}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.scoreSheetDelta,
+                      {
+                        width: 54,
+                        color: r.deltaA > 0 ? "#3FC26A" : r.deltaA < 0 ? "#E8553A" : "rgba(245,235,214,0.5)",
+                      },
+                    ]}
+                  >
+                    {r.deltaA > 0 ? "+" : ""}{r.deltaA}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.scoreSheetDelta,
+                      {
+                        width: 54,
+                        color: r.deltaB > 0 ? "#3FC26A" : r.deltaB < 0 ? "#E8553A" : "rgba(245,235,214,0.5)",
+                      },
+                    ]}
+                  >
+                    {r.deltaB > 0 ? "+" : ""}{r.deltaB}
+                  </Text>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+
+        <Pressable onPress={onClose} style={styles.scoreSheetCloseBtn}>
+          <Text style={styles.scoreSheetCloseText}>Fermer</Text>
+        </Pressable>
+      </Pressable>
     </Pressable>
   );
 }
@@ -1289,27 +1487,59 @@ function GhnaOverlay({
 
 function GameEndOverlay({
   winningTeam,
+  scoreA,
+  scoreB,
+  mode,
   onRestart,
+  onHome,
+  onSeeDetail,
 }: {
   winningTeam: "A" | "B";
+  scoreA: number;
+  scoreB: number;
+  mode: GameMode;
   onRestart: () => void;
+  onHome: () => void;
+  onSeeDetail: () => void;
 }) {
   const won = winningTeam === "A";
   return (
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayEyebrow}>FIN DE PARTIE</Text>
-        <Text style={[styles.overlayTitle, { fontSize: 30 }]}>
+        <Text style={[styles.overlayTitle, { fontSize: 28 }]}>
           {won ? "NOUS avons gagné !" : "EUX ont gagné."}
         </Text>
-        <Pressable onPress={onRestart} style={[styles.bidChip, { alignSelf: "center", marginTop: 18 }]}>
-          <LinearGradient
-            colors={[COLORS.saffron, COLORS.brassDeep]}
-            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <Text style={styles.bidChipText}>Nouvelle partie</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, marginTop: 8 }}>
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: COLORS.brass }}>NOUS</Text>
+            <Text style={{ fontFamily: FONT_DISPLAY, fontSize: 34, color: COLORS.saffronSoft, fontWeight: "700" }}>{scoreA}</Text>
+          </View>
+          <Text style={{ fontFamily: FONT_DISPLAY, fontSize: 20, color: COLORS.brass, alignSelf: "center" }}>·</Text>
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: "rgba(245,235,214,0.6)" }}>EUX</Text>
+            <Text style={{ fontFamily: FONT_DISPLAY, fontSize: 34, color: COLORS.cream, fontWeight: "700" }}>{scoreB}</Text>
+          </View>
+        </View>
+
+        <View style={{ gap: 8, marginTop: 18, width: 260 }}>
+          <Pressable onPress={onSeeDetail} style={[styles.endBtn]}>
+            <LinearGradient
+              colors={[COLORS.saffron, COLORS.brassDeep]}
+              start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.endBtnText}>Voir le détail</Text>
+          </Pressable>
+          <Pressable onPress={onRestart} style={[styles.endBtn, styles.endBtnSecondary]}>
+            <Text style={[styles.endBtnText, { color: COLORS.cream }]}>
+              {mode === "net" ? "Retour au lobby" : "Nouvelle partie"}
+            </Text>
+          </Pressable>
+          <Pressable onPress={onHome} style={[styles.endBtn, styles.endBtnSecondary]}>
+            <Text style={[styles.endBtnText, { color: COLORS.cream }]}>Retour à l'accueil</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -1528,6 +1758,150 @@ const styles = StyleSheet.create({
   },
   lastTrickIcon: { fontSize: 20 },
 
+  // Bouton & overlay tableau de suivi
+  scoreSheetBtn: {
+    position: "absolute",
+    right: 64, // décalé à gauche du bouton "dernier pli"
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.saffron}77`,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 95,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  scoreSheetIcon: { fontSize: 18 },
+  scoreSheetOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 210,
+    padding: 20,
+  },
+  scoreSheetCard: {
+    backgroundColor: "#140b06",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}77`,
+    borderRadius: 18,
+    padding: 18,
+    width: "100%",
+    maxWidth: 400,
+  },
+  scoreSheetEyebrow: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10, letterSpacing: 3,
+    color: COLORS.brass, fontWeight: "700",
+    textAlign: "center",
+  },
+  scoreSheetTitle: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 18, fontWeight: "800",
+    color: COLORS.saffronSoft,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  scoreSheetTotals: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 24,
+    marginVertical: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  scoreSheetTeam: { alignItems: "center" },
+  scoreSheetTeamLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10, letterSpacing: 2,
+    color: "rgba(245,235,214,0.6)",
+    fontWeight: "700",
+  },
+  scoreSheetTeamValue: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 28, fontWeight: "700",
+    color: COLORS.cream,
+    marginTop: 2,
+  },
+  scoreSheetVs: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 18, color: COLORS.brass,
+  },
+  scoreSheetHeaderRow: {
+    flexDirection: "row",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: `${COLORS.brass}44`,
+  },
+  scoreSheetHCol: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 9, letterSpacing: 1.5,
+    color: "rgba(245,235,214,0.6)",
+    fontWeight: "700",
+  },
+  scoreSheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "rgba(245,235,214,0.08)",
+  },
+  scoreSheetNum: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 15, fontWeight: "700",
+    color: COLORS.saffronSoft,
+  },
+  scoreSheetBidder: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 12, fontWeight: "700",
+    color: COLORS.cream,
+  },
+  scoreSheetBidStatus: {
+    fontFamily: FONT_UI,
+    fontSize: 10, marginTop: 2,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    fontStyle: "italic",
+  },
+  scoreSheetDelta: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 14, fontWeight: "700",
+    textAlign: "right",
+  },
+  scoreSheetEmpty: {
+    fontFamily: FONT_UI,
+    fontSize: 12,
+    color: "rgba(245,235,214,0.5)",
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 20,
+  },
+  scoreSheetCloseBtn: {
+    marginTop: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+  },
+  scoreSheetCloseText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 13, fontWeight: "700",
+    color: COLORS.cream,
+  },
+
   lastTrickOverlay: {
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
@@ -1647,6 +2021,25 @@ const styles = StyleSheet.create({
     fontFamily: FONT_UI_BOLD,
     fontSize: 16,
     fontWeight: "800",
+    color: COLORS.terracottaDark,
+    letterSpacing: 0.3,
+  },
+
+  endBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  endBtnSecondary: {
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+  },
+  endBtnText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 14, fontWeight: "800",
     color: COLORS.terracottaDark,
     letterSpacing: 0.3,
   },

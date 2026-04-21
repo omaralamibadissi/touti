@@ -7,6 +7,7 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useTournamentStore } from "../store/tournamentStore";
+import { useAuthStore } from "../store/authStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "TournamentDetail">;
 
@@ -14,6 +15,9 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const tournament = useTournamentStore((s) => s.mine.find((t) => t.id === id));
   const remove = useTournamentStore((s) => s.remove);
+  const startT = useTournamentStore((s) => s.start);
+  const recordResult = useTournamentStore((s) => s.recordResult);
+  const myUsername = useAuthStore((s) => s.user?.username) ?? "Joueur";
 
   if (!tournament) {
     return (
@@ -150,19 +154,151 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {/* Actions admin */}
         <View style={styles.adminActions}>
-          <Pressable onPress={onShare} style={styles.bigCta}>
-            <LinearGradient
-              colors={[COLORS.saffron, COLORS.brassDeep]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <Text style={styles.bigCtaText}>Partager le tournoi</Text>
-          </Pressable>
-          <Pressable onPress={onDelete} style={styles.dangerBtn}>
-            <Text style={styles.dangerText}>Supprimer</Text>
-          </Pressable>
+          {tournament.status === "open" || tournament.status === "full" ? (
+            <>
+              <Pressable onPress={onShare} style={styles.bigCta}>
+                <LinearGradient
+                  colors={[COLORS.saffron, COLORS.brassDeep]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.bigCtaText}>Partager le tournoi</Text>
+              </Pressable>
+              {tournament.players.length >= 4 && (
+                <Pressable
+                  onPress={async () => {
+                    await startT(tournament.id);
+                  }}
+                  style={[styles.bigCta, { marginTop: 8, backgroundColor: COLORS.saffron }]}
+                >
+                  <LinearGradient
+                    colors={["#3FC26A", "#2B8A4A"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Text style={styles.bigCtaText}>▶ Lancer le tournoi</Text>
+                </Pressable>
+              )}
+              {tournament.players.length < 4 && (
+                <Text style={{ fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
+                  4 joueurs minimum (2 paires) pour lancer le tournoi
+                </Text>
+              )}
+              <Pressable onPress={onDelete} style={styles.dangerBtn}>
+                <Text style={styles.dangerText}>Supprimer</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
+
+        {/* RUNTIME : paires + matchs + classement */}
+        {tournament.status === "started" || tournament.status === "finished" ? (
+          <>
+            {/* Classement des paires */}
+            <Text style={styles.section}>CLASSEMENT</Text>
+            <View style={{ gap: 6, marginTop: 8 }}>
+              {[...(tournament.pairs || [])]
+                .sort((a, b) => b.wins - a.wins || b.points - a.points)
+                .map((p, i) => (
+                  <View key={p.id} style={styles.pairRankRow}>
+                    <Text style={[styles.pairRank, i < 3 && { color: COLORS.saffronSoft }]}>
+                      {i + 1}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pairNames}>{p.names[0]} & {p.names[1]}</Text>
+                      <Text style={styles.pairMeta}>
+                        {p.wins}V / {p.losses}D · {p.points} pts
+                      </Text>
+                    </View>
+                    <Text style={styles.pairScore}>{p.wins}</Text>
+                  </View>
+                ))}
+            </View>
+
+            {/* Matchs */}
+            <Text style={styles.section}>MATCHS</Text>
+            <View style={{ gap: 6, marginTop: 8 }}>
+              {(tournament.matches || []).map((m) => {
+                const pA = tournament.pairs?.find((p) => p.id === m.pairAId);
+                const pB = tournament.pairs?.find((p) => p.id === m.pairBId);
+                if (!pA || !pB) return null;
+                const mePlays =
+                  pA.names.includes(myUsername) || pB.names.includes(myUsername);
+                return (
+                  <View
+                    key={m.id}
+                    style={[
+                      styles.matchRow,
+                      m.status === "finished" && { opacity: 0.7 },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.matchRound}>ROUND {m.round}</Text>
+                      <Text style={styles.matchPair}>{pA.names.join(" & ")}</Text>
+                      <Text style={styles.matchVs}>vs</Text>
+                      <Text style={styles.matchPair}>{pB.names.join(" & ")}</Text>
+                      {m.status === "finished" && (
+                        <Text style={styles.matchResult}>
+                          {m.scoreA} - {m.scoreB} · {m.winnerPairId === m.pairAId ? pA.names.join(" & ") : pB.names.join(" & ")} gagne
+                        </Text>
+                      )}
+                    </View>
+                    {m.status === "pending" && (
+                      <View style={{ gap: 6 }}>
+                        {mePlays && (
+                          <Pressable
+                            onPress={() => {
+                              navigation.navigate("QuickMatch", { code: m.roomCode });
+                            }}
+                            style={styles.matchPlayBtn}
+                          >
+                            <Text style={styles.matchPlayText}>Jouer · {m.roomCode}</Text>
+                          </Pressable>
+                        )}
+                        <Pressable
+                          onPress={() => {
+                            Alert.prompt?.(
+                              "Saisir résultat",
+                              `${pA.names.join(" & ")} vs ${pB.names.join(" & ")}\nScore au format "600-540"`,
+                              async (text: string) => {
+                                const match = (text || "").match(/^\s*(\d+)\s*[-:_]\s*(\d+)\s*$/);
+                                if (!match) return;
+                                await recordResult(
+                                  tournament.id,
+                                  m.id,
+                                  parseInt(match[1], 10),
+                                  parseInt(match[2], 10),
+                                );
+                              },
+                            );
+                          }}
+                          style={styles.matchReportBtn}
+                        >
+                          <Text style={styles.matchReportText}>Saisir résultat</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            {tournament.status === "finished" && (
+              <View style={styles.finishedBanner}>
+                <Text style={styles.finishedText}>🏆 TOURNOI TERMINÉ</Text>
+                <Text style={styles.finishedSub}>
+                  Vainqueur : {tournament.pairs?.sort((a, b) => b.wins - a.wins || b.points - a.points)[0]?.names.join(" & ")}
+                </Text>
+              </View>
+            )}
+
+            <Pressable onPress={onDelete} style={[styles.dangerBtn, { marginTop: 16 }]}>
+              <Text style={styles.dangerText}>Supprimer le tournoi</Text>
+            </Pressable>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -339,4 +475,66 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dangerText: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: "#E8553A" },
+
+  pairRankRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 10, backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 10, borderWidth: 0.5, borderColor: "rgba(245,235,214,0.1)",
+  },
+  pairRank: {
+    fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: "700",
+    color: "rgba(245,235,214,0.55)", width: 24, textAlign: "center",
+  },
+  pairNames: { fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700", color: COLORS.cream },
+  pairMeta: { fontFamily: FONT_UI, fontSize: 10, color: "rgba(245,235,214,0.55)", marginTop: 2 },
+  pairScore: { fontFamily: FONT_DISPLAY, fontSize: 20, fontWeight: "700", color: COLORS.saffronSoft },
+
+  matchRow: {
+    flexDirection: "row", gap: 10, padding: 12,
+    backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 10,
+    borderWidth: 0.5, borderColor: "rgba(245,235,214,0.1)",
+  },
+  matchRound: {
+    fontFamily: FONT_UI_BOLD, fontSize: 9, letterSpacing: 2,
+    color: COLORS.brass, fontWeight: "700", marginBottom: 4,
+  },
+  matchPair: { fontFamily: FONT_UI_BOLD, fontSize: 13, color: COLORS.cream, fontWeight: "700" },
+  matchVs: { fontFamily: FONT_DISPLAY, fontSize: 11, color: COLORS.brass, marginVertical: 2 },
+  matchResult: {
+    fontFamily: FONT_UI, fontSize: 11, fontStyle: "italic",
+    color: COLORS.saffronSoft, marginTop: 6,
+  },
+  matchPlayBtn: {
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: COLORS.saffron, alignItems: "center",
+  },
+  matchPlayText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 11, fontWeight: "800",
+    color: COLORS.terracottaDark,
+  },
+  matchReportBtn: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}55`,
+    alignItems: "center",
+  },
+  matchReportText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10,
+    color: COLORS.cream, letterSpacing: 0.5,
+  },
+
+  finishedBanner: {
+    marginTop: 20, padding: 20,
+    backgroundColor: `${COLORS.saffron}22`,
+    borderWidth: 1, borderColor: COLORS.saffron,
+    borderRadius: 14, alignItems: "center",
+  },
+  finishedText: {
+    fontFamily: FONT_DISPLAY, fontSize: 20, fontWeight: "700",
+    color: COLORS.saffronSoft, letterSpacing: 2,
+  },
+  finishedSub: {
+    fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700",
+    color: COLORS.cream, marginTop: 4,
+  },
 });
