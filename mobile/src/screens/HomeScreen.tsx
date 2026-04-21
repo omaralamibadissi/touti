@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   ScrollView,
   Pressable,
@@ -14,18 +13,15 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD, SPACING, shade } from "../theme";
 import { ZelligeBg, ArabesqueDivider, StarBurst } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
-import { BrassButton } from "../components/BrassButton";
+import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
+import { useAuthStore } from "../store/authStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
-/**
- * HomeScreen — porté du design Claude Design (screen-home.jsx).
- * Fond terracotta, titre TOUTI en Cormorant Garamond, motif zellige en filigrane,
- * CTA "Partie rapide" en laiton, grille de 4 modes de jeu.
- */
 export default function HomeScreen({ navigation }: Props) {
-  const [name, setName] = useState("");
-  const canPlay = name.trim().length > 0;
+  const user = useAuthStore((s) => s.user);
+  const name = user?.username ?? "";
+  const canPlay = name.length > 0;
 
   return (
     <View style={styles.root}>
@@ -57,187 +53,168 @@ export default function HomeScreen({ navigation }: Props) {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header profil + monnaies */}
+        {/* Header profil */}
         <View style={styles.header}>
-          <View style={styles.profile}>
+          <Pressable style={styles.profile} onPress={() => navigation.navigate("Profile")}>
             <Avatar initials={name.trim()[0]?.toUpperCase() || "?"} size={40} color={COLORS.teal} />
-            <View>
-              <Text style={styles.greeting}>Salut{name.trim() ? `, ${name.trim()}` : ""}</Text>
-              <Text style={styles.level}>NIVEAU 1 · MBTDI</Text>
-            </View>
-          </View>
-
-          <View style={styles.badges}>
-            <CoinBadge value="2 480" gold />
-            <CoinBadge value="42" />
-          </View>
+            <Text style={styles.greeting}>Salut{name.trim() ? `, ${name.trim()}` : ""}</Text>
+          </Pressable>
         </View>
 
         {/* Titre hero */}
         <View style={styles.hero}>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-          <Text style={styles.title}>TOUTI</Text>
-          <Text style={styles.subtitle}>LE JEU DE CARTES MAROCAIN</Text>
+          <Text style={styles.title}>KBIRKBIR</Text>
+          <Text style={styles.subtitle}>LE TOUTI MAROCAIN</Text>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
         </View>
 
-        {/* Input pseudo */}
-        <View style={styles.inputBlock}>
-          <Text style={styles.inputLabel}>TON PSEUDO · SMITEK</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Entre ton pseudo…"
-            placeholderTextColor="rgba(245,235,214,0.5)"
-            style={styles.input}
-            autoCapitalize="none"
-            maxLength={20}
-          />
-        </View>
-
-        {/* CTA Partie rapide */}
-        <View style={{ paddingHorizontal: SPACING.xl, marginTop: SPACING.sm }}>
-          <Pressable
-            disabled={!canPlay}
-            onPress={() => navigation.navigate("Lobby", { name: name.trim() })}
-            style={({ pressed }) => [
-              styles.ctaWrapper,
-              { opacity: canPlay ? 1 : 0.5, transform: [{ scale: pressed ? 0.98 : 1 }] },
-            ]}
-          >
-            <LinearGradient
-              colors={[COLORS.saffron, COLORS.brassDeep]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.cta}
-            >
-              <View>
-                <Text style={styles.ctaTitle}>Partie rapide</Text>
-                <Text style={styles.ctaSubtitle}>LE3B BZZERBA · 2v2</Text>
-              </View>
-              <View style={styles.ctaIcon}>
-                <Svg width={22} height={22} viewBox="0 0 24 24">
-                  <Path d="M5 4l14 8-14 8V4z" fill={COLORS.ink} />
-                </Svg>
-              </View>
-            </LinearGradient>
-          </Pressable>
-
-          <View style={styles.onlineRow}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.onlineText}>12 840 joueurs en ligne</Text>
-          </View>
-        </View>
-
-        {/* Modes de jeu */}
+        {/* Tiles de jeu */}
         <View style={{ paddingHorizontal: SPACING.lg, marginTop: SPACING.xl }}>
-          <SectionHeader fr="Modes de jeu" dr="ANWA3 L'LO3B" />
           <View style={styles.grid}>
-            <ModeTile fr="Avec des amis" dr="M3A S7ABEK" accent={COLORS.teal} />
-            <ModeTile fr="Tournoi" dr="BTOLA" accent={COLORS.brassDeep} badge="LIVE" />
-            <ModeTile fr="Contre l'IA" dr="DED L'MACHINE" accent="#8B4A7F" />
-            <ModeTile fr="Défi du jour" dr="T7ADI L'YOUM" accent={COLORS.terracotta} badge="+250" />
+            <ModeTile
+              fr="Partie rapide"
+              sub="Solo · trouve 3 joueurs"
+              accent={COLORS.brassDeep}
+              icon="bolt"
+              onPress={() => navigation.navigate("QuickMatch")}
+            />
+            <ModeTile
+              fr="Avec des amis"
+              sub="Invite par code"
+              accent={COLORS.teal}
+              icon="people"
+              onPress={() => navigation.navigate("PrivateGame")}
+            />
+            <ModeTile
+              fr="Tournoi"
+              sub="Créer ou rejoindre"
+              accent="#8B4A7F"
+              icon="trophy"
+              onPress={() => navigation.navigate("TournamentHome")}
+            />
+            <ModeTile
+              fr="Score"
+              sub="Compteur IRL · papier"
+              accent={COLORS.terracotta}
+              icon="notepad"
+              onPress={() => navigation.navigate("ScoreSheets")}
+            />
+            <ModeTile
+              fr="Règles"
+              sub="Apprendre le Touti"
+              accent="#0F5A5E"
+              icon="book"
+              onPress={() => navigation.navigate("Rules")}
+            />
+            <ModeTile
+              fr="Historique"
+              sub="Tes parties passées"
+              accent="#8B5A12"
+              icon="history"
+              onPress={() => navigation.navigate("MatchHistory")}
+            />
           </View>
         </View>
 
-        {/* Amis en ligne */}
-        <View style={{ paddingHorizontal: SPACING.lg, marginTop: SPACING.lg }}>
-          <SectionHeader fr="Amis en ligne" dr="S7ABEK ONLINE" count={4} />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12, paddingVertical: 10 }}
-          >
-            {[
-              { i: "K", c: COLORS.brass, n: "Karim", on: true },
-              { i: "Y", c: "#8B4A7F", n: "Yasmine", on: true },
-              { i: "A", c: COLORS.teal, n: "Amine", on: true },
-              { i: "F", c: COLORS.terracotta, n: "Fatima", on: false },
-              { i: "+", c: "rgba(245,235,214,0.15)", n: "3ayet", on: false },
-            ].map((f, i) => (
-              <View key={i} style={{ alignItems: "center", gap: 4 }}>
-                <Avatar initials={f.i} size={46} color={f.c} online={f.on} />
-                <Text style={styles.friendName}>{f.n}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={{ height: 40 }} />
+        <View style={{ height: BOTTOM_TAB_HEIGHT + 20 }} />
       </ScrollView>
+      <BottomTabBar />
     </View>
   );
 }
 
 // ─── Sous-composants ──────────────────────────────────────────────
 
-function CoinBadge({ value, gold = false }: { value: string; gold?: boolean }) {
-  return (
-    <View style={styles.coinBadge}>
-      {gold ? (
-        <View style={styles.coinGold}>
-          <Text style={styles.coinLetter}>D</Text>
-        </View>
-      ) : (
-        <Svg width={16} height={16} viewBox="0 0 24 24">
-          <Path d="M12 2l8 7-8 13-8-13 8-7z" fill="#4FC2D9" stroke={COLORS.teal} strokeWidth={1} />
-        </Svg>
-      )}
-      <Text style={styles.coinValue}>{value}</Text>
-    </View>
-  );
-}
+type ModeIcon = "bolt" | "people" | "trophy" | "notepad" | "book" | "history";
 
-function SectionHeader({ fr, dr, count }: { fr: string; dr: string; count?: number }) {
+// Icônes Lucide (MIT) — formes simples à un seul path concat pour chaque icône.
+function ModeIconSvg({ icon }: { icon: ModeIcon }) {
+  const stroke = COLORS.cream;
+  const sw = 1.9;
+  const common = { stroke, strokeWidth: sw, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
   return (
-    <View style={styles.sectionHeader}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10 }}>
-        <Text style={styles.sectionFr}>{fr}</Text>
-        <Text style={styles.sectionDr}>{dr}</Text>
-      </View>
-      {count !== undefined && <Text style={styles.sectionCount}>+{count}</Text>}
-    </View>
+    <Svg width={28} height={28} viewBox="0 0 24 24">
+      {icon === "bolt" && (
+        <Path d="M13 2 3 14h7l-1 8 11-14h-8l1-6z" {...common} />
+      )}
+      {icon === "people" && (
+        <>
+          <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" {...common} />
+          <Path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" {...common} />
+          <Path d="M22 21v-2a4 4 0 0 0-3-3.87" {...common} />
+          <Path d="M16 3.13a4 4 0 0 1 0 7.75" {...common} />
+        </>
+      )}
+      {icon === "trophy" && (
+        <>
+          <Path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" {...common} />
+          <Path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" {...common} />
+          <Path d="M4 22h16" {...common} />
+          <Path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" {...common} />
+          <Path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" {...common} />
+          <Path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" {...common} />
+        </>
+      )}
+      {icon === "notepad" && (
+        <>
+          <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" {...common} />
+          <Path d="M14 2v6h6" {...common} />
+          <Path d="M8 13h8" {...common} />
+          <Path d="M8 17h8" {...common} />
+          <Path d="M8 9h2" {...common} />
+        </>
+      )}
+      {icon === "book" && (
+        <>
+          <Path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" {...common} />
+          <Path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" {...common} />
+        </>
+      )}
+      {icon === "history" && (
+        <>
+          <Path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" {...common} />
+          <Path d="M3 3v5h5" {...common} />
+          <Path d="M12 7v5l4 2" {...common} />
+        </>
+      )}
+    </Svg>
   );
 }
 
 function ModeTile({
   fr,
-  dr,
+  sub,
   accent,
-  badge,
+  icon,
+  onPress,
 }: {
   fr: string;
-  dr: string;
+  sub?: string;
   accent: string;
-  badge?: string;
+  icon: ModeIcon;
+  onPress?: () => void;
 }) {
   return (
-    <View style={styles.modeTile}>
+    <Pressable style={styles.modeTile} onPress={onPress}>
       <LinearGradient
         colors={[accent, shade(accent, -25)]}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      {badge && (
-        <View style={styles.modeBadge}>
-          <Text style={styles.modeBadgeText}>{badge}</Text>
-        </View>
-      )}
-      <View style={{ padding: 14, gap: 8 }}>
-        <Svg width={26} height={26} viewBox="0 0 24 24">
-          <Circle cx={12} cy={12} r={4} stroke={COLORS.cream} strokeWidth={1.8} fill="none" />
-        </Svg>
+      <View style={{ padding: 14, gap: 6 }}>
+        <ModeIconSvg icon={icon} />
         <Text style={styles.modeFr}>{fr}</Text>
-        <Text style={styles.modeDr}>{dr}</Text>
+        {sub && <Text style={styles.modeSub}>{sub}</Text>}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.terracottaDark },
-  scroll: { paddingTop: 12, paddingBottom: 24 },
+  scroll: { paddingTop: 75, paddingBottom: 24 },
 
   header: {
     flexDirection: "row",
@@ -279,13 +256,24 @@ const styles = StyleSheet.create({
   },
   coinLetter: { color: COLORS.terracottaDark, fontFamily: FONT_DISPLAY, fontSize: 11, fontWeight: "700" },
   coinValue: { color: COLORS.cream, fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700" },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5,
+    borderColor: "rgba(212,160,76,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconText: { fontSize: 14 },
 
   hero: { alignItems: "center", marginTop: 20, gap: 6 },
   title: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 72,
+    fontSize: 58,
     color: COLORS.saffronSoft,
-    letterSpacing: 4,
+    letterSpacing: 2,
     fontWeight: "700",
     textShadowColor: "rgba(232,161,48,0.55)",
     textShadowOffset: { width: 0, height: 4 },
@@ -450,6 +438,14 @@ const styles = StyleSheet.create({
     fontFamily: FONT_UI_BOLD,
     fontSize: 14,
     fontWeight: "700",
+    marginTop: 2,
+  },
+  modeSub: {
+    color: "rgba(245,235,214,0.75)",
+    fontFamily: FONT_UI,
+    fontSize: 10,
+    fontWeight: "600",
+    lineHeight: 13,
   },
   modeDr: {
     color: "rgba(245,235,214,0.65)",

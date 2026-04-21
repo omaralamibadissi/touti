@@ -2,10 +2,12 @@
   "expo": {
     "name": "Touti",
     "slug": "touti",
+    "scheme": "touti",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.omar.touti"
@@ -13,14 +15,38 @@
     "android": {
       "package": "com.omar.touti",
       "adaptiveIcon": {
-        "backgroundColor": "#0b0f14"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#4E1208"
       }
     },
     "web": {
       "bundler": "metro"
     },
     "extra": {
-      "SERVER_URL": "ws://localhost:2567"
+      "SERVER_URL": "ws://localhost:2567",
+      "eas": {
+        "projectId": "ce4cda81-23d1-4740-84d5-66f38dfeaf59"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 280,
+          "resizeMode": "contain",
+          "backgroundColor": "#4E1208"
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "owner": "oab10",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ce4cda81-23d1-4740-84d5-66f38dfeaf59"
     }
   }
 }

@@ -17,6 +17,11 @@ const server = new Server({
   transport: new WebSocketTransport({ server: createServer(app) }),
 });
 
+// Room "touti_private" — parties par code d'invitation (amis)
+// Colyseus matche joinOrCreate avec options identiques via filterBy
+server.define("touti_private", GameRoom).filterBy(["code"]);
+
+// Alias court pour compat (version précédente de l'API)
 server.define("touti", GameRoom);
 
 server.listen(port).then(() => {

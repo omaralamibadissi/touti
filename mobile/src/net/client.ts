@@ -1,16 +1,24 @@
+// Client Colyseus singleton — une seule instance partagée entre écrans.
+// URL configurable via EXPO_PUBLIC_SERVER_URL (dev local) ou défaut = prod Fly.io.
+
 import { Client, Room } from "colyseus.js";
-import Constants from "expo-constants";
 
-const SERVER_URL: string =
-  (Constants.expoConfig?.extra?.SERVER_URL as string | undefined) ?? "ws://localhost:2567";
+const DEFAULT_URL = "wss://kbirkbir-server.fly.dev";
+const url = process.env.EXPO_PUBLIC_SERVER_URL || DEFAULT_URL;
 
-let client: Client | null = null;
+export const colyClient = new Client(url);
 
-export function getClient(): Client {
-  if (!client) client = new Client(SERVER_URL);
-  return client;
+export type PrivateRoomOpts = { code: string; name: string };
+
+/** Crée ou rejoint une partie privée par code (4 lettres). */
+export async function joinPrivateRoom(opts: PrivateRoomOpts): Promise<Room> {
+  return colyClient.joinOrCreate("touti_private", {
+    code: opts.code.toUpperCase(),
+    name: opts.name,
+  });
 }
 
-export async function joinTouti(name: string): Promise<Room> {
-  return getClient().joinOrCreate("touti", { name });
+/** Reconnecte à une room après coupure (token obtenu via room.reconnectionToken). */
+export async function reconnect(token: string): Promise<Room> {
+  return colyClient.reconnect(token);
 }

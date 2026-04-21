@@ -1,0 +1,191 @@
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../App";
+import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
+import { ArabesqueDivider, ZelligeBg } from "../components/Patterns";
+import { useTournamentStore } from "../store/tournamentStore";
+
+type Props = NativeStackScreenProps<RootStackParamList, "TournamentHome">;
+
+export default function TournamentHomeScreen({ navigation }: Props) {
+  const mine = useTournamentStore((s) => s.mine);
+  const hydrate = useTournamentStore((s) => s.hydrate);
+  useEffect(() => { hydrate(); }, [hydrate]);
+
+  return (
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[COLORS.terracotta, COLORS.terracottaDark, COLORS.terracottaDeep]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[StyleSheet.absoluteFill, { opacity: 0.08 }]} pointerEvents="none">
+        <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
+      </View>
+
+      <View style={styles.topBar}>
+        <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.backText}>←</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={styles.hero}>
+          <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
+          <Text style={styles.title}>Tournois</Text>
+          <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
+        </View>
+
+        <View style={styles.actions}>
+          <BigAction
+            label="Créer un tournoi"
+            sub="En ligne · championnat · IRL"
+            onPress={() => navigation.navigate("CreateTournament")}
+            primary
+          />
+          <BigAction
+            label="Rejoindre avec un code"
+            sub="Code à 6 caractères"
+            onPress={() => navigation.navigate("JoinTournament")}
+          />
+        </View>
+
+        {mine.length > 0 && (
+          <View style={styles.myList}>
+            <Text style={styles.sectionLabel}>MES TOURNOIS</Text>
+            {mine.map((t) => (
+              <Pressable
+                key={t.id}
+                style={styles.tRow}
+                onPress={() => navigation.navigate("TournamentDetail", { id: t.id })}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tName}>{t.name}</Text>
+                  <Text style={styles.tMeta}>
+                    {labelFormat(t.format)} · {labelMode(t.mode)} · {t.players.length}/{t.maxPlayers} joueurs · code {t.code}
+                  </Text>
+                </View>
+                <Text style={styles.chev}>›</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+function labelFormat(f: string): string {
+  if (f === "online") return "En ligne";
+  if (f === "irl") return "IRL";
+  return f;
+}
+
+function labelMode(m: string): string {
+  if (m === "classique") return "Classique";
+  if (m === "championnat") return "Championnat";
+  return m;
+}
+
+function BigAction({
+  label,
+  sub,
+  onPress,
+  primary,
+}: {
+  label: string;
+  sub: string;
+  onPress: () => void;
+  primary?: boolean;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
+      {primary ? (
+        <LinearGradient
+          colors={[COLORS.saffron, COLORS.brassDeep]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.35)" }]} />
+      )}
+      <View>
+        <Text style={[styles.actionLabel, { color: primary ? COLORS.terracottaDark : COLORS.cream }]}>{label}</Text>
+        <Text style={[styles.actionSub, { color: primary ? "rgba(43,24,16,0.75)" : "rgba(245,235,214,0.6)" }]}>{sub}</Text>
+      </View>
+      <Text style={[styles.actionArrow, { color: primary ? COLORS.terracottaDark : COLORS.cream }]}>›</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+
+  topBar: { flexDirection: "row", paddingTop: 60, paddingHorizontal: 16 },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}44`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backText: { color: COLORS.cream, fontSize: 18, fontWeight: "700", fontFamily: FONT_UI_BOLD },
+
+  hero: { alignItems: "center", marginTop: 10, gap: 8 },
+  title: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 48,
+    color: COLORS.saffronSoft,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+
+  actions: { paddingHorizontal: 20, marginTop: 32, gap: 12 },
+  action: {
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  actionLabel: { fontFamily: FONT_UI_BOLD, fontSize: 17, fontWeight: "800", flex: 1 },
+  actionSub: { fontFamily: FONT_UI, fontSize: 11, letterSpacing: 1, fontWeight: "600", marginTop: 4, fontStyle: "italic" },
+  actionArrow: { fontSize: 28, fontWeight: "300", marginLeft: 16 },
+
+  myList: { paddingHorizontal: 20, marginTop: 32, gap: 8 },
+  sectionLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 3,
+    color: COLORS.brass,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  tRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}33`,
+    borderRadius: 12,
+  },
+  tName: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: COLORS.cream },
+  tMeta: { fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", marginTop: 3 },
+  chev: { fontSize: 22, color: "rgba(245,235,214,0.5)" },
+});

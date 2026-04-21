@@ -1,0 +1,32 @@
+# Fly.io config pour le serveur Colyseus Touti.
+# Le nom "app" est choisi lors du `fly launch` — tu peux le changer ici après.
+
+app = "kbirkbir-server"
+primary_region = "cdg"  # Paris — ~30 ms de latence depuis le Maroc
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  PORT = "2567"
+
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = "off"         # disable — on ne veut pas que les timers setTimeout soient tués
+  auto_start_machines = true
+  min_machines_running = 1           # une machine toujours up pour que les timers fire
+  processes = ["app"]
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  protocol = "http"
+  timeout = "5s"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

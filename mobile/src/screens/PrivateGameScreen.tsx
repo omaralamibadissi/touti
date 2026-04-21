@@ -1,0 +1,491 @@
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable, TextInput, Share, ActivityIndicator } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../App";
+import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
+import { ZelligeBg } from "../components/Patterns";
+import { Avatar } from "../components/Avatar";
+import { useNetGameStore } from "../store/netGameStore";
+import { useAuthStore } from "../store/authStore";
+
+type Props = NativeStackScreenProps<RootStackParamList, "PrivateGame">;
+
+function randomCode(): string {
+  // 4 lettres, pas de I/O/0/1 pour éviter confusion
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 4; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+export default function PrivateGameScreen({ navigation }: Props) {
+  const [mode, setMode] = useState<"menu" | "lobby" | "joining">("menu");
+  const [typedCode, setTypedCode] = useState("");
+
+  const myUsername = useAuthStore((s) => s.user?.username) ?? "Player";
+
+  const store = useNetGameStore();
+  const { room, connected, error, players, locked, roomCode } = store;
+
+  // Pas d'auto-disconnect — le store est nettoyé explicitement via le bouton
+  // "Quitter" ou quand l'utilisateur fait Créer/Rejoindre une nouvelle partie.
+
+  // Auto-navigation vers le jeu quand la partie démarre (locked → true)
+  useEffect(() => {
+    if (locked) {
+      navigation.replace("Game", { mode: "net" });
+    }
+  }, [locked, navigation]);
+
+  const hostSeat = players.length > 0 ? players.sort((a, b) => a.seat - b.seat)[0].seat : null;
+  const mySessionId = room?.sessionId;
+  const me = players.find((p) => p.id === mySessionId);
+  const isHost = me && hostSeat != null && me.seat === hostSeat;
+
+  const create = async () => {
+    const code = randomCode();
+    setMode("lobby");
+    await store.connectPrivate(code, myUsername);
+  };
+
+  const join = async () => {
+    if (typedCode.length !== 4) return;
+    setMode("lobby");
+    await store.connectPrivate(typedCode, myUsername);
+  };
+
+  const share = async () => {
+    if (!roomCode) return;
+    try {
+      await Share.share({
+        message: `🃏 Rejoins ma partie Touti !\nCode : ${roomCode}\nDemarre l'app KbirKbir.`,
+      });
+    } catch {}
+  };
+
+  const cancel = async () => {
+    await store.disconnect();
+    setMode("menu");
+    setTypedCode("");
+  };
+
+  return (
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[COLORS.terracotta, COLORS.terracottaDark, COLORS.terracottaDeep]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[StyleSheet.absoluteFill, { opacity: 0.06 }]} pointerEvents="none">
+        <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
+      </View>
+
+      <View style={styles.topBar}>
+        <Pressable style={styles.iconBtn} onPress={() => (mode === "menu" ? navigation.goBack() : cancel())}>
+          <Text style={styles.iconBtnText}>←</Text>
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eyebrow}>PARTIE PRIVÉE</Text>
+          <Text style={styles.title}>Avec des amis</Text>
+        </View>
+      </View>
+
+      <View style={styles.content}>
+        {mode === "menu" && (
+          <View style={{ gap: 12 }}>
+            <Text style={styles.intro}>
+              Joue en réseau avec 3 potes — partage un code à 4 lettres.
+            </Text>
+
+            <Pressable onPress={create} style={styles.bigBtn}>
+              <LinearGradient
+                colors={[COLORS.saffron, COLORS.brassDeep]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.bigBtnTitle}>Créer une partie</Text>
+              <Text style={styles.bigBtnSub}>Génère un code à partager</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setMode("joining")} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Rejoindre une partie</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>Entre le code d'un ami</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {mode === "joining" && (
+          <View style={{ gap: 16 }}>
+            <View>
+              <Text style={styles.codeLabel}>CODE DE L'AMI</Text>
+              <TextInput
+                value={typedCode}
+                onChangeText={(t) => setTypedCode(t.toUpperCase().slice(0, 4))}
+                placeholder="CODE"
+                placeholderTextColor="rgba(245,235,214,0.3)"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={4}
+                style={styles.codeInput}
+              />
+            </View>
+
+            <Pressable
+              disabled={typedCode.length !== 4}
+              onPress={join}
+              style={[styles.bigBtn, typedCode.length !== 4 && { opacity: 0.4 }]}
+            >
+              <LinearGradient
+                colors={[COLORS.saffron, COLORS.brassDeep]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.bigBtnTitle}>Rejoindre</Text>
+            </Pressable>
+
+            <Pressable onPress={() => { setMode("menu"); setTypedCode(""); }} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Retour</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {mode === "lobby" && (
+          <View style={{ gap: 14 }}>
+            {!connected && !error && (
+              <View style={styles.centerBlock}>
+                <ActivityIndicator color={COLORS.saffron} size="large" />
+                <Text style={styles.dim}>Connexion au serveur…</Text>
+              </View>
+            )}
+
+            {error && (
+              <View style={[styles.centerBlock, { backgroundColor: "rgba(200,70,45,0.15)" }]}>
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary, { marginTop: 14 }]}>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Retour</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {connected && !error && (
+              <>
+                {roomCode && (
+                  <View style={styles.codeBlock}>
+                    <Text style={styles.codeLabel}>CODE DE LA PARTIE</Text>
+                    <Text style={styles.codeValue}>{roomCode}</Text>
+                    <Pressable onPress={share} style={styles.shareRow}>
+                      <Text style={styles.shareText}>↗ Partager</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                <Text style={styles.sectionLabel}>
+                  JOUEURS · {players.length} / 4
+                </Text>
+
+                <View style={{ gap: 8 }}>
+                  {[0, 1, 2, 3].map((seat) => {
+                    const p = players.find((x) => x.seat === seat);
+                    return (
+                      <PlayerSlot
+                        key={seat}
+                        seat={seat}
+                        name={p?.name}
+                        connected={p?.connected}
+                        ready={p?.ready}
+                        isMe={p?.id === mySessionId}
+                      />
+                    );
+                  })}
+                </View>
+
+                {isHost ? (
+                  <Pressable
+                    onPress={() => store.startGame()}
+                    style={[styles.bigBtn, { marginTop: 10 }]}
+                  >
+                    <LinearGradient
+                      colors={[COLORS.saffron, COLORS.brassDeep]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <Text style={styles.bigBtnTitle}>Démarrer la partie</Text>
+                    <Text style={styles.bigBtnSub}>
+                      {players.length < 4
+                        ? `${4 - players.length} siège${4 - players.length > 1 ? "s" : ""} seront remplis par IA`
+                        : "4 joueurs humains"}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.centerBlock}>
+                    <Text style={styles.dim}>En attente du lancement par l'hôte…</Text>
+                  </View>
+                )}
+
+                <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Quitter</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ─── Sous-composants ──────────────────────────────────────────────
+
+function PlayerSlot({
+  seat,
+  name,
+  connected,
+  ready,
+  isMe,
+}: {
+  seat: number;
+  name?: string;
+  connected?: boolean;
+  ready?: boolean;
+  isMe?: boolean;
+}) {
+  const team = (seat % 2) as 0 | 1;
+  const teamColor = team === 0 ? COLORS.teal : "#C8551D";
+  const teamLabel = team === 0 ? "NOUS" : "EUX";
+
+  return (
+    <View style={styles.slotRow}>
+      {name ? (
+        <>
+          <Avatar
+            initials={name[0]?.toUpperCase() ?? "?"}
+            size={34}
+            color={teamColor}
+            online={connected}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.slotName}>
+              {name}
+              {isMe && <Text style={{ color: COLORS.saffronSoft }}>  (VOUS)</Text>}
+            </Text>
+            <Text style={[styles.slotTeam, { color: teamColor }]}>{teamLabel}</Text>
+          </View>
+          {ready && (
+            <View style={styles.readyBadge}>
+              <Text style={styles.readyText}>PRÊT</Text>
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          <View style={styles.emptyCircle} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.slotEmptyName}>En attente…</Text>
+            <Text style={[styles.slotTeam, { color: teamColor, opacity: 0.5 }]}>{teamLabel}</Text>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─── Styles ────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 60, paddingHorizontal: 16 },
+  iconBtn: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}44`,
+    alignItems: "center", justifyContent: "center",
+  },
+  iconBtnText: { color: COLORS.cream, fontSize: 18, fontWeight: "700", fontFamily: FONT_UI_BOLD },
+  eyebrow: { fontFamily: FONT_UI_BOLD, fontSize: 11, letterSpacing: 3, color: COLORS.brass, fontWeight: "700" },
+  title: { fontFamily: FONT_DISPLAY, fontSize: 28, color: COLORS.cream, fontWeight: "700", marginTop: 2 },
+
+  content: { flex: 1, padding: 20 },
+  intro: {
+    fontFamily: FONT_UI,
+    fontSize: 14,
+    color: "rgba(245,235,214,0.75)",
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+
+  bigBtn: {
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  bigBtnSecondary: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+  },
+  bigBtnTitle: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 17,
+    fontWeight: "800",
+    color: COLORS.terracottaDark,
+    letterSpacing: 0.3,
+  },
+  bigBtnSub: {
+    fontFamily: FONT_UI,
+    fontSize: 11,
+    color: "rgba(43,24,16,0.75)",
+    marginTop: 4,
+    letterSpacing: 1,
+    fontWeight: "700",
+    fontStyle: "italic",
+  },
+
+  centerBlock: {
+    padding: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 16,
+  },
+  dim: {
+    fontFamily: FONT_UI,
+    fontSize: 13,
+    color: "rgba(245,235,214,0.55)",
+    fontStyle: "italic",
+  },
+  errorText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 14,
+    color: "#E8553A",
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  codeBlock: {
+    padding: 16,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+    alignItems: "center",
+  },
+  codeLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 3,
+    color: COLORS.brass,
+    fontWeight: "700",
+  },
+  codeValue: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 44,
+    color: COLORS.saffronSoft,
+    fontWeight: "700",
+    letterSpacing: 8,
+    marginTop: 8,
+  },
+  shareRow: {
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: `${COLORS.brass}33`,
+  },
+  shareText: {
+    color: COLORS.saffronSoft,
+    fontFamily: FONT_UI_BOLD,
+    fontWeight: "700",
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+
+  codeInput: {
+    marginTop: 8,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 1,
+    borderColor: `${COLORS.brass}77`,
+    borderRadius: 16,
+    paddingVertical: 18,
+    textAlign: "center",
+    fontSize: 32,
+    fontFamily: FONT_DISPLAY,
+    fontWeight: "700",
+    color: COLORS.cream,
+    letterSpacing: 8,
+  },
+
+  sectionLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: "rgba(245,235,214,0.7)",
+    fontWeight: "700",
+    marginTop: 6,
+  },
+
+  slotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: "rgba(245,235,214,0.1)",
+  },
+  slotName: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.cream,
+  },
+  slotTeam: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  slotEmptyName: {
+    fontFamily: FONT_UI,
+    fontSize: 13,
+    color: "rgba(245,235,214,0.4)",
+    fontStyle: "italic",
+  },
+  emptyCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "rgba(245,235,214,0.25)",
+  },
+  readyBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: `${COLORS.statusGreen}33`,
+    borderWidth: 0.5,
+    borderColor: COLORS.statusGreen,
+  },
+  readyText: {
+    color: COLORS.statusGreen,
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    fontWeight: "700",
+  },
+});

@@ -1,0 +1,28 @@
+**/node_modules
+**/dist
+**/.next
+**/.expo
+**/build
+**/.DS_Store
+.git
+.github
+.vscode
+.idea
+
+# Mobile (n'a rien à faire dans l'image serveur)
+mobile/android
+mobile/ios
+mobile/assets
+mobile/.expo
+mobile/node_modules
+
+# Docs / outils
+docs
+design
+tools
+*.md
+Lancer*.command
+
+# Env locaux
+.env
+.env.local
