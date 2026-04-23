@@ -17,6 +17,7 @@ import type {
   Suit,
 } from "@touti/shared";
 import { joinPrivateRoom, joinQuickRoom, joinQuickCodeRoom, joinPrivateRoomAsSpectator, reconnect } from "../net/client";
+import { t } from "../lib/i18n";
 
 // Vue publique broadcastée par le serveur = moteur sans les mains,
 // mais avec le nombre de cartes de chaque siège pour afficher les piles.
@@ -147,7 +148,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       const room = await Promise.race([
         joinPrivateRoom({ code, name }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+          setTimeout(() => reject(new Error(t("quickMatch.serverSlow"))), 8000),
         ),
       ]);
       wireRoom(room, set, get);
@@ -155,7 +156,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
     } catch (e: any) {
       await clearPersisted();
       set({
-        error: e?.message ?? "Impossible de rejoindre la partie",
+        error: e?.message ?? t("quickMatch.cantJoin"),
         connected: false,
         connecting: false,
         room: null,
@@ -178,7 +179,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       const room = await Promise.race([
         joinQuickRoom({ name }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+          setTimeout(() => reject(new Error(t("quickMatch.serverSlow"))), 8000),
         ),
       ]);
       wireRoom(room, set, get);
@@ -187,7 +188,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
     } catch (e: any) {
       await clearPersisted();
       set({
-        error: e?.message ?? "Impossible de rejoindre une partie rapide",
+        error: e?.message ?? t("quickMatch.cantJoinQuick"),
         connected: false,
         connecting: false,
         room: null,
@@ -208,7 +209,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       const room = await Promise.race([
         joinQuickCodeRoom({ code, name, leagueId, hybridOpenToPool }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+          setTimeout(() => reject(new Error(t("quickMatch.serverSlow"))), 8000),
         ),
       ]);
       wireRoom(room, set, get);
@@ -216,7 +217,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
     } catch (e: any) {
       await clearPersisted();
       set({
-        error: e?.message ?? "Impossible de créer la partie rapide",
+        error: e?.message ?? t("quickMatch.cantCreateQuick"),
         connected: false, connecting: false,
         room: null, roomCode: null, players: [], locked: false, mySeat: null,
         reconnectToken: null,
@@ -232,7 +233,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       const room = await Promise.race([
         joinPrivateRoomAsSpectator({ code, name }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+          setTimeout(() => reject(new Error(t("quickMatch.serverSlow"))), 8000),
         ),
       ]);
       wireRoom(room, set, get);
@@ -244,7 +245,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       });
     } catch (e: any) {
       set({
-        error: e?.message ?? "Impossible de rejoindre en spectateur",
+        error: e?.message ?? t("quickMatch.cantJoinSpectator"),
         connected: false, connecting: false,
         room: null, roomCode: null,
         isSpectator: false,
@@ -427,7 +428,7 @@ function wireRoom(
   });
 
   room.onError((code, message) => {
-    set({ error: `Erreur room ${code}: ${message ?? ""}`.trim() });
+    set({ error: t("quickMatch.roomError", { code, message: message ?? "" }).trim() });
   });
 }
 

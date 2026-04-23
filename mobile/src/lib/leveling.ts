@@ -116,11 +116,18 @@ export function levelProgress(xp: number): {
   };
 }
 
-// Rang textuel selon le niveau
+// Retourne la CLÉ i18n du rang (pas le texte). Les composants doivent
+// appliquer t(rankKey(level)) pour afficher la traduction en langue active.
+export function rankKey(level: number): string {
+  if (level >= 30) return "ranks.legend";
+  if (level >= 20) return "ranks.master";
+  if (level >= 10) return "ranks.expert";
+  if (level >= 5) return "ranks.amateur";
+  return "ranks.beginner";
+}
+
+// Rang textuel (langue active) — wrapper qui applique t() sur la clé.
 export function rankLabel(level: number): string {
-  if (level >= 30) return "LÉGENDE";
-  if (level >= 20) return "MAÎTRE";
-  if (level >= 10) return "EXPERT";
-  if (level >= 5) return "AMATEUR";
-  return "DÉBUTANT";
+  const { t } = require("./i18n") as typeof import("./i18n");
+  return t(rankKey(level));
 }

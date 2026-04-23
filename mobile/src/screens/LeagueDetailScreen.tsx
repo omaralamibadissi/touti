@@ -215,7 +215,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
         >
           <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>💬 {t("leagues.chat")}</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-            Discute avec les membres de "{league.name}"
+            {t("leagues.chatSub", { name: league.name })}
           </Text>
         </Pressable>
 
@@ -226,7 +226,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
         >
           <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>📜 {t("leagues.activity")}</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-            Membres, tournois, matchs joués
+            {t("leagues.activitySub")}
           </Text>
         </Pressable>
 
@@ -237,7 +237,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
         >
           <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("leagues.viewLeaderboard")}</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-            Individuel + paires, filtré sur la ligue
+            {t("leagues.leaderboardSub")}
           </Text>
         </Pressable>
 
@@ -250,7 +250,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
             style={StyleSheet.absoluteFill}
           />
           <Text style={styles.bigBtnTitle}>{t("tournaments.create")}</Text>
-          <Text style={styles.bigBtnSub}>Réservé aux membres de "{league.name}"</Text>
+          <Text style={styles.bigBtnSub}>{t("leagues.tournamentSub", { name: league.name })}</Text>
         </Pressable>
 
         {/* Action admin : paramètres de la ligue */}
@@ -259,9 +259,9 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
             onPress={() => navigation.navigate("LeagueSettings", { id: league.id })}
             style={[styles.bigBtn, { marginTop: 10, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
           >
-            <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>⚙ Paramètres</Text>
+            <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("leagues.settingsCard")}</Text>
             <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-              Modifier nom, couleur, slogan · Supprimer la ligue
+              {t("leagues.settingsSub")}
             </Text>
           </Pressable>
         )}

@@ -97,6 +97,7 @@ export default {
     oauthReqFacebook: "تطبيق Meta Developer مضبوط + بناء EAS أصلي",
     appleIosOnly: "تسجيل الدخول عبر Apple متاح فقط على iOS.",
     appleUnavailable: "تسجيل الدخول عبر Apple غير متاح. Expo Go لا يدعمه — استخدم بناء EAS.",
+    connectionFailed: "فشل تسجيل الدخول",
     termsAgree: "بإنشاء حساب، أنت توافق على {{terms}} و{{privacy}}.",
     termsLink: "شروط الاستخدام",
     privacyLink: "سياسة الخصوصية",
@@ -260,6 +261,8 @@ export default {
     ghnaBubble: "غنا · {{value}}",
     seatLabel: "مقعد {{n}}",
     playOrAbandon: "العب وإلا ستنسحب",
+    trickN: "أكلة {{n}}",
+    seatShort: "مقعد {{n}}",
     closeAction: "إغلاق",
     reportChoose: "اختر سبب الإبلاغ",
     reportReasonCheat: "غش",
@@ -405,6 +408,12 @@ export default {
     slotEmpty: "فارغ",
     shareMsg: "🃏 انضم إلى مباراتي السريعة في توتي!\nالرمز: {{code}}\n{{link}}",
     title: "مباراة سريعة",
+    serverSlow: "الخادم بطيء جدًا. أعد المحاولة.",
+    cantJoin: "تعذر الانضمام إلى المباراة",
+    cantJoinQuick: "تعذر الانضمام إلى مباراة سريعة",
+    cantCreateQuick: "تعذر إنشاء مباراة سريعة",
+    cantJoinSpectator: "تعذر الانضمام كمتفرج",
+    roomError: "خطأ في الغرفة {{code}}: {{message}}",
   },
 
   privateGame: {
@@ -696,6 +705,12 @@ export default {
     administrator: "مدير",
     memberOf: "عضو",
     joinedSince: "منذ {{date}}",
+    chatSub: "دردش مع أعضاء \"{{name}}\"",
+    activitySub: "الأعضاء، البطولات، المباريات الملعوبة",
+    leaderboardSub: "فردي + أزواج، مفلتر على الرابطة",
+    tournamentSub: "حصري لأعضاء \"{{name}}\"",
+    settingsCard: "⚙ الإعدادات",
+    settingsSub: "تعديل الاسم، اللون، الشعار · حذف الرابطة",
   },
 
   scoreSheets: {
@@ -800,6 +815,7 @@ export default {
     detailRounds: "الجولات",
     detailTricks: "الأشواط",
     detailRoundN: "الجولة {{n}}",
+    replay: "إعادة",
   },
 
   leaderboard: {
@@ -827,6 +843,7 @@ export default {
     noLeaguePairs: "لا أزواج رابطة",
     noLeaguePairsBody: "لم يُسجل أي زوج من رابطتك بعد.",
     leagueActive: "{{count}} أعضاء · رابطة نشطة",
+    serverUnavailable: "الخادم غير متاح",
   },
 
   dm: {
@@ -859,6 +876,8 @@ export default {
     titleTerms: "شروط الاستخدام",
     titlePrivacy: "سياسة الخصوصية",
     lastUpdated: "آخر تحديث: {{date}}",
+    tabTerms: "الشروط",
+    tabPrivacy: "الخصوصية",
   },
 
   rules: {

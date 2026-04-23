@@ -98,7 +98,7 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
           setServerPairs(pairs.map((p) => ({ ...p, key: `${p.names[0]}|${p.names[1]}` })) as PairStat[]);
         }
       } catch (e: any) {
-        if (!cancelled && isInitial) setServerErr(e?.message ?? "serveur indispo");
+        if (!cancelled && isInitial) setServerErr(e?.message ?? t("leaderboard.serverUnavailable"));
       } finally {
         if (!cancelled && isInitial) setLoading(false);
       }

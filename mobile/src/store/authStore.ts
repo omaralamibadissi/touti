@@ -222,14 +222,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       else await AsyncStorage.removeItem(ONBOARDING_KEY).catch(() => {});
       set({ user, token, busy: false, onboardingDone: serverOb });
     } catch (e: any) {
-      set({ error: e?.message ?? "Connexion impossible", busy: false });
+      const { t } = await import("../lib/i18n");
+      set({ error: e?.message ?? t("auth.connectionFailed"), busy: false });
       throw e;
     }
   },
 
   signInWithProfile: async (provider, profile) => {
     // Compat : ancien signature. Ne devrait plus être appelé.
-    set({ error: "Utilise signInWithOAuth à la place." });
+    set({ error: "[Deprecated] Use signInWithOAuth instead." });
   },
 
   // Nouveau : reçoit le token OAuth du provider, envoie au serveur pour vérif

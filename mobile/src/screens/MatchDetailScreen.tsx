@@ -117,7 +117,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
                         {r.bidAmount ? ` · ${r.bidAmount}` : ""}
                         {hasTricks && (
                           <Text style={{ color: "rgba(245,235,214,0.5)", fontSize: 10 }}>
-                            {"  "}{isExpanded ? "▾" : "▸"} replay
+                            {"  "}{isExpanded ? "▾" : "▸"} {t("matchHistory.replay")}
                           </Text>
                         )}
                       </Text>
@@ -189,20 +189,21 @@ function TricksReplay({
   tricks: NonNullable<RoundDetail["tricks"]>;
   playerNames: string[];
 }) {
+  const t = useT();
   return (
     <View style={styles.tricksWrap}>
-      {tricks.map((t, i) => (
+      {tricks.map((trick, i) => (
         <View key={i} style={styles.trickBox}>
           <View style={styles.trickHeader}>
-            <Text style={styles.trickLabel}>Pli {i + 1}</Text>
+            <Text style={styles.trickLabel}>{t("game.trickN", { n: i + 1 })}</Text>
             <Text style={styles.trickWinner}>
-              ★ {playerNames[t.winner] ?? `siège ${t.winner}`}
+              ★ {playerNames[trick.winner] ?? t("game.seatShort", { n: trick.winner })}
             </Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: "row", gap: 6, paddingVertical: 4 }}>
-              {t.entries.map((e, k) => {
-                const isWinner = e.player === t.winner;
+              {trick.entries.map((e, k) => {
+                const isWinner = e.player === trick.winner;
                 return (
                   <View key={k} style={{ alignItems: "center", gap: 3 }}>
                     <Text style={[styles.trickPlayerName, isWinner && { color: COLORS.saffronSoft }]}>

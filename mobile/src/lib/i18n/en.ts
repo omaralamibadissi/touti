@@ -94,6 +94,7 @@ export default {
     oauthReqFacebook: "Meta Developer app configured + native EAS build",
     appleIosOnly: "Apple Sign-In is only available on iOS.",
     appleUnavailable: "Apple Sign-In unavailable. Expo Go doesn't support it — use an EAS dev build.",
+    connectionFailed: "Login failed",
     termsAgree: "By creating an account you agree to the {{terms}} and the {{privacy}}.",
     termsLink: "Terms",
     privacyLink: "privacy policy",
@@ -257,6 +258,8 @@ export default {
     ghnaBubble: "Ghna · {{value}}",
     seatLabel: "Seat {{n}}",
     playOrAbandon: "Play or you abandon",
+    trickN: "Trick {{n}}",
+    seatShort: "seat {{n}}",
     closeAction: "Close",
     reportChoose: "Choose the reason for the report",
     reportReasonCheat: "Cheating",
@@ -402,6 +405,12 @@ export default {
     slotReserved: "Reserved",
     slotEmpty: "Empty",
     shareMsg: "🃏 Join my Touti Quick Match!\nCode: {{code}}\n{{link}}",
+    serverSlow: "Server too slow. Try again.",
+    cantJoin: "Could not join the game",
+    cantJoinQuick: "Could not join a quick match",
+    cantCreateQuick: "Could not create quick match",
+    cantJoinSpectator: "Could not join as spectator",
+    roomError: "Room error {{code}}: {{message}}",
   },
 
   privateGame: {
@@ -693,6 +702,12 @@ export default {
     administrator: "Administrator",
     memberOf: "Member",
     joinedSince: "since {{date}}",
+    chatSub: "Chat with the members of \"{{name}}\"",
+    activitySub: "Members, tournaments, matches played",
+    leaderboardSub: "Individual + pairs, filtered on the league",
+    tournamentSub: "Restricted to members of \"{{name}}\"",
+    settingsCard: "⚙ Settings",
+    settingsSub: "Edit name, color, tagline · Delete league",
   },
 
   scoreSheets: {
@@ -797,6 +812,7 @@ export default {
     detailRounds: "Rounds",
     detailTricks: "Tricks",
     detailRoundN: "Round {{n}}",
+    replay: "replay",
   },
 
   leaderboard: {
@@ -824,6 +840,7 @@ export default {
     noLeaguePairs: "No league pairs",
     noLeaguePairsBody: "No human pairs from your league recorded yet.",
     leagueActive: "{{count}} members · active league",
+    serverUnavailable: "server unavailable",
   },
 
   dm: {
@@ -856,6 +873,8 @@ export default {
     titleTerms: "Terms of Use",
     titlePrivacy: "Privacy Policy",
     lastUpdated: "Last updated: {{date}}",
+    tabTerms: "Terms",
+    tabPrivacy: "Privacy",
   },
 
   rules: {

@@ -5,10 +5,12 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Terms">;
 
 export default function TermsScreen({ navigation, route }: Props) {
+  const t = useT();
   const which = route.params?.section ?? "privacy";
 
   return (
@@ -23,9 +25,9 @@ export default function TermsScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>{which === "terms" ? "CGU" : "CONFIDENTIALITÉ"}</Text>
+          <Text style={styles.eyebrow}>{which === "terms" ? t("terms.tabTerms").toUpperCase() : t("terms.tabPrivacy").toUpperCase()}</Text>
           <Text style={styles.title}>
-            {which === "terms" ? "Conditions d'utilisation" : "Politique de confidentialité"}
+            {which === "terms" ? t("terms.titleTerms") : t("terms.titlePrivacy")}
           </Text>
         </View>
       </View>
@@ -35,13 +37,13 @@ export default function TermsScreen({ navigation, route }: Props) {
           onPress={() => navigation.setParams({ section: "terms" })}
           style={[styles.tab, which === "terms" && styles.tabActive]}
         >
-          <Text style={[styles.tabText, which === "terms" && styles.tabTextActive]}>CGU</Text>
+          <Text style={[styles.tabText, which === "terms" && styles.tabTextActive]}>{t("terms.tabTerms")}</Text>
         </Pressable>
         <Pressable
           onPress={() => navigation.setParams({ section: "privacy" })}
           style={[styles.tab, which === "privacy" && styles.tabActive]}
         >
-          <Text style={[styles.tabText, which === "privacy" && styles.tabTextActive]}>Confidentialité</Text>
+          <Text style={[styles.tabText, which === "privacy" && styles.tabTextActive]}>{t("terms.tabPrivacy")}</Text>
         </Pressable>
       </View>
 
