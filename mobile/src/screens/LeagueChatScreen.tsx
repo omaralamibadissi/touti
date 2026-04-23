@@ -14,7 +14,7 @@ import { Avatar } from "../components/Avatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useLeagueChatStore, type LeagueMessage } from "../store/leagueChatStore";
 import { useAuthStore } from "../store/authStore";
-import { useT, i18n } from "../lib/i18n";
+import { useT, i18n, t } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueChat">;
 
@@ -215,10 +215,10 @@ function sameDay(a: number, b: number): boolean {
 function formatDateLabel(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
-  if (sameDay(ts, now.getTime())) return "Aujourd'hui";
+  if (sameDay(ts, now.getTime())) return t("common.today");
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (sameDay(ts, yesterday.getTime())) return "Hier";
+  if (sameDay(ts, yesterday.getTime())) return t("common.yesterday");
   const loc = i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR";
   return d.toLocaleDateString(loc, {
     weekday: "long",

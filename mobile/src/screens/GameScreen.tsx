@@ -541,7 +541,13 @@ export default function GameScreen({ route, navigation }: Props) {
     if (winner === 0) return; // pas de bulle auto pour moi
     // 25% de chance qu'un bot commente (messages alignés sur la palette)
     if (Math.random() < 0.25) {
-      const msgs = ["Bien joué 👏", "Yallah 🚀", "Wow 🤯", "Chance 🍀", "😂"];
+      const msgs = [
+        `${t("gameChat.quickNice")} 👏`,
+        "Yallah 🚀",
+        `${t("gameChat.quickWow")} 🤯`,
+        `${t("gameChat.quickLuck")} 🍀`,
+        "😂",
+      ];
       const text = msgs[Math.floor(Math.random() * msgs.length)];
       showBubble(winner, text);
     }
@@ -1667,7 +1673,7 @@ function LiveScoreSheetOverlay({
         </ScrollView>
 
         <Pressable onPress={onClose} style={styles.scoreSheetCloseBtn}>
-          <Text style={styles.scoreSheetCloseText}>Fermer</Text>
+          <Text style={styles.scoreSheetCloseText}>{t("common.close")}</Text>
         </Pressable>
       </View>
     </View>
@@ -3301,6 +3307,7 @@ function ReportModal({
   roomCode?: string;
   onClose: () => void;
 }) {
+  const tr = useT();
   const [busy, setBusy] = useState(false);
 
   const submit = async (reason: ReportReason) => {
@@ -3314,32 +3321,32 @@ function ReportModal({
         roomCode,
       });
       onClose();
-      Alert.alert("Signalement envoyé", `Merci, ton signalement sur ${targetName} a été transmis.`);
+      Alert.alert(tr("report.sentTitle"), tr("report.sentBody", { name: targetName }));
     } catch (e: any) {
       setBusy(false);
-      Alert.alert("Erreur", e?.message ?? "Impossible d'envoyer le signalement.");
+      Alert.alert(tr("common.error"), e?.message ?? tr("game.reportErrorBody"));
     }
   };
 
   return (
     <View style={styles.reportOverlay}>
       <View style={styles.reportCard}>
-        <Text style={styles.reportTitle}>Signaler {targetName}</Text>
-        <Text style={styles.reportSub}>Choisis la raison du signalement</Text>
+        <Text style={styles.reportTitle}>{tr("report.title", { name: targetName })}</Text>
+        <Text style={styles.reportSub}>{tr("game.reportChoose")}</Text>
         <Pressable onPress={() => submit("insulte")} style={styles.reportReasonBtn} disabled={busy}>
-          <Text style={styles.reportReasonText}>Insulte / langage abusif</Text>
+          <Text style={styles.reportReasonText}>{tr("report.reasonInsultFull")}</Text>
         </Pressable>
         <Pressable onPress={() => submit("triche")} style={styles.reportReasonBtn} disabled={busy}>
-          <Text style={styles.reportReasonText}>Triche</Text>
+          <Text style={styles.reportReasonText}>{tr("game.reportReasonCheat")}</Text>
         </Pressable>
         <Pressable onPress={() => submit("spam")} style={styles.reportReasonBtn} disabled={busy}>
-          <Text style={styles.reportReasonText}>Spam</Text>
+          <Text style={styles.reportReasonText}>{tr("game.reportReasonSpam")}</Text>
         </Pressable>
         <Pressable onPress={() => submit("autre")} style={styles.reportReasonBtn} disabled={busy}>
-          <Text style={styles.reportReasonText}>Autre</Text>
+          <Text style={styles.reportReasonText}>{tr("game.reportReasonOther")}</Text>
         </Pressable>
         <Pressable onPress={onClose} style={styles.reportCancelBtn} disabled={busy}>
-          <Text style={styles.reportCancelText}>Annuler</Text>
+          <Text style={styles.reportCancelText}>{tr("game.reportCancel")}</Text>
         </Pressable>
       </View>
     </View>

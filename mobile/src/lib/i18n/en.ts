@@ -38,6 +38,14 @@ export default {
     level: "Level",
     rank: "Rank",
     notSet: "—",
+    today: "Today",
+    yesterday: "Yesterday",
+    active: "ACTIVE",
+    activate: "Activate",
+    understood: "Got it",
+    sheetNotFound: "Sheet not found",
+    noMatchScheduled: "No matches scheduled",
+    placeholderCodeExample: "AB12CD",
   },
 
   ranks: {
@@ -84,6 +92,8 @@ export default {
     oauthReqApple: "active Apple Developer account + signed Xcode app + native EAS build",
     oauthReqGoogle: "Google Cloud OAuth client + native EAS build (doesn't work in Expo Go)",
     oauthReqFacebook: "Meta Developer app configured + native EAS build",
+    appleIosOnly: "Apple Sign-In is only available on iOS.",
+    appleUnavailable: "Apple Sign-In unavailable. Expo Go doesn't support it — use an EAS dev build.",
     termsAgree: "By creating an account you agree to the {{terms}} and the {{privacy}}.",
     termsLink: "Terms",
     privacyLink: "privacy policy",
@@ -142,6 +152,10 @@ export default {
     friendsOnline: "Friends online",
     noFriendsOnline: "Nobody online",
     levelProgress: "{{into}} / {{total}} XP → lv. {{next}}",
+  },
+
+  friends: {
+    usernameTooShort: "Username too short",
   },
 
   social: {
@@ -217,6 +231,14 @@ export default {
     pickLanguageBody: "The app will restart to apply the change.",
   },
 
+  gameChat: {
+    quickNice: "Nice play",
+    quickLuck: "Luck",
+    quickThanks: "Thanks",
+    quickWow: "Wow",
+    quickWhat: "What",
+  },
+
   game: {
     trumpLabel: "TRUMP",
     trumpPending: "TRUMP · TBD",
@@ -235,6 +257,15 @@ export default {
     ghnaBubble: "Ghna · {{value}}",
     seatLabel: "Seat {{n}}",
     playOrAbandon: "Play or you abandon",
+    closeAction: "Close",
+    reportChoose: "Choose the reason for the report",
+    reportReasonCheat: "Cheating",
+    reportReasonInsult: "Insult",
+    reportReasonSpam: "Spam",
+    reportReasonOther: "Other",
+    reportCancel: "Cancel",
+    reportErrorBody: "Could not send the report.",
+    chatPlaceholder2: "Your message…",
     scoreUs: "Us",
     scoreThem: "Them",
     handOf: "Hand of",
@@ -556,6 +587,13 @@ export default {
     modeChampionshipFull: "Championship · rotating pairs",
     shareIrl: "🃏 {{name}}\n{{format}}\n{{tagline}}\n\n📅 {{date}} at {{time}}\n📍 {{location}}\n⏱ Duration: {{duration}}\n👥 {{players}} players\n\nJoin with code: {{code}}\n{{link}}",
     shareOnline: "🃏 {{name}}\nTouti Tournament {{format}} · {{players}} players\n\nJoin with code: {{code}}\n{{link}}",
+    roundFinal: "FINAL",
+    roundSemi: "SEMI",
+    roundQuarters: "QUARTERS",
+    roundEighth: "1/8",
+    roundGeneric: "ROUND {{n}}",
+    bracketPlay: "▶ PLAY · {{code}}",
+    byeDash: "— bye —",
   },
 
   leagues: {
@@ -652,6 +690,9 @@ export default {
     leaveAndDelete: "Leave and delete",
     leaveBtn: "Leave",
     kickTitle: "Kick {{name}}?",
+    administrator: "Administrator",
+    memberOf: "Member",
+    joinedSince: "since {{date}}",
   },
 
   scoreSheets: {
@@ -806,6 +847,9 @@ export default {
     thanksTitle: "Report received",
     thanksBody: "Thanks. We review every report.",
     errorBody: "The report couldn't be submitted.",
+    sentTitle: "Report sent",
+    sentBody: "Thanks, your report about {{name}} has been submitted.",
+    reasonInsultFull: "Insult / abusive language",
   },
 
   terms: {

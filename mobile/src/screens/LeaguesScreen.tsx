@@ -217,7 +217,7 @@ export default function LeaguesScreen({ navigation, route }: Props) {
               <TextInput
                 value={joinCode}
                 onChangeText={(v) => setJoinCode(v.toUpperCase().slice(0, 6))}
-                placeholder="AB12CD"
+                placeholder={t("common.placeholderCodeExample")}
                 placeholderTextColor="rgba(245,235,214,0.3)"
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -256,6 +256,7 @@ function LeagueCard({
   onPress: () => void;
   onSetActive: () => void;
 }) {
+  const tr = useT();
   const color = league.color || COLORS.teal;
   return (
     <Pressable onPress={onPress} style={[styles.leagueCard, { borderColor: `${color}88` }]}>
@@ -270,14 +271,14 @@ function LeagueCard({
           <Text style={styles.leagueName}>{league.name}</Text>
           {isActive && (
             <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>ACTIVE</Text>
+              <Text style={styles.activeBadgeText}>{tr("common.active")}</Text>
             </View>
           )}
         </View>
         {league.tagline && <Text style={styles.leagueTagline}>{league.tagline}</Text>}
         <View style={styles.leagueMeta}>
           <Text style={styles.leagueMembers}>
-            {league.members.length} membre{league.members.length > 1 ? "s" : ""}
+            {tr("leagues.memberCount", { count: league.members.length })}
           </Text>
           <Text style={styles.leagueCode}>{league.code}</Text>
         </View>
@@ -290,7 +291,7 @@ function LeagueCard({
           }}
           style={styles.setActiveBtn}
         >
-          <Text style={styles.setActiveText}>Activer</Text>
+          <Text style={styles.setActiveText}>{tr("common.activate")}</Text>
         </Pressable>
       )}
     </Pressable>

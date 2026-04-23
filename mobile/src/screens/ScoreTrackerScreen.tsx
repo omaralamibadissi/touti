@@ -35,7 +35,7 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
   if (!sheet) {
     return (
       <View style={[styles.root, { alignItems: "center", justifyContent: "center" }]}>
-        <Text style={{ color: COLORS.cream }}>Fiche introuvable</Text>
+        <Text style={{ color: COLORS.cream }}>{t("common.sheetNotFound")}</Text>
       </View>
     );
   }

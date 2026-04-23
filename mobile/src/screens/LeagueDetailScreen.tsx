@@ -9,7 +9,7 @@ import { Avatar } from "../components/Avatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useAuthStore } from "../store/authStore";
 import { buildLeagueLink } from "../lib/deepLink";
-import { useT } from "../lib/i18n";
+import { useT, i18n } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueDetail">;
 
@@ -188,9 +188,9 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
                       {m.id === myUsername && <Text style={{ color: COLORS.saffronSoft }}>  (vous)</Text>}
                     </Text>
                     <Text style={styles.memberMeta}>
-                      {m.role === "admin" ? "Administrateur" : "Membre"}
+                      {m.role === "admin" ? t("leagues.administrator") : t("leagues.memberOf")}
                       {" · "}
-                      depuis {new Date(m.joinedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      {t("leagues.joinedSince", { date: new Date(m.joinedAt).toLocaleDateString(i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR", { day: "numeric", month: "short" }) })}
                     </Text>
                   </View>
                   {canManage && (
@@ -268,7 +268,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
 
         {/* Quitter (action perso — même admin peut quitter sans supprimer) */}
         <Pressable onPress={onLeave} style={[styles.leaveBtn, { marginTop: 16 }]}>
-          <Text style={styles.leaveBtnText}>Quitter la ligue</Text>
+          <Text style={styles.leaveBtnText}>{t("leagues.leaveLeague")}</Text>
         </Pressable>
       </ScrollView>
     </View>

@@ -39,6 +39,14 @@ export default {
     level: "Niveau",
     rank: "Rang",
     notSet: "—",
+    today: "Aujourd'hui",
+    yesterday: "Hier",
+    active: "ACTIVE",
+    activate: "Activer",
+    understood: "Compris",
+    sheetNotFound: "Fiche introuvable",
+    noMatchScheduled: "Aucun match programmé",
+    placeholderCodeExample: "AB12CD",
   },
 
   ranks: {
@@ -85,6 +93,8 @@ export default {
     oauthReqApple: "compte Apple Developer actif + app dans Xcode signée + build natif EAS",
     oauthReqGoogle: "Google Cloud OAuth client + build natif EAS (ne fonctionne pas dans Expo Go)",
     oauthReqFacebook: "Meta Developer app configurée + build natif EAS",
+    appleIosOnly: "Apple Sign-In n'est disponible que sur iOS.",
+    appleUnavailable: "Apple Sign-In indisponible. Expo Go ne le supporte pas — utilise un dev build EAS.",
     termsAgree: "En créant un compte tu acceptes les {{terms}} et la {{privacy}}.",
     termsLink: "CGU",
     privacyLink: "politique de confidentialité",
@@ -143,6 +153,10 @@ export default {
     friendsOnline: "Amis en ligne",
     noFriendsOnline: "Personne en ligne",
     levelProgress: "{{into}} / {{total}} XP → niv. {{next}}",
+  },
+
+  friends: {
+    usernameTooShort: "Pseudo trop court",
   },
 
   social: {
@@ -219,6 +233,14 @@ export default {
     pickLanguageBody: "L'app redémarrera pour appliquer le changement.",
   },
 
+  gameChat: {
+    quickNice: "Bien joué",
+    quickLuck: "Chance",
+    quickThanks: "Merci",
+    quickWow: "Wow",
+    quickWhat: "Quoi",
+  },
+
   game: {
     trumpLabel: "ATOUT",
     trumpPending: "ATOUT · À CHOISIR",
@@ -237,6 +259,15 @@ export default {
     ghnaBubble: "Ghna · {{value}}",
     seatLabel: "Siège {{n}}",
     playOrAbandon: "Joue ou tu abandonnes",
+    closeAction: "Fermer",
+    reportChoose: "Choisis la raison du signalement",
+    reportReasonCheat: "Triche",
+    reportReasonInsult: "Insulte",
+    reportReasonSpam: "Spam",
+    reportReasonOther: "Autre",
+    reportCancel: "Annuler",
+    reportErrorBody: "Impossible d'envoyer le signalement.",
+    chatPlaceholder2: "Ton message…",
     scoreUs: "Nous",
     scoreThem: "Eux",
     handOf: "Main de",
@@ -558,6 +589,13 @@ export default {
     modeChampionshipFull: "Championnat · paires tournantes",
     shareIrl: "🃏 {{name}}\n{{format}}\n{{tagline}}\n\n📅 {{date}} à {{time}}\n📍 {{location}}\n⏱ Durée : {{duration}}\n👥 {{players}} joueurs\n\nRejoins avec le code : {{code}}\n{{link}}",
     shareOnline: "🃏 {{name}}\nTournoi Touti {{format}} · {{players}} joueurs\n\nRejoins avec le code : {{code}}\n{{link}}",
+    roundFinal: "FINALE",
+    roundSemi: "DEMI",
+    roundQuarters: "QUARTS",
+    roundEighth: "1/8",
+    roundGeneric: "ROUND {{n}}",
+    bracketPlay: "▶ JOUER · {{code}}",
+    byeDash: "— bye —",
   },
 
   leagues: {
@@ -654,6 +692,9 @@ export default {
     leaveAndDelete: "Quitter et supprimer",
     leaveBtn: "Quitter",
     kickTitle: "Exclure {{name}} ?",
+    administrator: "Administrateur",
+    memberOf: "Membre",
+    joinedSince: "depuis {{date}}",
   },
 
   scoreSheets: {
@@ -808,6 +849,9 @@ export default {
     thanksTitle: "Signalement reçu",
     thanksBody: "Merci. Nous examinons tous les signalements.",
     errorBody: "Le signalement n'a pas pu être envoyé.",
+    sentTitle: "Signalement envoyé",
+    sentBody: "Merci, ton signalement sur {{name}} a été transmis.",
+    reasonInsultFull: "Insulte / langage abusif",
   },
 
   terms: {

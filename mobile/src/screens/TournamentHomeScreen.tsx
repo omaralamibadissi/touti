@@ -86,14 +86,16 @@ export default function TournamentHomeScreen({ navigation }: Props) {
 }
 
 function labelFormat(f: string): string {
-  if (f === "online") return "En ligne";
-  if (f === "irl") return "IRL";
+  const { t } = require("../lib/i18n") as typeof import("../lib/i18n");
+  if (f === "online") return t("tournaments.formatOnline");
+  if (f === "irl") return t("tournaments.formatIrl");
   return f;
 }
 
 function labelMode(m: string): string {
-  if (m === "classique") return "Classique";
-  if (m === "championnat") return "Championnat";
+  const { t } = require("../lib/i18n") as typeof import("../lib/i18n");
+  if (m === "classique") return t("tournaments.tileClassic");
+  if (m === "championnat") return t("tournaments.tileChampionship");
   return m;
 }
 

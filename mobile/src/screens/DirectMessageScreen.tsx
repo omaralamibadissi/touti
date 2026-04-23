@@ -14,7 +14,7 @@ import { Avatar } from "../components/Avatar";
 import { useDirectMessagesStore, type DirectMessage } from "../store/directMessagesStore";
 import { useAuthStore } from "../store/authStore";
 import { useFriendsStore } from "../store/friendsStore";
-import { useT } from "../lib/i18n";
+import { useT, i18n, t } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "DirectMessage">;
 
@@ -171,11 +171,12 @@ function sameDay(a: number, b: number): boolean {
 function formatDateLabel(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
-  if (sameDay(ts, now.getTime())) return "Aujourd'hui";
+  if (sameDay(ts, now.getTime())) return t("common.today");
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (sameDay(ts, yesterday.getTime())) return "Hier";
-  return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  if (sameDay(ts, yesterday.getTime())) return t("common.yesterday");
+  const loc = i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR";
+  return d.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" });
 }
 
 const styles = StyleSheet.create({

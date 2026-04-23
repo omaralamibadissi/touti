@@ -21,14 +21,13 @@ export interface ProviderProfile {
 // ─── Apple ─────────────────────────────────────────────────────────
 
 export async function signInApple(): Promise<ProviderProfile> {
+  const { t } = await import("../lib/i18n");
   if (Platform.OS !== "ios") {
-    throw new Error("Apple Sign-In n'est disponible que sur iOS.");
+    throw new Error(t("auth.appleIosOnly"));
   }
   const available = await AppleAuthentication.isAvailableAsync();
   if (!available) {
-    throw new Error(
-      "Apple Sign-In indisponible. Expo Go ne le supporte pas — utilise un dev build EAS.",
-    );
+    throw new Error(t("auth.appleUnavailable"));
   }
   const credential = await AppleAuthentication.signInAsync({
     requestedScopes: [

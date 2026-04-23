@@ -41,6 +41,14 @@ export default {
     level: "المستوى",
     rank: "الرتبة",
     notSet: "—",
+    today: "اليوم",
+    yesterday: "أمس",
+    active: "نشطة",
+    activate: "تفعيل",
+    understood: "فهمت",
+    sheetNotFound: "الورقة غير موجودة",
+    noMatchScheduled: "لا مباريات مجدولة",
+    placeholderCodeExample: "AB12CD",
   },
 
   ranks: {
@@ -87,6 +95,8 @@ export default {
     oauthReqApple: "حساب Apple Developer مفعل + تطبيق موقع في Xcode + بناء EAS أصلي",
     oauthReqGoogle: "عميل Google Cloud OAuth + بناء EAS أصلي (لا يعمل في Expo Go)",
     oauthReqFacebook: "تطبيق Meta Developer مضبوط + بناء EAS أصلي",
+    appleIosOnly: "تسجيل الدخول عبر Apple متاح فقط على iOS.",
+    appleUnavailable: "تسجيل الدخول عبر Apple غير متاح. Expo Go لا يدعمه — استخدم بناء EAS.",
     termsAgree: "بإنشاء حساب، أنت توافق على {{terms}} و{{privacy}}.",
     termsLink: "شروط الاستخدام",
     privacyLink: "سياسة الخصوصية",
@@ -145,6 +155,10 @@ export default {
     friendsOnline: "الأصدقاء المتصلون",
     noFriendsOnline: "لا أحد متصل",
     levelProgress: "{{into}} / {{total}} XP → مستوى {{next}}",
+  },
+
+  friends: {
+    usernameTooShort: "اسم المستخدم قصير جدًا",
   },
 
   social: {
@@ -220,6 +234,14 @@ export default {
     pickLanguageBody: "سيعاد تشغيل التطبيق لتطبيق التغيير.",
   },
 
+  gameChat: {
+    quickNice: "لعبة حلوة",
+    quickLuck: "حظ",
+    quickThanks: "شكرًا",
+    quickWow: "واو",
+    quickWhat: "شنو",
+  },
+
   game: {
     trumpLabel: "الحكم",
     trumpPending: "الحكم · قيد الاختيار",
@@ -238,6 +260,15 @@ export default {
     ghnaBubble: "غنا · {{value}}",
     seatLabel: "مقعد {{n}}",
     playOrAbandon: "العب وإلا ستنسحب",
+    closeAction: "إغلاق",
+    reportChoose: "اختر سبب الإبلاغ",
+    reportReasonCheat: "غش",
+    reportReasonInsult: "إهانة",
+    reportReasonSpam: "رسائل مزعجة",
+    reportReasonOther: "آخر",
+    reportCancel: "إلغاء",
+    reportErrorBody: "تعذر إرسال الإبلاغ.",
+    chatPlaceholder2: "رسالتك…",
     scoreUs: "نحن",
     scoreThem: "هم",
     handOf: "يد",
@@ -559,6 +590,13 @@ export default {
     modeChampionshipFull: "بطولة · أزواج متناوبة",
     shareIrl: "🃏 {{name}}\n{{format}}\n{{tagline}}\n\n📅 {{date}} في {{time}}\n📍 {{location}}\n⏱ المدة: {{duration}}\n👥 {{players}} لاعبين\n\nانضم بالرمز: {{code}}\n{{link}}",
     shareOnline: "🃏 {{name}}\nبطولة توتي {{format}} · {{players}} لاعبين\n\nانضم بالرمز: {{code}}\n{{link}}",
+    roundFinal: "النهائي",
+    roundSemi: "نصف النهائي",
+    roundQuarters: "ربع النهائي",
+    roundEighth: "ثمن النهائي",
+    roundGeneric: "الجولة {{n}}",
+    bracketPlay: "▶ العب · {{code}}",
+    byeDash: "— بلا خصم —",
   },
 
   leagues: {
@@ -655,6 +693,9 @@ export default {
     leaveAndDelete: "مغادرة وحذف",
     leaveBtn: "مغادرة",
     kickTitle: "طرد {{name}}؟",
+    administrator: "مدير",
+    memberOf: "عضو",
+    joinedSince: "منذ {{date}}",
   },
 
   scoreSheets: {
@@ -809,6 +850,9 @@ export default {
     thanksTitle: "تم استلام البلاغ",
     thanksBody: "شكرا. نحن نراجع كل البلاغات.",
     errorBody: "تعذر إرسال البلاغ.",
+    sentTitle: "تم إرسال البلاغ",
+    sentBody: "شكرًا، تم إرسال بلاغك عن {{name}}.",
+    reasonInsultFull: "إهانة / لغة مسيئة",
   },
 
   terms: {

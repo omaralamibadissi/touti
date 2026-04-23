@@ -348,15 +348,16 @@ function OAuthButton({
   bg: string;
   fg: string;
 }) {
+  const t = useT();
   const requirements: Record<string, string> = {
-    apple: "compte Apple Developer actif + app dans Xcode signée + build natif EAS",
-    google: "Google Cloud OAuth client + build natif EAS (ne fonctionne pas dans Expo Go)",
-    facebook: "Meta Developer app configurée + build natif EAS",
+    apple: t("auth.oauthReqApple"),
+    google: t("auth.oauthReqGoogle"),
+    facebook: t("auth.oauthReqFacebook"),
   };
   const onPress = () => {
     Alert.alert(
-      `Connexion ${provider} · bientôt`,
-      `Le serveur est prêt à vérifier les tokens ${provider}.\n\nIl reste à faire : ${requirements[provider]}.\n\nPour l'instant, utilise pseudo + mot de passe.`,
+      t("auth.oauthSoon", { provider }),
+      t("auth.oauthRequirements", { provider, req: requirements[provider] }),
     );
   };
   return (

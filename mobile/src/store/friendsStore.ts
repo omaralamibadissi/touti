@@ -103,15 +103,16 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
   request: async (username) => {
     const trimmed = username.trim();
+    const { t } = await import("../lib/i18n");
     if (trimmed.length < 3) {
-      return { ok: false, error: "Pseudo trop court" };
+      return { ok: false, error: t("friends.usernameTooShort") };
     }
     try {
       await apiRequestFriend(trimmed);
       await get().refresh();
       return { ok: true };
     } catch (e: any) {
-      const msg = e?.message ?? "Erreur";
+      const msg = e?.message ?? t("common.error");
       set({ error: msg });
       return { ok: false, error: msg };
     }
@@ -122,7 +123,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       await apiAcceptFriend(id);
       await get().refresh();
     } catch (e: any) {
-      set({ error: e?.message ?? "Erreur" });
+      const { t } = await import("../lib/i18n");
+      set({ error: e?.message ?? t("common.error") });
     }
   },
 
@@ -131,7 +133,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       await apiRejectFriend(id);
       await get().refresh();
     } catch (e: any) {
-      set({ error: e?.message ?? "Erreur" });
+      const { t } = await import("../lib/i18n");
+      set({ error: e?.message ?? t("common.error") });
     }
   },
 
@@ -140,7 +143,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       await apiUnfriend(id);
       await get().refresh();
     } catch (e: any) {
-      set({ error: e?.message ?? "Erreur" });
+      const { t } = await import("../lib/i18n");
+      set({ error: e?.message ?? t("common.error") });
     }
   },
 

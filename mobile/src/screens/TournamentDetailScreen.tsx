@@ -737,14 +737,14 @@ const styles = StyleSheet.create({
 
 // ─── Bracket visuel pour tournoi classique (élimination directe) ──
 
-function roundLabel(round: number, totalRounds: number): string {
-  if (totalRounds <= 0) return `ROUND ${round}`;
-  const fromFinal = totalRounds - round; // 0 = finale, 1 = demi, 2 = quart…
-  if (fromFinal === 0) return "FINALE";
-  if (fromFinal === 1) return "DEMI";
-  if (fromFinal === 2) return "QUARTS";
-  if (fromFinal === 3) return "1/8";
-  return `ROUND ${round}`;
+function roundLabel(round: number, totalRounds: number, tr: (k: string, p?: any) => string): string {
+  if (totalRounds <= 0) return tr("tournaments.roundGeneric", { n: round });
+  const fromFinal = totalRounds - round;
+  if (fromFinal === 0) return tr("tournaments.roundFinal");
+  if (fromFinal === 1) return tr("tournaments.roundSemi");
+  if (fromFinal === 2) return tr("tournaments.roundQuarters");
+  if (fromFinal === 3) return tr("tournaments.roundEighth");
+  return tr("tournaments.roundGeneric", { n: round });
 }
 
 function BracketView({
@@ -760,13 +760,14 @@ function BracketView({
   onPlay: (roomCode: string) => void;
   onReport: (matchId: string, pA: TournamentPair, pB: TournamentPair) => void;
 }) {
+  const tr = useT();
   const matches = tournament.matches || [];
   const pairs = tournament.pairs || [];
 
   if (matches.length === 0) {
     return (
       <View style={[styles.bracketEmpty, { marginTop: 12 }]}>
-        <Text style={styles.bracketEmptyText}>Aucun match programmé</Text>
+        <Text style={styles.bracketEmptyText}>{tr("common.noMatchScheduled")}</Text>
       </View>
     );
   }
@@ -793,7 +794,7 @@ function BracketView({
         return (
           <View key={round} style={styles.bracketColumn}>
             <Text style={styles.bracketRoundLabel}>
-              {roundLabel(round, totalRounds)}
+              {roundLabel(round, totalRounds, tr)}
             </Text>
             {roundMatches.map((m) => {
               const pA = pairs.find((p) => p.id === m.pairAId);
@@ -838,7 +839,7 @@ function BracketView({
                       ]}
                       numberOfLines={2}
                     >
-                      {isBye ? "— bye —" : pB!.names.join(" & ")}
+                      {isBye ? tr("tournaments.byeDash") : pB!.names.join(" & ")}
                     </Text>
                     {m.status === "finished" && !isBye && (
                       <Text style={styles.bracketScore}>{m.scoreB}</Text>
@@ -852,7 +853,7 @@ function BracketView({
                           onPress={() => onPlay(m.roomCode)}
                           style={[styles.bracketBtn, styles.bracketBtnPlay]}
                         >
-                          <Text style={styles.bracketBtnPlayText}>▶ JOUER · {m.roomCode}</Text>
+                          <Text style={styles.bracketBtnPlayText}>{tr("tournaments.bracketPlay", { code: m.roomCode })}</Text>
                         </Pressable>
                       )}
                       {canReport && (
@@ -860,7 +861,7 @@ function BracketView({
                           onPress={() => onReport(m.id, pA, pB)}
                           style={[styles.bracketBtn, styles.bracketBtnReport]}
                         >
-                          <Text style={styles.bracketBtnReportText}>Saisir résultat</Text>
+                          <Text style={styles.bracketBtnReportText}>{tr("tournaments.enterResult")}</Text>
                         </Pressable>
                       )}
                     </View>

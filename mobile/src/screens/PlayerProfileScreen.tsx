@@ -15,7 +15,7 @@ import { useLeagueStore } from "../store/leagueStore";
 import { useTournamentStore } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
 import { totalXp, levelProgress, rankLabel, matchUserTeam, matchUserWon } from "../lib/leveling";
-import { useT } from "../lib/i18n";
+import { useT, i18n } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PlayerProfile">;
 
@@ -309,6 +309,7 @@ function MatchRow({
   myUsername: string;
   navigation: Props["navigation"];
 }) {
+  const t = useT();
   const myIdx = match.playerNames.indexOf(myUsername);
   const onA = myIdx === 0 || myIdx === 2;
   const won = (match.winnerTeam === "A" && onA) || (match.winnerTeam === "B" && !onA);
@@ -320,8 +321,8 @@ function MatchRow({
       <View style={[styles.wonBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
       <View style={{ flex: 1 }}>
         <Text style={styles.gameTitle}>
-          {won ? "Victoire" : "Défaite"} ·{" "}
-          {new Date(match.finishedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          {won ? t("matchHistory.victory") : t("matchHistory.defeat")} ·{" "}
+          {new Date(match.finishedAt).toLocaleDateString(i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR", { day: "numeric", month: "short" })}
         </Text>
         <Text style={styles.gameSub}>
           {match.playerNames.filter((n) => n !== myUsername).join(" · ")}

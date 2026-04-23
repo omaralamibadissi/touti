@@ -2,17 +2,21 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, TextInput, Keyboard } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_UI, FONT_UI_BOLD } from "../theme";
+import { useT, t } from "../lib/i18n";
 
 // Messages rapides prédéfinis — les autres se font via l'input perso
-export const QUICK_MESSAGES: { text: string; emoji: string }[] = [
-  { text: "Bien joué", emoji: "👏" },
-  { text: "Chance", emoji: "🍀" },
-  { text: "Merci", emoji: "🙏" },
-  { text: "Wow", emoji: "🤯" },
+// Fonction pour résoudre à l'appel, pour suivre la langue courante
+export const getQuickMessages = (): { text: string; emoji: string }[] => [
+  { text: t("gameChat.quickNice"), emoji: "👏" },
+  { text: t("gameChat.quickLuck"), emoji: "🍀" },
+  { text: t("gameChat.quickThanks"), emoji: "🙏" },
+  { text: t("gameChat.quickWow"), emoji: "🤯" },
   { text: "Yallah", emoji: "🚀" },
-  { text: "Quoi", emoji: "😱" },
+  { text: t("gameChat.quickWhat"), emoji: "😱" },
   { text: "😂", emoji: "" },
 ];
+// Back-compat : ancien nom exporté
+export const QUICK_MESSAGES = getQuickMessages();
 
 const MAX_LEN = 60;
 
@@ -24,6 +28,8 @@ export function ChatLauncher({
   onSend: (msg: string) => void;
   bottom: number;
 }) {
+  const tr = useT();
+  const messages = getQuickMessages();
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
 
@@ -49,7 +55,7 @@ export function ChatLauncher({
         <View style={[styles.palette, { bottom: bottom + 60 }]}>
           {/* Messages rapides */}
           <View style={styles.paletteGrid}>
-            {QUICK_MESSAGES.map((m, i) => (
+            {messages.map((m, i) => (
               <Pressable
                 key={i}
                 onPress={() => {
@@ -70,7 +76,7 @@ export function ChatLauncher({
             <TextInput
               value={custom}
               onChangeText={setCustom}
-              placeholder="Ton message…"
+              placeholder={tr("game.chatPlaceholder2")}
               placeholderTextColor="rgba(245,235,214,0.4)"
               style={styles.input}
               maxLength={MAX_LEN}

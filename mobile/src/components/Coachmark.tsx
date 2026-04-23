@@ -24,6 +24,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_UI, FONT_UI_BOLD, FONT_UI_EXTRA } from "../theme";
 import { hapticTap, hapticChoice } from "../lib/haptics";
+import { useT } from "../lib/i18n";
 
 export type CoachmarkStep = {
   targetRef?: React.RefObject<View | null> | null;
@@ -43,6 +44,7 @@ type Props = {
 type Rect = { x: number; y: number; w: number; h: number };
 
 export function Coachmark({ visible, steps, onDone }: Props) {
+  const tr = useT();
   const { width: winW, height: winH } = useWindowDimensions();
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -133,7 +135,7 @@ export function Coachmark({ visible, steps, onDone }: Props) {
           <Text style={styles.bubbleText}>{step.text}</Text>
           <Pressable onPress={onNext} style={styles.ctaBtn} hitSlop={12}>
             <Text style={styles.ctaText}>
-              {step.ctaLabel ?? (isLast ? "Compris" : "Suivant")}
+              {step.ctaLabel ?? (isLast ? tr("common.understood") : tr("common.next"))}
             </Text>
           </Pressable>
         </View>
