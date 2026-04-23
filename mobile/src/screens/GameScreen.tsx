@@ -16,6 +16,7 @@ import Svg, { Ellipse } from "react-native-svg";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { Card, SuitGlyph } from "../components/Card";
 import {
   aiBid,
@@ -1948,7 +1949,7 @@ function SeatBadge({
         },
       ]}
     >
-      <Avatar initials={player.initials} size={26} color={player.color} ring={false} />
+      <PhotoAvatar username={player.name} initials={player.initials} size={26} color={player.color} ring={false} />
       <Text style={[styles.seatName, active && { color: "#FDF6E3" }]}>{player.name}</Text>
       {disconnected && (
         <View style={styles.disconnectedDot} />

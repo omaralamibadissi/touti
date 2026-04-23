@@ -7,6 +7,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { StarBurst, ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useAuthStore } from "../store/authStore";
 import { buildQuickLink } from "../lib/deepLink";
 import { apiMatchmakingStats, apiHybridCandidate, type MatchmakingStats } from "../net/statsApi";
@@ -350,7 +351,7 @@ function SlotCard({
   if (name) {
     return (
       <View style={[styles.slot, isMe ? styles.slotMe : styles.slotFilled]}>
-        <Avatar initials={name[0]?.toUpperCase() ?? "?"} size={36} color={isMe ? COLORS.teal : COLORS.brass} />
+        <PhotoAvatar username={name} size={36} color={isMe ? COLORS.teal : COLORS.brass} />
         <View style={{ flex: 1 }}>
           <Text style={styles.slotName} numberOfLines={1}>{name}</Text>
           <Text style={[styles.slotTag, { color: teamColor }]}>{isMe ? tr("quickMatch.slotYou") : team}</Text>

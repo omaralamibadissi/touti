@@ -327,10 +327,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updatePhoto: async (photo: string | null) => {
     const current = get().user;
     if (!current) return;
-    // Optimiste : on applique localement, on synchronise serveur en best-effort.
+    // Optimiste : on applique localement + on pousse dans le cache photos
+    // pour que les autres écrans voient le changement immédiatement.
     const updated: AuthUser = { ...current, photo: photo ?? undefined };
     await storeUser(updated);
     set({ user: updated });
+    try {
+      const { usePhotosStore } = await import("./photosStore");
+      if (current.username) usePhotosStore.getState().put(current.username, photo);
+    } catch {}
     try {
       const { apiSetPhoto } = await import("../net/authApi");
       await apiSetPhoto(photo);

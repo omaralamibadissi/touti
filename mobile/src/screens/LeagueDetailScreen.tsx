@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useAuthStore } from "../store/authStore";
 import { buildLeagueLink } from "../lib/deepLink";
@@ -181,7 +182,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
               const canManage = isAdmin && m.id !== myUsername;
               return (
                 <View key={m.id} style={styles.memberRow}>
-                  <Avatar initials={m.name[0]?.toUpperCase() ?? "?"} size={34} color={color} />
+                  <PhotoAvatar username={m.name} size={34} color={color} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.memberName}>
                       {m.name}

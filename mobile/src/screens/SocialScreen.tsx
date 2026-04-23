@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useFriendsStore } from "../store/friendsStore";
 import { useAuthStore } from "../store/authStore";
@@ -108,7 +109,7 @@ export default function SocialScreen({ navigation }: Props) {
               <View style={{ gap: 8, marginTop: 8 }}>
                 {incoming.map((f) => (
                   <View key={f.id} style={[styles.friendRow, { borderColor: `${COLORS.saffron}66` }]}>
-                    <Avatar initials={f.requesterName[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.saffron} online={!!(f as any).requesterOnline} />
+                    <PhotoAvatar username={f.requesterName} size={40} color={COLORS.saffron} online={!!(f as any).requesterOnline} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.friendName}>{f.requesterName}</Text>
                       <Text style={styles.friendSub}>{t("social.pendingFromThem")}</Text>
@@ -142,7 +143,7 @@ export default function SocialScreen({ navigation }: Props) {
                     onPress={() => { hapticTap(); navigation.navigate("PlayerProfile", { name: f.name, friendshipId: f.id }); }}
                     style={styles.friendRow}
                   >
-                    <Avatar initials={f.name[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.teal} online={!!f.online} />
+                    <PhotoAvatar username={f.name} size={40} color={COLORS.teal} online={!!f.online} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.friendName}>{f.name}</Text>
                       <Text style={styles.friendSub}>
@@ -166,7 +167,7 @@ export default function SocialScreen({ navigation }: Props) {
               <View style={{ gap: 8, marginTop: 8 }}>
                 {outgoing.map((f) => (
                   <View key={f.id} style={[styles.friendRow, { opacity: 0.65 }]}>
-                    <Avatar initials={f.receiverName[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.brass} online={!!(f as any).receiverOnline} />
+                    <PhotoAvatar username={f.receiverName} size={40} color={COLORS.brass} online={!!(f as any).receiverOnline} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.friendName}>{f.receiverName}</Text>
                       <Text style={styles.friendSub}>{t("social.pendingFromYou")}</Text>

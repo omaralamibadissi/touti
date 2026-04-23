@@ -65,7 +65,7 @@ export default function HomeScreen({ navigation }: Props) {
         {/* Header profil */}
         <View style={styles.header}>
           <Pressable style={styles.profile} onPress={() => { hapticTap(); navigation.navigate("Profile"); }}>
-            <Avatar initials={name.trim()[0]?.toUpperCase() || "?"} size={40} color={COLORS.teal} />
+            <Avatar initials={name.trim()[0]?.toUpperCase() || "?"} size={40} color={COLORS.teal} photo={user?.photo} />
             <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>{name.trim() ? name.trim() : t("common.anonymous")}</Text>
               <View style={styles.levelRow}>

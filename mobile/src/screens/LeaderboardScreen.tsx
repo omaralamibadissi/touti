@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useMatchHistoryStore } from "../store/matchHistoryStore";
 import { useLeagueStore } from "../store/leagueStore";
 import { useFriendsStore } from "../store/friendsStore";
@@ -274,7 +275,7 @@ function IndivList({
           <Text style={[styles.rank, i < 3 && styles.rankTop, p.name === myName && { color: COLORS.saffronSoft }]}>
             {i + 1}
           </Text>
-          <Avatar initials={p.name[0]?.toUpperCase() ?? "?"} size={34} color={COLORS.teal} ring={p.name === myName} />
+          <PhotoAvatar username={p.name} size={34} color={COLORS.teal} ring={p.name === myName} />
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
               <Text style={styles.rowName}>{p.name}</Text>
@@ -312,10 +313,10 @@ function PairsList({
           <Text style={[styles.rank, i < 3 && styles.rankTop]}>{i + 1}</Text>
           <View style={styles.pairAvatars}>
             <Pressable onPress={() => onPress(p.names[0])}>
-              <Avatar initials={p.names[0][0]?.toUpperCase() ?? "?"} size={30} color={COLORS.teal} ring={false} />
+              <PhotoAvatar username={p.names[0]} size={30} color={COLORS.teal} ring={false} />
             </Pressable>
             <Pressable onPress={() => onPress(p.names[1])} style={{ marginLeft: -10 }}>
-              <Avatar initials={p.names[1][0]?.toUpperCase() ?? "?"} size={30} color={COLORS.brass} ring={false} />
+              <PhotoAvatar username={p.names[1]} size={30} color={COLORS.brass} ring={false} />
             </Pressable>
           </View>
           <View style={{ flex: 1 }}>

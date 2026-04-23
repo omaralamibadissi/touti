@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useNetGameStore } from "../store/netGameStore";
 import { useAuthStore } from "../store/authStore";
 import { buildPrivateLink } from "../lib/deepLink";
@@ -361,8 +362,8 @@ function PlayerSlot({
     <View style={[styles.slotRow, reserved && { borderColor: COLORS.saffron, borderWidth: 1 }]}>
       {name ? (
         <>
-          <Avatar
-            initials={name[0]?.toUpperCase() ?? "?"}
+          <PhotoAvatar
+            username={name}
             size={34}
             color={teamColor}
             online={connected}

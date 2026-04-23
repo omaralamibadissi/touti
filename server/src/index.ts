@@ -249,6 +249,29 @@ app.post("/auth/me/onboarding-done", requireAuth, (req, res) => {
   }
 });
 
+// Batch lookup de photos de profil par username. Public (pas d'auth requise) :
+// les photos sont affichées à d'autres joueurs dans les listes d'amis, chats,
+// tournois etc. Si aucun utilisateur n'a de photo, retourne {} en réponse
+// pour éviter d'envoyer inutilement des blobs base64.
+app.post("/users/photos", (req, res) => {
+  try {
+    const { names } = req.body || {};
+    if (!Array.isArray(names)) {
+      res.status(400).json({ error: "names must be an array" });
+      return;
+    }
+    const out: Record<string, string | null> = {};
+    for (const raw of names.slice(0, 100)) {
+      if (typeof raw !== "string" || raw.length === 0 || raw.length > 40) continue;
+      const acc = accounts.findByUsername(raw);
+      if (acc) out[raw] = acc.photo || null;
+    }
+    res.json({ photos: out });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "failed" });
+  }
+});
+
 // Photo de profil : reçoit un data URL base64 (JPEG, limité côté client à ~80KB).
 // Passer null/"" supprime la photo — fallback sur l'initiale.
 app.post("/auth/me/photo", requireAuth, (req, res) => {

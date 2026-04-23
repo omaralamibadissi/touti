@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { Card as PlayingCard } from "../components/Card";
 import { useMatchHistoryStore, type RoundDetail } from "../store/matchHistoryStore";
 import type { Rank, Suit } from "@touti/shared";
@@ -166,7 +167,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
             const isTeamA = i % 2 === 0;
             return (
               <View key={i} style={[styles.playerChip, { borderColor: isTeamA ? `${COLORS.brass}66` : `${COLORS.cream}33` }]}>
-                <Avatar initials={n[0]?.toUpperCase() ?? "?"} size={28} color={isTeamA ? COLORS.brass : COLORS.teal} ring={false} />
+                <PhotoAvatar username={n} size={28} color={isTeamA ? COLORS.brass : COLORS.teal} ring={false} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.playerName}>{n}</Text>
                   <Text style={[styles.playerTeam, { color: isTeamA ? COLORS.saffronSoft : "rgba(245,235,214,0.6)" }]}>

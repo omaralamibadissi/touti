@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useTournamentStore, type Tournament, type TournamentPair } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
 import { buildTournamentLink } from "../lib/deepLink";
@@ -165,7 +166,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         <View style={{ gap: 6, marginTop: 8 }}>
           {tournament.players.map((p) => (
             <View key={p.id} style={styles.playerRow}>
-              <Avatar initials={p.name[0]?.toUpperCase() ?? "?"} size={34} color={COLORS.teal} />
+              <PhotoAvatar username={p.name} size={34} color={COLORS.teal} />
               <Text style={styles.playerName}>{p.name}</Text>
               {p.id === "admin" && <Text style={styles.adminTag}>ADMIN</Text>}
             </View>

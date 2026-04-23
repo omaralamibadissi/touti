@@ -11,6 +11,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useLeagueChatStore, type LeagueMessage } from "../store/leagueChatStore";
 import { useAuthStore } from "../store/authStore";
@@ -146,7 +147,7 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
                 )}
                 <View style={[styles.msgRow, mine && { justifyContent: "flex-end" }]}>
                   {!mine && showAuthor && (
-                    <Avatar initials={item.authorName[0]?.toUpperCase() ?? "?"} size={28} color={COLORS.brass} />
+                    <PhotoAvatar username={item.authorName} size={28} color={COLORS.brass} />
                   )}
                   {!mine && !showAuthor && <View style={{ width: 28 }} />}
                   <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>

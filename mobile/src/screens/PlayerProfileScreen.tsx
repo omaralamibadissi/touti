@@ -9,6 +9,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg, StarBurst } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useMatchHistoryStore, type MatchEntry } from "../store/matchHistoryStore";
 import { useFriendsStore } from "../store/friendsStore";
 import { useLeagueStore } from "../store/leagueStore";
@@ -159,7 +160,7 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
 
           <View style={styles.idRow}>
             <View>
-              <Avatar initials={initials} size={84} color={COLORS.teal} online={online} />
+              <PhotoAvatar username={name} initials={initials} size={84} color={COLORS.teal} online={online} />
               <View style={styles.levelBadge}>
                 <LinearGradient
                   colors={[COLORS.saffron, COLORS.brassDeep]}

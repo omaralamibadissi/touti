@@ -15,7 +15,7 @@ export function getAuthToken(): string | null {
   return authToken;
 }
 
-export async function fetchJson(path: string, init?: RequestInit): Promise<any> {
+export async function fetchJson<T = any>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string> | undefined),
@@ -30,5 +30,5 @@ export async function fetchJson(path: string, init?: RequestInit): Promise<any> 
     throw e;
   }
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  return (text ? JSON.parse(text) : null) as T;
 }

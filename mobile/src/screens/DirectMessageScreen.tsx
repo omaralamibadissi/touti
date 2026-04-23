@@ -11,6 +11,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { Avatar } from "../components/Avatar";
+import { PhotoAvatar } from "../components/PhotoAvatar";
 import { useDirectMessagesStore, type DirectMessage } from "../store/directMessagesStore";
 import { useAuthStore } from "../store/authStore";
 import { useFriendsStore } from "../store/friendsStore";
@@ -74,7 +75,7 @@ export default function DirectMessageScreen({ navigation, route }: Props) {
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Avatar initials={otherName[0]?.toUpperCase() ?? "?"} size={34} color={COLORS.teal} online={onlineFriend} />
+        <PhotoAvatar username={otherName} size={34} color={COLORS.teal} online={onlineFriend} />
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{otherName}</Text>
           {onlineFriend && <Text style={styles.subOnline}>{t("dm.online")}</Text>}
