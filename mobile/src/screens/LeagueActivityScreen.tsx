@@ -100,7 +100,8 @@ export default function LeagueActivityScreen({ navigation, route }: Props) {
 }
 
 function ActivityRow({ event }: { event: LeagueActivityApi }) {
-  const { icon, text, accent } = renderEvent(event);
+  const tr = useT();
+  const { icon, text, accent } = renderEvent(event, tr);
   return (
     <View style={styles.row}>
       <View style={[styles.iconCircle, { borderColor: accent }]}>
@@ -108,49 +109,49 @@ function ActivityRow({ event }: { event: LeagueActivityApi }) {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowText}>{text}</Text>
-        <Text style={styles.rowTime}>{formatRelative(event.createdAt)}</Text>
+        <Text style={styles.rowTime}>{formatRelative(event.createdAt, tr)}</Text>
       </View>
     </View>
   );
 }
 
-function renderEvent(e: LeagueActivityApi): { icon: string; text: string; accent: string } {
+function renderEvent(e: LeagueActivityApi, tr: (k: string, p?: any) => string): { icon: string; text: string; accent: string } {
   const data = e.data || {};
   switch (e.type) {
     case "member_joined":
       return {
         icon: "＋",
-        text: `${e.actorName ?? "Quelqu'un"} a rejoint la ligue`,
+        text: tr("leagues.evtJoined", { actor: e.actorName ?? tr("leagues.evtSomeone") }),
         accent: COLORS.saffronSoft,
       };
     case "member_left":
       return {
         icon: "→",
-        text: `${e.actorName ?? "Quelqu'un"} a quitté la ligue`,
+        text: tr("leagues.evtLeft", { actor: e.actorName ?? tr("leagues.evtSomeone") }),
         accent: "rgba(245,235,214,0.55)",
       };
     case "member_kicked":
       return {
         icon: "⊘",
-        text: `${e.actorName ?? "Admin"} a exclu ${e.targetName ?? "un membre"}`,
+        text: tr("leagues.evtKicked", { actor: e.actorName ?? tr("leagues.evtActorAdmin"), target: e.targetName ?? tr("leagues.evtTargetMember") }),
         accent: "#E8553A",
       };
     case "member_promoted":
       return {
         icon: "★",
-        text: `${e.targetName ?? "Un membre"} est maintenant admin (par ${e.actorName ?? "un admin"})`,
+        text: tr("leagues.evtPromoted", { target: e.targetName ?? tr("leagues.evtActorMember"), actor: e.actorName ?? tr("leagues.evtActorAdmin") }),
         accent: COLORS.brass,
       };
     case "member_demoted":
       return {
         icon: "↓",
-        text: `${e.targetName ?? "Un admin"} est redevenu membre (par ${e.actorName ?? "un admin"})`,
+        text: tr("leagues.evtDemoted", { target: e.targetName ?? tr("leagues.evtTargetAdmin"), actor: e.actorName ?? tr("leagues.evtActorAdmin") }),
         accent: COLORS.brass,
       };
     case "tournament_created":
       return {
         icon: "♕",
-        text: `${e.actorName ?? "Quelqu'un"} a créé le tournoi « ${data.name ?? "sans nom"} »`,
+        text: tr("leagues.evtTournament", { actor: e.actorName ?? tr("leagues.evtSomeone"), name: data.name ?? tr("leagues.evtNoName") }),
         accent: COLORS.saffronSoft,
       };
     case "match_played": {
@@ -160,23 +161,24 @@ function renderEvent(e: LeagueActivityApi): { icon: string; text: string; accent
       const winner = data.winnerTeam === "A" ? teamA : teamB;
       return {
         icon: "♠",
-        text: `${winner} gagne ${data.scoreA ?? "?"} - ${data.scoreB ?? "?"}`,
+        text: tr("leagues.evtMatch", { winner, scoreA: data.scoreA ?? "?", scoreB: data.scoreB ?? "?" }),
         accent: COLORS.teal,
       };
     }
   }
 }
 
-function formatRelative(ts: number): string {
+function formatRelative(ts: number, tr: (k: string, p?: any) => string): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60_000);
   const hours = Math.floor(mins / 60);
   const days = Math.floor(hours / 24);
-  if (mins < 1) return "à l'instant";
-  if (mins < 60) return `il y a ${mins} min`;
-  if (hours < 24) return `il y a ${hours} h`;
-  if (days < 7) return `il y a ${days} j`;
-  return new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  if (mins < 1) return tr("leagues.tsJustNow");
+  if (mins < 60) return tr("leagues.tsMinAgo", { n: mins });
+  if (hours < 24) return tr("leagues.tsHourAgo", { n: hours });
+  if (days < 7) return tr("leagues.tsDayAgo", { n: days });
+  const loc = i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR";
+  return new Date(ts).toLocaleDateString(loc, { day: "numeric", month: "short" });
 }
 
 const styles = StyleSheet.create({

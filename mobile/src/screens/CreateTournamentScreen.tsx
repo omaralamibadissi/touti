@@ -43,7 +43,7 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
 
   const onSubmit = async () => {
     if (!canSubmit || !user?.username) return;
-    const t = await create({
+    const created = await create({
       adminName: user.username,
       name: name.trim(),
       format,
@@ -58,7 +58,7 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
       leagueId: leagueScope || undefined,
       leagueName: scopedLeague?.name,
     });
-    navigation.replace("TournamentDetail", { id: t.id });
+    navigation.replace("TournamentDetail", { id: created.id });
   };
 
   return (
@@ -84,53 +84,53 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
         {/* Format En ligne / IRL */}
-        <Text style={styles.label}>FORMAT</Text>
+        <Text style={styles.label}>{t("tournaments.labelFormat")}</Text>
         <View style={styles.row}>
-          <BigTile active={format === "online"} title="En ligne" sub="Code à partager" onPress={() => setFormat("online")} />
-          <BigTile active={format === "irl"} title="IRL" sub="En vrai, lieu + date" onPress={() => setFormat("irl")} />
+          <BigTile active={format === "online"} title={t("tournaments.tileOnline")} sub={t("tournaments.tileOnlineSub")} onPress={() => setFormat("online")} />
+          <BigTile active={format === "irl"} title={t("tournaments.tileIrl")} sub={t("tournaments.tileIrlSub")} onPress={() => setFormat("irl")} />
         </View>
 
         {/* Mode Classique / Championnat */}
-        <Text style={styles.label}>TYPE DE TOURNOI</Text>
+        <Text style={styles.label}>{t("tournaments.labelType")}</Text>
         <View style={styles.row}>
           <BigTile
             active={mode === "classique"}
-            title="Classique"
-            sub="Élimination directe (bracket)"
+            title={t("tournaments.tileClassic")}
+            sub={t("tournaments.tileClassicSub")}
             onPress={() => setMode("classique")}
           />
           <BigTile
             active={mode === "championnat"}
-            title="Championnat"
-            sub="Toutes les paires se rencontrent (round-robin)"
+            title={t("tournaments.tileChampionship")}
+            sub={t("tournaments.tileChampionshipSub")}
             onPress={() => setMode("championnat")}
           />
         </View>
 
         {/* Pairing — paires TOUJOURS fixes, juste manière de les constituer */}
-        <Text style={styles.label}>CONSTITUTION DES PAIRES</Text>
+        <Text style={styles.label}>{t("tournaments.labelPairing")}</Text>
         <View style={styles.pillRow}>
-          <Pill label="Aléatoire" active={pairing === "random"} onPress={() => setPairing("random")} />
-          <Pill label="Choisies" active={pairing === "chosen"} onPress={() => setPairing("chosen")} />
+          <Pill label={t("tournaments.pillRandom")} active={pairing === "random"} onPress={() => setPairing("random")} />
+          <Pill label={t("tournaments.pillChosen")} active={pairing === "chosen"} onPress={() => setPairing("chosen")} />
         </View>
         <Text style={styles.hint}>
-          Les paires sont fixes pendant tout le tournoi.{" "}
+          {t("tournaments.pairingHintBase")}{" "}
           {pairing === "random"
-            ? "Tirage au sort au début du tournoi."
-            : "Chaque duo s'inscrit ensemble (une personne inscrit sa paire)."}
+            ? t("tournaments.pairingHintRandom")
+            : t("tournaments.pairingHintChosen")}
         </Text>
 
         {/* Restriction ligue */}
         {leagues.length > 0 && (
           <>
-            <Text style={styles.label}>RÉSERVÉ À UNE LIGUE ?</Text>
+            <Text style={styles.label}>{t("tournaments.labelLeagueScope")}</Text>
             <View style={styles.leagueRow}>
               <Pressable
                 onPress={() => setLeagueScope(null)}
                 style={[styles.leagueChip, leagueScope === null && styles.leagueChipActive]}
               >
                 <Text style={[styles.leagueChipText, leagueScope === null && styles.leagueChipTextActive]}>
-                  Ouvert à tous
+                  {t("tournaments.openToAll")}
                 </Text>
               </Pressable>
               {leagues.map((l) => (
@@ -155,7 +155,7 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
             </View>
             {scopedLeague && (
               <Text style={styles.hint}>
-                Seuls les {scopedLeague.members.length} membres de "{scopedLeague.name}" pourront rejoindre.
+                {t("tournaments.leagueScopeHint", { count: scopedLeague.members.length, name: scopedLeague.name })}
               </Text>
             )}
           </>
@@ -163,20 +163,20 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
 
         {/* Nom */}
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-          <Text style={styles.label}>NOM DU TOURNOI</Text>
-          <Text style={styles.counter}>{name.trim().length} car. · min 2</Text>
+          <Text style={styles.label}>{t("tournaments.labelName")}</Text>
+          <Text style={styles.counter}>{t("tournaments.nameCounter", { count: name.trim().length })}</Text>
         </View>
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Ex : Tournoi du quartier"
+          placeholder={t("tournaments.namePlaceholder2")}
           placeholderTextColor="rgba(245,235,214,0.4)"
           style={styles.input}
         />
-        <Text style={styles.hint}>Au moins 2 caractères pour valider</Text>
+        <Text style={styles.hint}>{t("tournaments.nameHint")}</Text>
 
         {/* Nb de joueurs — multiple de 4, illimité */}
-        <Text style={styles.label}>NOMBRE DE JOUEURS</Text>
+        <Text style={styles.label}>{t("tournaments.labelMaxPlayers")}</Text>
         <View style={styles.stepperRow}>
           <Pressable
             onPress={() => setMaxPlayers(Math.max(4, maxPlayers - 4))}
@@ -186,58 +186,56 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
           </Pressable>
           <View style={styles.stepperValue}>
             <Text style={styles.stepperValueNum}>{maxPlayers}</Text>
-            <Text style={styles.stepperValueSub}>{maxPlayers / 2} paires</Text>
+            <Text style={styles.stepperValueSub}>{t("tournaments.pairsCount", { count: maxPlayers / 2 })}</Text>
           </View>
           <Pressable onPress={() => setMaxPlayers(maxPlayers + 4)} style={styles.stepperBtn}>
             <Text style={styles.stepperBtnText}>+4</Text>
           </Pressable>
         </View>
-        <Text style={styles.hint}>
-          Toujours un multiple de 4 (deux équipes de 2 par table).
-        </Text>
+        <Text style={styles.hint}>{t("tournaments.playersHint")}</Text>
 
         {/* IRL uniquement */}
         {format === "irl" && (
           <>
-            <Text style={styles.label}>DATE</Text>
+            <Text style={styles.label}>{t("tournaments.labelDate")}</Text>
             <TextInput
               value={date}
               onChangeText={setDate}
-              placeholder="Ex : 2026-05-15"
+              placeholder={t("tournaments.datePlaceholder")}
               placeholderTextColor="rgba(245,235,214,0.4)"
               style={styles.input}
             />
-            <Text style={styles.label}>HEURE</Text>
+            <Text style={styles.label}>{t("tournaments.labelTime")}</Text>
             <TextInput
               value={time}
               onChangeText={setTime}
-              placeholder="Ex : 20h30"
+              placeholder={t("tournaments.timePlaceholder")}
               placeholderTextColor="rgba(245,235,214,0.4)"
               style={styles.input}
             />
-            <Text style={styles.label}>DURÉE</Text>
+            <Text style={styles.label}>{t("tournaments.labelDuration")}</Text>
             <TextInput
               value={duration}
               onChangeText={setDuration}
-              placeholder="Ex : 3h"
+              placeholder={t("tournaments.durationPlaceholder")}
               placeholderTextColor="rgba(245,235,214,0.4)"
               style={styles.input}
             />
-            <Text style={styles.label}>LIEU</Text>
+            <Text style={styles.label}>{t("tournaments.labelLocation")}</Text>
             <TextInput
               value={location}
               onChangeText={setLocation}
-              placeholder="Ex : Café des Sports, Rabat"
+              placeholder={t("tournaments.locationPlaceholder")}
               placeholderTextColor="rgba(245,235,214,0.4)"
               style={styles.input}
             />
-            <Text style={styles.hint}>Ouvrable dans Plans / Google Maps depuis le détail.</Text>
+            <Text style={styles.hint}>{t("tournaments.locationHint")}</Text>
 
-            <Text style={styles.label}>PHRASE D'ACCROCHE</Text>
+            <Text style={styles.label}>{t("tournaments.labelTagline")}</Text>
             <TextInput
               value={tagline}
               onChangeText={setTagline}
-              placeholder="Ex : Gagnant paie le thé !"
+              placeholder={t("tournaments.taglinePlaceholder")}
               placeholderTextColor="rgba(245,235,214,0.4)"
               style={[styles.input, { height: 80, textAlignVertical: "top" }]}
               multiline
@@ -260,7 +258,7 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
             end={{ x: 0, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Text style={styles.ctaText}>Créer le tournoi</Text>
+          <Text style={styles.ctaText}>{t("tournaments.createCta")}</Text>
         </Pressable>
       </ScrollView>
     </View>

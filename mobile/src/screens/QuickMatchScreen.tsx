@@ -133,7 +133,7 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
     try {
       const link = buildQuickLink(roomCode);
       await Share.share({
-        message: `🃏 Rejoins ma Partie rapide Touti !\nCode : ${roomCode}\n${link}`,
+        message: t("quickMatch.shareMsg", { code: roomCode, link }),
       });
     } catch {}
   };
@@ -167,9 +167,7 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         {mode === "menu" && (
           <View style={{ gap: 12 }}>
-            <Text style={styles.intro}>
-              Joue en ligne — invite tes potes ou laisse le serveur trouver d'autres joueurs pour toi.
-            </Text>
+            <Text style={styles.intro}>{t("quickMatch.intro")}</Text>
 
             <Pressable onPress={createCodeRoom} style={styles.bigBtn}>
               <LinearGradient
@@ -177,28 +175,28 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
                 start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Créer un salon</Text>
-              <Text style={styles.bigBtnSub}>Code à partager · attend 4 humains</Text>
+              <Text style={styles.bigBtnTitle}>{t("quickMatch.createRoom")}</Text>
+              <Text style={styles.bigBtnSub}>{t("quickMatch.createRoomSub")}</Text>
             </Pressable>
 
             <Pressable onPress={createHybridRoom} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Avec amis + randoms</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("quickMatch.hybridRoom")}</Text>
               <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-                Code à partager · quand tous ready, sièges libres ouverts au pool
+                {t("quickMatch.hybridRoomSub")}
               </Text>
             </Pressable>
 
             <Pressable onPress={() => setMode("join")} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Rejoindre avec code</Text>
-              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>Entre le code d'un salon</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("quickMatch.joinCode")}</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>{t("quickMatch.joinCodeSub")}</Text>
             </Pressable>
 
             <View style={styles.divider} />
 
             <Pressable onPress={startPoolSmart} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Chercher des joueurs aléatoires</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("quickMatch.findRandoms")}</Text>
               <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-                Matchmaking public · rejoint d'abord un salon hybride si dispo
+                {t("quickMatch.findRandomsSub")}
               </Text>
             </Pressable>
           </View>
@@ -207,18 +205,18 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
         {mode === "join" && (
           <View style={{ gap: 14 }}>
             <View>
-              <Text style={styles.inputLabel}>CODE DU SALON</Text>
+              <Text style={styles.inputLabel}>{t("quickMatch.labelRoomCode")}</Text>
               <TextInput
                 value={typedCode}
-                onChangeText={(t) => setTypedCode(t.toUpperCase().slice(0, 4))}
-                placeholder="AB12"
+                onChangeText={(txt) => setTypedCode(txt.toUpperCase().slice(0, 4))}
+                placeholder={t("quickMatch.codePlaceholderQM")}
                 placeholderTextColor="rgba(245,235,214,0.3)"
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={4}
                 style={[styles.input, { textAlign: "center", letterSpacing: 8, fontSize: 28 }]}
               />
-              <Text style={styles.hint}>4 caractères exactement</Text>
+              <Text style={styles.hint}>{t("quickMatch.codeHintExact")}</Text>
             </View>
             <Pressable
               onPress={joinCodeRoom}
@@ -230,7 +228,7 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
                 start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Rejoindre</Text>
+              <Text style={styles.bigBtnTitle}>{t("quickMatch.joinRoom")}</Text>
             </Pressable>
           </View>
         )}
@@ -239,10 +237,10 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
           <View style={{ gap: 16 }}>
             {error ? (
               <View style={styles.errorBlock}>
-                <Text style={styles.errorTitle}>Oups</Text>
+                <Text style={styles.errorTitle}>{t("quickMatch.oups")}</Text>
                 <Text style={styles.errorText}>{error}</Text>
                 <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary, { marginTop: 12 }]}>
-                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Retour</Text>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("quickMatch.back")}</Text>
                 </Pressable>
               </View>
             ) : (
@@ -250,10 +248,10 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
                 {/* Code share (lobby mode only) */}
                 {mode === "lobby" && roomCode && (
                   <View style={styles.codeBlock}>
-                    <Text style={styles.codeLabel}>CODE DU SALON</Text>
+                    <Text style={styles.codeLabel}>{t("quickMatch.codeLabel")}</Text>
                     <Text style={styles.codeValue}>{roomCode}</Text>
                     <Pressable onPress={share} style={styles.shareRow}>
-                      <Text style={styles.shareText}>↗ Partager</Text>
+                      <Text style={styles.shareText}>{t("quickMatch.shareAction")}</Text>
                     </Pressable>
                   </View>
                 )}
@@ -261,19 +259,19 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
                 {/* Status */}
                 <View style={styles.statusBlock}>
                   {connecting ? (
-                    <Text style={styles.statusTitle}>Connexion…</Text>
+                    <Text style={styles.statusTitle}>{t("quickMatch.connecting")}</Text>
                   ) : (
                     <>
                       <Text style={styles.statusTitle}>
                         {mode === "pool"
-                          ? `Recherche · ${players.length}/4`
-                          : `Salon · ${players.length}/4`}
+                          ? t("quickMatch.searching", { count: players.length })
+                          : t("quickMatch.lobbyStatus", { count: players.length })}
                       </Text>
                       <Text style={styles.statusSub}>{timeLabel}</Text>
                       {mode === "pool" && mmStats && (
                         <Text style={styles.poolStats}>
-                          {mmStats.searching} joueur{mmStats.searching > 1 ? "s" : ""} en recherche
-                          {mmStats.avgWaitSec > 0 && ` · attente estimée ~${mmStats.avgWaitSec}s`}
+                          {t(`quickMatch.poolStats${mmStats.searching > 1 ? "_plural" : ""}`, { count: mmStats.searching })}
+                          {mmStats.avgWaitSec > 0 && t("quickMatch.poolEstWait", { sec: mmStats.avgWaitSec })}
                         </Text>
                       )}
                     </>
@@ -307,12 +305,10 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
                   );
                 })()}
 
-                <Text style={styles.hint}>
-                  La partie démarre auto dès que les 4 sièges sont occupés par des humains.
-                </Text>
+                <Text style={styles.hint}>{t("quickMatch.autoStartHint")}</Text>
 
                 <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Annuler</Text>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("quickMatch.cancelAction")}</Text>
                 </Pressable>
               </>
             )}
@@ -348,7 +344,8 @@ function SlotCard({
   canReserve?: boolean;
   onReserve?: () => void;
 }) {
-  const team = seat % 2 === 0 ? "NOUS" : "EUX";
+  const tr = useT();
+  const team = seat % 2 === 0 ? tr("quickMatch.teamUs") : tr("quickMatch.teamThem");
   const teamColor = seat % 2 === 0 ? COLORS.teal : "#C8551D";
   if (name) {
     return (
@@ -356,7 +353,7 @@ function SlotCard({
         <Avatar initials={name[0]?.toUpperCase() ?? "?"} size={36} color={isMe ? COLORS.teal : COLORS.brass} />
         <View style={{ flex: 1 }}>
           <Text style={styles.slotName} numberOfLines={1}>{name}</Text>
-          <Text style={[styles.slotTag, { color: teamColor }]}>{isMe ? "VOUS" : team}</Text>
+          <Text style={[styles.slotTag, { color: teamColor }]}>{isMe ? tr("quickMatch.slotYou") : team}</Text>
         </View>
       </View>
     );
@@ -372,7 +369,7 @@ function SlotCard({
       <DashedPulse />
       <View style={{ flex: 1 }}>
         <Text style={styles.slotEmptyText} numberOfLines={1}>
-          {reserved ? "Réservé" : "Vide"}
+          {reserved ? tr("quickMatch.slotReserved") : tr("quickMatch.slotEmpty")}
         </Text>
         <Text style={[styles.slotTag, { color: teamColor, opacity: reserved ? 1 : 0.6 }]}>{team}</Text>
       </View>

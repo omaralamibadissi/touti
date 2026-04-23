@@ -51,10 +51,10 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
       <View style={[styles.root, { justifyContent: "center", alignItems: "center", padding: 24 }]}>
         <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
         <Text style={{ color: COLORS.cream, fontFamily: FONT_UI_BOLD, fontSize: 16, fontWeight: "800" }}>
-          Accès réservé
+          {t("leagues.accessRestricted")}
         </Text>
         <Text style={{ color: "rgba(245,235,214,0.6)", fontFamily: FONT_UI, fontSize: 12, marginTop: 10, textAlign: "center" }}>
-          Seuls les admins peuvent modifier les paramètres de la ligue.
+          {t("leagues.accessRestrictedBody")}
         </Text>
         <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { marginTop: 24 }]}>
           <Text style={styles.backText}>←</Text>
@@ -71,7 +71,7 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
   const onSave = async () => {
     if (!dirty || saving) return;
     if (name.trim().length < 3) {
-      Alert.alert("Nom trop court", "Minimum 3 caractères.");
+      Alert.alert(t("leagues.nameShort"), t("leagues.nameShortBody"));
       return;
     }
     setSaving(true);
@@ -83,7 +83,7 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
       });
       navigation.goBack();
     } catch (e: any) {
-      Alert.alert("Erreur", e?.message ?? "Impossible de sauvegarder");
+      Alert.alert(t("common.error"), e?.message ?? t("leagues.errorSave"));
     } finally {
       setSaving(false);
     }
@@ -91,28 +91,28 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
 
   const confirmDelete = () => {
     Alert.alert(
-      `Supprimer "${league.name}" ?`,
-      "Cette action est immédiate et irréversible. Toutes les données (membres, chat, activité, tournois liés) seront perdues.",
+      t("leagues.deleteSureTitle", { name: league.name }),
+      t("leagues.deleteSureBody"),
       [
-        { text: "Annuler", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Supprimer",
+          text: t("common.delete"),
           style: "destructive",
           onPress: () => {
             Alert.alert(
-              "Confirmer",
-              "Tu es vraiment sûr ? Il n'y a pas de retour en arrière.",
+              t("leagues.confirmTitle"),
+              t("leagues.confirmBody"),
               [
-                { text: "Non", style: "cancel" },
+                { text: t("common.no"), style: "cancel" },
                 {
-                  text: "Oui, supprimer",
+                  text: t("leagues.confirmYesDelete"),
                   style: "destructive",
                   onPress: async () => {
                     try {
                       await removeLeague(id);
                       navigation.popToTop();
                     } catch (e: any) {
-                      Alert.alert("Erreur", e?.message ?? "Impossible");
+                      Alert.alert(t("common.error"), e?.message ?? t("leagues.errorGeneric"));
                     }
                   },
                 },
@@ -141,11 +141,11 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
         {/* Nom */}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Nom de la ligue</Text>
+          <Text style={styles.fieldLabel}>{t("leagues.nameField")}</Text>
           <TextInput
             value={name}
             onChangeText={setName}
-            placeholder="Nom"
+            placeholder={t("leagues.namePlaceholder3")}
             placeholderTextColor="rgba(245,235,214,0.3)"
             style={styles.input}
             maxLength={40}
@@ -154,11 +154,11 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
 
         {/* Tagline */}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Slogan (optionnel)</Text>
+          <Text style={styles.fieldLabel}>{t("leagues.taglineField")}</Text>
           <TextInput
             value={tagline}
             onChangeText={setTagline}
-            placeholder="Une phrase qui décrit la ligue"
+            placeholder={t("leagues.taglinePlaceholder")}
             placeholderTextColor="rgba(245,235,214,0.3)"
             style={styles.input}
             maxLength={80}
@@ -167,7 +167,7 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
 
         {/* Couleur */}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Couleur</Text>
+          <Text style={styles.fieldLabel}>{t("leagues.colorField")}</Text>
           <View style={styles.colorRow}>
             {LEAGUE_COLORS.map((c) => (
               <Pressable
@@ -194,17 +194,15 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Text style={styles.saveBtnText}>{saving ? "Sauvegarde…" : "Sauvegarder"}</Text>
+          <Text style={styles.saveBtnText}>{saving ? t("leagues.saveBusy") : t("leagues.saveAction")}</Text>
         </Pressable>
 
         {/* Zone dangereuse */}
         <View style={styles.dangerBox}>
-          <Text style={styles.dangerTitle}>Zone dangereuse</Text>
-          <Text style={styles.dangerSub}>
-            Supprimer la ligue efface définitivement tous ses contenus. Les membres seront déconnectés automatiquement.
-          </Text>
+          <Text style={styles.dangerTitle}>{t("leagues.dangerZone")}</Text>
+          <Text style={styles.dangerSub}>{t("leagues.dangerBody")}</Text>
           <Pressable onPress={confirmDelete} style={styles.deleteBtn}>
-            <Text style={styles.deleteBtnText}>Supprimer la ligue</Text>
+            <Text style={styles.deleteBtnText}>{t("leagues.deleteAction")}</Text>
           </Pressable>
         </View>
       </ScrollView>

@@ -49,51 +49,51 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
     const options: any[] = [];
     if (member.role === "member") {
       options.push({
-        text: "Promouvoir admin",
+        text: t("leagues.promoteAdmin"),
         onPress: async () => {
           try { await promote(league.id, member.name); }
-          catch (e: any) { Alert.alert("Erreur", e?.message ?? "Impossible"); }
+          catch (e: any) { Alert.alert(t("common.error"), e?.message ?? t("leagues.errorGeneric")); }
         },
       });
     } else {
       options.push({
-        text: "Rétrograder",
+        text: t("leagues.demoteAdmin"),
         onPress: async () => {
           try { await demote(league.id, member.name); }
-          catch (e: any) { Alert.alert("Erreur", e?.message ?? "Impossible"); }
+          catch (e: any) { Alert.alert(t("common.error"), e?.message ?? t("leagues.errorGeneric")); }
         },
       });
     }
     options.push({
-      text: "Exclure de la ligue",
+      text: t("leagues.kickMember"),
       style: "destructive",
       onPress: () => {
         Alert.alert(
-          `Exclure ${member.name} ?`,
-          "Cette action est immédiate et non réversible.",
+          t("leagues.kickTitle", { name: member.name }),
+          t("leagues.kickConfirmBody"),
           [
-            { text: "Annuler", style: "cancel" },
+            { text: t("common.cancel"), style: "cancel" },
             {
-              text: "Exclure",
+              text: t("leagues.kickBtn"),
               style: "destructive",
               onPress: async () => {
                 try { await kick(league.id, member.name); }
-                catch (e: any) { Alert.alert("Erreur", e?.message ?? "Impossible"); }
+                catch (e: any) { Alert.alert(t("common.error"), e?.message ?? t("leagues.errorGeneric")); }
               },
             },
           ],
         );
       },
     });
-    options.push({ text: "Annuler", style: "cancel" });
-    Alert.alert(member.name, member.role === "admin" ? "Admin de la ligue" : "Membre", options);
+    options.push({ text: t("common.cancel"), style: "cancel" });
+    Alert.alert(member.name, member.role === "admin" ? t("leagues.adminRoleLabel") : t("leagues.memberRoleLabel"), options);
   };
 
   const share = async () => {
     try {
       const link = buildLeagueLink(league.code);
       await Share.share({
-        message: `Rejoins ma ligue Touti "${league.name}" !\nCode : ${league.code}\n${link}`,
+        message: t("leagues.shareMessage", { name: league.name, code: league.code, link }),
       });
     } catch {}
   };
@@ -104,22 +104,22 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
     const willDelete = league.members.length === 1;
 
     const body = willDelete
-      ? `Tu es le dernier membre. Quitter = supprimer la ligue définitivement.`
+      ? t("leagues.leaveBodyLast")
       : onlyAdmin
-      ? `Tu es le dernier admin. En quittant, la ligue n'aura plus d'admin — promeus quelqu'un d'abord via le menu "⋯" sur son nom.`
-      : `Sûr de quitter "${league.name}" ? Tu perdras l'accès aux tournois privés de la ligue.`;
+      ? t("leagues.leaveBodyOnlyAdmin")
+      : t("leagues.leaveBodyNormal", { name: league.name });
 
-    Alert.alert("Quitter la ligue", body, [
-      { text: "Annuler", style: "cancel" },
+    Alert.alert(t("leagues.leaveLeague"), body, [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: willDelete ? "Quitter et supprimer" : "Quitter",
+        text: willDelete ? t("leagues.leaveAndDelete") : t("leagues.leaveBtn"),
         style: "destructive",
         onPress: async () => {
           try {
             await leave(league.id, myUsername);
             navigation.goBack();
           } catch (e: any) {
-            Alert.alert("Erreur", e?.message ?? "Impossible");
+            Alert.alert(t("common.error"), e?.message ?? t("leagues.errorGeneric"));
           }
         },
       },

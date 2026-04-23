@@ -6,7 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { useScoreSheetStore, totalsOf } from "../store/scoreSheetStore";
-import { useT } from "../lib/i18n";
+import { useT, i18n } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScoreSheets">;
 
@@ -18,16 +18,16 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
   const remove = useScoreSheetStore((s) => s.remove);
 
   const [creating, setCreating] = useState(false);
-  const [names, setNames] = useState<string[]>(["Joueur 1", "Joueur 2", "Joueur 3", "Joueur 4"]);
+  const [names, setNames] = useState<string[]>([t("scoreSheets.playerN", { n: 1 }), t("scoreSheets.playerN", { n: 2 }), t("scoreSheets.playerN", { n: 3 }), t("scoreSheets.playerN", { n: 4 })]);
 
   useEffect(() => { hydrate(); }, [hydrate]);
 
   const onCreate = async () => {
     const tuple: [string, string, string, string] = [
-      names[0]?.trim() || "Joueur 1",
-      names[1]?.trim() || "Joueur 2",
-      names[2]?.trim() || "Joueur 3",
-      names[3]?.trim() || "Joueur 4",
+      names[0]?.trim() || t("scoreSheets.playerN", { n: 1 }),
+      names[1]?.trim() || t("scoreSheets.playerN", { n: 2 }),
+      names[2]?.trim() || t("scoreSheets.playerN", { n: 3 }),
+      names[3]?.trim() || t("scoreSheets.playerN", { n: 4 }),
     ];
     try {
       const s = await create(tuple);
@@ -68,10 +68,8 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 80 }}>
         {creating ? (
           <View style={styles.createCard}>
-            <Text style={styles.cardLabel}>NOUVELLE FICHE · JOUEURS</Text>
-            <Text style={styles.cardHint}>
-              Alternance NOUS / EUX selon l'ordre anti-horaire (1,3 = NOUS · 2,4 = EUX).
-            </Text>
+            <Text style={styles.cardLabel}>{t("scoreSheets.newGameLabel")}</Text>
+            <Text style={styles.cardHint}>{t("scoreSheets.newGameHint")}</Text>
             <View style={{ gap: 8, marginTop: 14 }}>
               {names.map((n, i) => (
                 <View key={i} style={styles.nameRow}>
@@ -84,16 +82,16 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
                       },
                     ]}
                   >
-                    {i % 2 === 0 ? "NOUS" : "EUX"}
+                    {i % 2 === 0 ? t("scoreSheets.teamUs") : t("scoreSheets.teamThem")}
                   </Text>
                   <TextInput
                     value={n}
-                    onChangeText={(t) => {
+                    onChangeText={(txt) => {
                       const next = [...names];
-                      next[i] = t;
+                      next[i] = txt;
                       setNames(next);
                     }}
-                    placeholder={`Joueur ${i + 1}`}
+                    placeholder={t("scoreSheets.playerN", { n: i + 1 })}
                     placeholderTextColor="rgba(245,235,214,0.4)"
                     style={styles.nameInput}
                   />
@@ -102,7 +100,7 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
             </View>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
               <Pressable onPress={() => setCreating(false)} style={[styles.btn, { backgroundColor: "rgba(0,0,0,0.35)" }]}>
-                <Text style={[styles.btnText, { color: COLORS.cream }]}>Annuler</Text>
+                <Text style={[styles.btnText, { color: COLORS.cream }]}>{t("scoreSheets.cancel")}</Text>
               </Pressable>
               <Pressable onPress={onCreate} style={styles.btn}>
                 <LinearGradient
@@ -111,7 +109,7 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.btnText}>Créer</Text>
+                <Text style={styles.btnText}>{t("scoreSheets.createAction")}</Text>
               </Pressable>
             </View>
           </View>
@@ -123,20 +121,20 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
               end={{ x: 0, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.createBtnText}>+ Nouvelle partie</Text>
+            <Text style={styles.createBtnText}>{t("scoreSheets.newGame")}</Text>
           </Pressable>
         )}
 
         {inProgress.length > 0 && (
           <View style={{ marginTop: 20 }}>
-            <Text style={styles.sectionLabel}>EN COURS · {inProgress.length}</Text>
+            <Text style={styles.sectionLabel}>{t("scoreSheets.inProgressSection", { count: inProgress.length })}</Text>
             <View style={{ gap: 8, marginTop: 8 }}>
               {inProgress.map((s) => (
                 <SheetRow
                   key={s.id}
                   sheet={s}
                   onOpen={() => navigation.navigate("ScoreTracker", { sheetId: s.id })}
-                  onDelete={() => confirmDelete(s.id, remove)}
+                  onDelete={() => confirmDelete(s.id, remove, t)}
                 />
               ))}
             </View>
@@ -145,14 +143,14 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
 
         {finished.length > 0 && (
           <View style={{ marginTop: 20 }}>
-            <Text style={styles.sectionLabel}>TERMINÉES · {finished.length}</Text>
+            <Text style={styles.sectionLabel}>{t("scoreSheets.finishedSection", { count: finished.length })}</Text>
             <View style={{ gap: 8, marginTop: 8 }}>
               {finished.map((s) => (
                 <SheetRow
                   key={s.id}
                   sheet={s}
                   onOpen={() => navigation.navigate("ScoreTracker", { sheetId: s.id })}
-                  onDelete={() => confirmDelete(s.id, remove)}
+                  onDelete={() => confirmDelete(s.id, remove, t)}
                 />
               ))}
             </View>
@@ -162,8 +160,8 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
         {sheets.length === 0 && !creating && (
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>✎</Text>
-            <Text style={styles.emptyTitle}>Aucune fiche pour l'instant</Text>
-            <Text style={styles.emptySub}>Crée-en une pour commencer à noter les scores d'une partie IRL.</Text>
+            <Text style={styles.emptyTitle}>{t("scoreSheets.emptyTitle")}</Text>
+            <Text style={styles.emptySub}>{t("scoreSheets.emptyBody")}</Text>
           </View>
         )}
       </ScrollView>
@@ -171,13 +169,13 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
   );
 }
 
-function confirmDelete(id: string, remove: (id: string) => Promise<void>) {
+function confirmDelete(id: string, remove: (id: string) => Promise<void>, t: (k: string, p?: any) => string) {
   Alert.alert(
-    "Supprimer cette fiche ?",
-    "Cette action est irréversible.",
+    t("scoreSheets.deleteSheetTitle"),
+    t("scoreSheets.deleteSheetBody"),
     [
-      { text: "Annuler", style: "cancel" },
-      { text: "Supprimer", style: "destructive", onPress: () => remove(id) },
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => remove(id) },
     ],
   );
 }
@@ -191,16 +189,18 @@ function SheetRow({
   onOpen: () => void;
   onDelete: () => void;
 }) {
+  const tr = useT();
   const { A, B } = totalsOf(sheet.rounds);
   const dateLabel = formatDate(sheet.createdAt);
   const teamsLabel = `${sheet.names[0]} · ${sheet.names[2]}  vs  ${sheet.names[1]} · ${sheet.names[3]}`;
+  const roundsKey = sheet.rounds.length > 1 ? "scoreSheets.rounds_plural" : "scoreSheets.rounds";
   return (
     <Pressable onPress={onOpen} onLongPress={onDelete} style={styles.sheetRow}>
       <View style={{ flex: 1 }}>
         <Text style={styles.sheetTeams} numberOfLines={1}>{teamsLabel}</Text>
         <Text style={styles.sheetMeta}>
-          {dateLabel} · {sheet.rounds.length} manche{sheet.rounds.length > 1 ? "s" : ""}
-          {sheet.status === "finished" && sheet.winner && ` · ${sheet.winner === "A" ? "NOUS gagnons" : "EUX gagnent"}`}
+          {dateLabel} · {tr(roundsKey, { count: sheet.rounds.length })}
+          {sheet.status === "finished" && sheet.winner && ` · ${sheet.winner === "A" ? tr("scoreSheets.weWin") : tr("scoreSheets.theyWin")}`}
         </Text>
       </View>
       <View style={styles.sheetScoreBox}>
@@ -214,7 +214,8 @@ function SheetRow({
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const loc = i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR";
+  return d.toLocaleDateString(loc, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 const styles = StyleSheet.create({

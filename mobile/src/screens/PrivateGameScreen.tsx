@@ -88,7 +88,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
     try {
       const link = buildPrivateLink(roomCode);
       await Share.share({
-        message: `🃏 Rejoins ma partie Touti !\nCode : ${roomCode}\n${link}`,
+        message: t("privateGame.shareMsg", { code: roomCode, link }),
       });
     } catch {}
   };
@@ -123,9 +123,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
       <View style={styles.content}>
         {mode === "menu" && (
           <View style={{ gap: 12 }}>
-            <Text style={styles.intro}>
-              Crée une table sur-mesure : invite 1 à 3 potes par code, les sièges vides sont remplis par des bots si tu veux démarrer plus vite.
-            </Text>
+            <Text style={styles.intro}>{t("privateGame.intro")}</Text>
 
             <Pressable onPress={create} style={styles.bigBtn}>
               <LinearGradient
@@ -134,13 +132,13 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Créer une partie</Text>
-              <Text style={styles.bigBtnSub}>Génère un code à partager</Text>
+              <Text style={styles.bigBtnTitle}>{t("privateGame.createBtn")}</Text>
+              <Text style={styles.bigBtnSub}>{t("privateGame.createBtnSub")}</Text>
             </Pressable>
 
             <Pressable onPress={() => setMode("joining")} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Rejoindre une partie</Text>
-              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>Entre le code d'un ami</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("privateGame.joinBtn")}</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>{t("privateGame.joinBtnSub")}</Text>
             </Pressable>
           </View>
         )}
@@ -148,11 +146,11 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
         {mode === "joining" && (
           <View style={{ gap: 16 }}>
             <View>
-              <Text style={styles.codeLabel}>CODE DE L'AMI</Text>
+              <Text style={styles.codeLabel}>{t("privateGame.codeFriendLabel")}</Text>
               <TextInput
                 value={typedCode}
-                onChangeText={(t) => setTypedCode(t.toUpperCase().slice(0, 4))}
-                placeholder="CODE"
+                onChangeText={(txt) => setTypedCode(txt.toUpperCase().slice(0, 4))}
+                placeholder={t("privateGame.codeInputPlaceholder")}
                 placeholderTextColor="rgba(245,235,214,0.3)"
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -172,7 +170,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Rejoindre</Text>
+              <Text style={styles.bigBtnTitle}>{t("privateGame.joinAction")}</Text>
             </Pressable>
 
             <Pressable
@@ -184,14 +182,14 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
               }}
               style={[styles.bigBtn, styles.bigBtnSecondary, typedCode.length !== 4 && { opacity: 0.4 }]}
             >
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>👁 Regarder en spectateur</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("privateGame.spectate")}</Text>
               <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-                Tu ne joues pas, tu regardes
+                {t("privateGame.spectateSub")}
               </Text>
             </Pressable>
 
             <Pressable onPress={() => { setMode("menu"); setTypedCode(""); }} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Retour</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("privateGame.back")}</Text>
             </Pressable>
           </View>
         )}
@@ -201,13 +199,13 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
             {connecting && (
               <View style={styles.centerBlock}>
                 <ActivityIndicator color={COLORS.saffron} size="large" />
-                <Text style={styles.dim}>Connexion au serveur…</Text>
+                <Text style={styles.dim}>{t("privateGame.connecting")}</Text>
               </View>
             )}
             {!connecting && !connected && !error && (
               <View style={styles.centerBlock}>
                 <Text style={styles.dim}>
-                  Déconnecté du serveur{roomCode ? ` · code ${roomCode}` : ""}
+                  {roomCode ? t("privateGame.disconnectedWithCode", { code: roomCode }) : t("privateGame.disconnected")}
                 </Text>
                 {roomCode && (
                   <Pressable
@@ -227,7 +225,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
                       end={{ x: 0, y: 1 }}
                       style={StyleSheet.absoluteFill}
                     />
-                    <Text style={styles.bigBtnTitle}>Reconnecter</Text>
+                    <Text style={styles.bigBtnTitle}>{t("privateGame.reconnect")}</Text>
                   </Pressable>
                 )}
                 <Pressable
@@ -235,7 +233,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
                   style={[styles.bigBtn, styles.bigBtnSecondary, { marginTop: 8 }]}
                 >
                   <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>
-                    Retour au menu
+                    {t("privateGame.backToMenu")}
                   </Text>
                 </Pressable>
               </View>
@@ -245,7 +243,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
               <View style={[styles.centerBlock, { backgroundColor: "rgba(200,70,45,0.15)" }]}>
                 <Text style={styles.errorText}>{error}</Text>
                 <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary, { marginTop: 14 }]}>
-                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Retour</Text>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("privateGame.back")}</Text>
                 </Pressable>
               </View>
             )}
@@ -254,16 +252,16 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
               <>
                 {roomCode && (
                   <View style={styles.codeBlock}>
-                    <Text style={styles.codeLabel}>CODE DE LA PARTIE</Text>
+                    <Text style={styles.codeLabel}>{t("privateGame.codeGameLabel")}</Text>
                     <Text style={styles.codeValue}>{roomCode}</Text>
                     <Pressable onPress={share} style={styles.shareRow}>
-                      <Text style={styles.shareText}>↗ Partager</Text>
+                      <Text style={styles.shareText}>{t("privateGame.shareAction")}</Text>
                     </Pressable>
                   </View>
                 )}
 
                 <Text style={styles.sectionLabel}>
-                  JOUEURS · {players.length} / 4
+                  {t("privateGame.playersLabel", { count: players.length })}
                 </Text>
 
                 <View style={{ gap: 8 }}>
@@ -288,7 +286,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
                 </View>
                 {isHost && store.reservedSeat !== null && (
                   <Text style={styles.reservedHint}>
-                    Le prochain joueur qui rejoindra ira à la place {placeLabel(store.reservedSeat)}.
+                    {t("privateGame.reservedHint", { place: placeLabel(store.reservedSeat, t) })}
                   </Text>
                 )}
 
@@ -303,21 +301,21 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
                       end={{ x: 0, y: 1 }}
                       style={StyleSheet.absoluteFill}
                     />
-                    <Text style={styles.bigBtnTitle}>Démarrer la partie</Text>
+                    <Text style={styles.bigBtnTitle}>{t("privateGame.startGame")}</Text>
                     <Text style={styles.bigBtnSub}>
                       {players.length < 4
-                        ? `${4 - players.length} siège${4 - players.length > 1 ? "s" : ""} seront remplis par IA`
-                        : "4 joueurs humains"}
+                        ? t(`privateGame.botsWillFill${4 - players.length > 1 ? "_plural" : ""}`, { count: 4 - players.length })
+                        : t("privateGame.allHumans")}
                     </Text>
                   </Pressable>
                 ) : (
                   <View style={styles.centerBlock}>
-                    <Text style={styles.dim}>En attente du lancement par l'hôte…</Text>
+                    <Text style={styles.dim}>{t("privateGame.waitingHost")}</Text>
                   </View>
                 )}
 
                 <Pressable onPress={cancel} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Quitter</Text>
+                  <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("privateGame.quitAction")}</Text>
                 </Pressable>
               </>
             )}
@@ -330,9 +328,9 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
 
 // ─── Sous-composants ──────────────────────────────────────────────
 
-function placeLabel(seat: number): string {
-  const team = seat % 2 === 0 ? "NOUS" : "EUX";
-  return `${team} (siège ${seat})`;
+function placeLabel(seat: number, t: (k: string, p?: any) => string): string {
+  const team = seat % 2 === 0 ? t("privateGame.teamUs") : t("privateGame.teamThem");
+  return t("privateGame.placeLabel", { team, seat });
 }
 
 function PlayerSlot({
@@ -354,9 +352,10 @@ function PlayerSlot({
   canReserve?: boolean;
   onReserve?: () => void;
 }) {
+  const tr = useT();
   const team = (seat % 2) as 0 | 1;
   const teamColor = team === 0 ? COLORS.teal : "#C8551D";
-  const teamLabel = team === 0 ? "NOUS" : "EUX";
+  const teamLabel = team === 0 ? tr("privateGame.teamUs") : tr("privateGame.teamThem");
 
   return (
     <View style={[styles.slotRow, reserved && { borderColor: COLORS.saffron, borderWidth: 1 }]}>
@@ -371,13 +370,13 @@ function PlayerSlot({
           <View style={{ flex: 1 }}>
             <Text style={styles.slotName}>
               {name}
-              {isMe && <Text style={{ color: COLORS.saffronSoft }}>  (VOUS)</Text>}
+              {isMe && <Text style={{ color: COLORS.saffronSoft }}>  {tr("privateGame.you")}</Text>}
             </Text>
             <Text style={[styles.slotTeam, { color: teamColor }]}>{teamLabel}</Text>
           </View>
           {ready && (
             <View style={styles.readyBadge}>
-              <Text style={styles.readyText}>PRÊT</Text>
+              <Text style={styles.readyText}>{tr("privateGame.ready")}</Text>
             </View>
           )}
         </>
@@ -386,7 +385,7 @@ function PlayerSlot({
           <View style={styles.emptyCircle} />
           <View style={{ flex: 1 }}>
             <Text style={styles.slotEmptyName}>
-              {reserved ? "Réservé pour prochain invité" : "En attente…"}
+              {reserved ? tr("privateGame.reserved") : tr("privateGame.waitingSlot")}
             </Text>
             <Text style={[styles.slotTeam, { color: teamColor, opacity: reserved ? 1 : 0.5 }]}>
               {teamLabel}
@@ -398,7 +397,7 @@ function PlayerSlot({
               style={[styles.reserveBtn, reserved && styles.reserveBtnActive]}
             >
               <Text style={[styles.reserveBtnText, reserved && { color: COLORS.terracottaDark }]}>
-                {reserved ? "Annuler" : "Inviter ici"}
+                {reserved ? tr("privateGame.cancel") : tr("privateGame.invite")}
               </Text>
             </Pressable>
           )}

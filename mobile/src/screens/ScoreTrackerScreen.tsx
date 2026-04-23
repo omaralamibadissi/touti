@@ -80,11 +80,11 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
 
   const onReset = () => {
     Alert.alert(
-      "Remettre à zéro ?",
-      "Toutes les manches seront perdues. Les joueurs sont conservés.",
+      t("scoreSheets.resetTitle"),
+      t("scoreSheets.resetBody"),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Reset", style: "destructive", onPress: () => resetSheet(sheet.id) },
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("scoreSheets.resetAction"), style: "destructive", onPress: () => resetSheet(sheet.id) },
       ],
     );
   };
@@ -119,34 +119,34 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
         <View style={styles.totalsRow}>
-          <TeamTotal label="Nous" total={totalA} winner={sheet.winner === "A"} color={COLORS.saffronSoft} />
-          <TeamTotal label="Eux" total={totalB} winner={sheet.winner === "B"} color={COLORS.cream} />
+          <TeamTotal label={t("scoreSheets.us")} total={totalA} winner={sheet.winner === "A"} color={COLORS.saffronSoft} />
+          <TeamTotal label={t("scoreSheets.them")} total={totalB} winner={sheet.winner === "B"} color={COLORS.cream} />
         </View>
         {gameOver && sheet.winner && (
           <Text style={styles.winner}>
-            {winA ? `NOUS gagnons avec ${totalA} !` : `EUX gagnent avec ${totalB}.`}
+            {winA ? t("scoreSheets.weWinWith", { total: totalA }) : t("scoreSheets.theyWinWith", { total: totalB })}
           </Text>
         )}
 
         <View style={styles.namesCard}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={styles.cardLabel}>JOUEURS</Text>
+            <Text style={styles.cardLabel}>{t("scoreSheets.playersLabel")}</Text>
             <Pressable onPress={() => setEditingNames(!editingNames)}>
-              <Text style={styles.editLink}>{editingNames ? "Valider" : "Modifier"}</Text>
+              <Text style={styles.editLink}>{editingNames ? t("scoreSheets.validate") : t("scoreSheets.edit")}</Text>
             </Pressable>
           </View>
           <View style={{ gap: 8, marginTop: 10 }}>
             {sheet.names.map((n, i) => (
               <View key={i} style={styles.nameRow}>
                 <Text style={[styles.teamBadge, { backgroundColor: TEAM_BY_IDX[i] === "A" ? COLORS.saffron : "rgba(245,235,214,0.25)" }]}>
-                  {TEAM_BY_IDX[i] === "A" ? "NOUS" : "EUX"}
+                  {TEAM_BY_IDX[i] === "A" ? t("scoreSheets.teamUs") : t("scoreSheets.teamThem")}
                 </Text>
                 {editingNames ? (
                   <TextInput
                     value={n}
-                    onChangeText={(t) => updateName(i, t)}
+                    onChangeText={(txt) => updateName(i, txt)}
                     style={styles.nameInput}
-                    placeholder={`Joueur ${i + 1}`}
+                    placeholder={t("scoreSheets.playerN", { n: i + 1 })}
                     placeholderTextColor="rgba(245,235,214,0.4)"
                   />
                 ) : (
@@ -159,7 +159,7 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
 
         {sheet.rounds.length > 0 && (
           <View style={{ marginTop: 16 }}>
-            <Text style={styles.sectionLabel}>MANCHES</Text>
+            <Text style={styles.sectionLabel}>{t("scoreSheets.roundsLabel")}</Text>
             <View style={{ gap: 6, marginTop: 8 }}>
               {sheet.rounds.map((r) => (
                 <RoundRow key={r.id} r={r} />
@@ -170,13 +170,13 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
 
         {gameOver ? (
           <View style={styles.gameOverCard}>
-            <Text style={styles.gameOverTitle}>Partie terminée</Text>
+            <Text style={styles.gameOverTitle}>{t("scoreSheets.gameOverTitle")}</Text>
             <Text style={styles.gameOverSub}>
-              {winA ? `NOUS dépassons 600 avec ${totalA}` : `EUX dépassent 600 avec ${totalB}`}
+              {winA ? t("scoreSheets.weWinOver", { total: totalA }) : t("scoreSheets.theyWinOver", { total: totalB })}
             </Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 16, width: "100%" }}>
               <Pressable onPress={() => navigation.goBack()} style={[styles.formBtn, { backgroundColor: "rgba(0,0,0,0.35)" }]}>
-                <Text style={[styles.formBtnText, { color: COLORS.cream }]}>Retour</Text>
+                <Text style={[styles.formBtnText, { color: COLORS.cream }]}>{t("scoreSheets.back")}</Text>
               </Pressable>
               <Pressable onPress={onReset} style={styles.formBtn}>
                 <LinearGradient
@@ -185,24 +185,24 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.formBtnText}>Rejouer (reset)</Text>
+                <Text style={styles.formBtnText}>{t("scoreSheets.replayReset")}</Text>
               </Pressable>
             </View>
           </View>
         ) : adding ? (
           <View style={styles.addCard}>
-            <Text style={styles.cardLabel}>NOUVELLE MANCHE</Text>
+            <Text style={styles.cardLabel}>{t("scoreSheets.newRound")}</Text>
 
-            <Text style={styles.autoInfo}>Distributeur · <Text style={styles.autoInfoBold}>{sheet.names[dealerIdx]}</Text></Text>
-            <Text style={styles.autoInfo}>Mâle (démarre) · <Text style={styles.autoInfoBold}>{sheet.names[maleIdx]}</Text></Text>
+            <Text style={styles.autoInfo}>{t("scoreSheets.dealerLabel")} · <Text style={styles.autoInfoBold}>{sheet.names[dealerIdx]}</Text></Text>
+            <Text style={styles.autoInfo}>{t("scoreSheets.maleLabel")} · <Text style={styles.autoInfoBold}>{sheet.names[maleIdx]}</Text></Text>
             <Pressable
               onPress={() => updateSheet(sheet.id, { dealerIdx: (dealerIdx + 1) % 4 })}
               style={[styles.rotateBtn]}
             >
-              <Text style={styles.rotateBtnText}>↻ Changer de distributeur</Text>
+              <Text style={styles.rotateBtnText}>{t("scoreSheets.changeDealer")}</Text>
             </Pressable>
 
-            <Text style={styles.fieldLabel}>QUI A ACHETÉ ?</Text>
+            <Text style={styles.fieldLabel}>{t("scoreSheets.whoBought")}</Text>
             <View style={styles.fourGrid}>
               {sheet.names.map((n, i) => (
                 <Pressable
@@ -215,7 +215,7 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>MISE</Text>
+            <Text style={styles.fieldLabel}>{t("scoreSheets.bidLabel")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
               {bidChoices.map((b) => (
                 <Pressable
@@ -228,25 +228,25 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
               ))}
             </ScrollView>
 
-            <Text style={styles.fieldLabel}>RÉSULTAT</Text>
+            <Text style={styles.fieldLabel}>{t("scoreSheets.resultLabel")}</Text>
             <View style={styles.resultRow}>
               <Pressable
                 onPress={() => setSuccess(true)}
                 style={[styles.resultBtn, success && { backgroundColor: "rgba(63,194,106,0.25)", borderColor: "#3FC26A" }]}
               >
-                <Text style={[styles.resultText, success && { color: "#3FC26A" }]}>Réussie</Text>
+                <Text style={[styles.resultText, success && { color: "#3FC26A" }]}>{t("scoreSheets.resultOk")}</Text>
               </Pressable>
               <Pressable
                 onPress={() => setSuccess(false)}
                 style={[styles.resultBtn, !success && { backgroundColor: "rgba(232,85,58,0.25)", borderColor: "#E8553A" }]}
               >
-                <Text style={[styles.resultText, !success && { color: "#E8553A" }]}>Ratée</Text>
+                <Text style={[styles.resultText, !success && { color: "#E8553A" }]}>{t("scoreSheets.resultKo")}</Text>
               </Pressable>
             </View>
 
             <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
               <Pressable onPress={() => setAdding(false)} style={[styles.formBtn, { backgroundColor: "rgba(0,0,0,0.35)" }]}>
-                <Text style={[styles.formBtnText, { color: COLORS.cream }]}>Annuler</Text>
+                <Text style={[styles.formBtnText, { color: COLORS.cream }]}>{t("common.cancel")}</Text>
               </Pressable>
               <Pressable onPress={saveRound} style={styles.formBtn}>
                 <LinearGradient
@@ -255,7 +255,7 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.formBtnText}>Enregistrer</Text>
+                <Text style={styles.formBtnText}>{t("scoreSheets.saveRound")}</Text>
               </Pressable>
             </View>
           </View>
@@ -267,7 +267,7 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
               end={{ x: 0, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.addMainBtnText}>+ Ajouter une manche</Text>
+            <Text style={styles.addMainBtnText}>{t("scoreSheets.addRound")}</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -286,18 +286,19 @@ function TeamTotal({ label, total, winner, color }: { label: string; total: numb
 }
 
 function RoundRow({ r }: { r: ScoreRound }) {
+  const tr = useT();
   return (
     <View style={styles.roundRow}>
       <Text style={styles.roundNum}>{r.num}</Text>
       <View style={{ flex: 1 }}>
         <Text style={styles.roundMain}>
           <Text style={{ color: r.buyerTeam === "A" ? COLORS.saffronSoft : COLORS.cream, fontWeight: "800" }}>
-            {r.buyerTeam === "A" ? "NOUS" : "EUX"}
+            {r.buyerTeam === "A" ? tr("scoreSheets.roundUsBuyer") : tr("scoreSheets.roundThemBuyer")}
           </Text>
-          {" · "}{r.buyer} mise {r.bid}
+          {" · "}{tr("scoreSheets.roundMain", { buyer: r.buyer, bid: r.bid })}
         </Text>
         <Text style={styles.roundSub}>
-          Dist. {r.dealer} · Mâle {r.male} · {r.success ? "✓ Réussie" : "✗ Ratée"}
+          {r.success ? tr("scoreSheets.roundSubOk", { dealer: r.dealer, male: r.male }) : tr("scoreSheets.roundSubKo", { dealer: r.dealer, male: r.male })}
         </Text>
       </View>
       <View style={{ alignItems: "flex-end" }}>

@@ -37,12 +37,29 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const formatLabel = `${labelFormat(tournament.format)} · ${labelMode(tournament.mode)}`;
+  const formatLabel = `${labelFormat(tournament.format, t)} · ${labelMode(tournament.mode, t)}`;
   const tournamentLink = buildTournamentLink(tournament.code);
   const shareText =
     tournament.format === "irl"
-      ? `🃏 ${tournament.name}\n${formatLabel}\n${tournament.tagline ?? ""}\n\n📅 ${tournament.date ?? ""} à ${tournament.time ?? ""}\n📍 ${tournament.location ?? ""}\n⏱ Durée : ${tournament.duration ?? ""}\n👥 ${tournament.maxPlayers} joueurs\n\nRejoins avec le code : ${tournament.code}\n${tournamentLink}`
-      : `🃏 ${tournament.name}\nTournoi Touti ${formatLabel} · ${tournament.maxPlayers} joueurs\n\nRejoins avec le code : ${tournament.code}\n${tournamentLink}`;
+      ? t("tournaments.shareIrl", {
+          name: tournament.name,
+          format: formatLabel,
+          tagline: tournament.tagline ?? "",
+          date: tournament.date ?? "",
+          time: tournament.time ?? "",
+          location: tournament.location ?? "",
+          duration: tournament.duration ?? "",
+          players: tournament.maxPlayers,
+          code: tournament.code,
+          link: tournamentLink,
+        })
+      : t("tournaments.shareOnline", {
+          name: tournament.name,
+          format: formatLabel,
+          players: tournament.maxPlayers,
+          code: tournament.code,
+          link: tournamentLink,
+        });
 
   const onShare = async () => {
     try {
@@ -63,12 +80,12 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
   const onDelete = () => {
     Alert.alert(
-      "Supprimer ce tournoi ?",
+      t("tournaments.deleteConfirmTitle"),
       "",
       [
-        { text: "Annuler", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Supprimer",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             await remove(tournament.id);
@@ -95,7 +112,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <Pressable onPress={onShare} style={styles.topAction}>
-          <Text style={styles.topActionText}>↗ Partager</Text>
+          <Text style={styles.topActionText}>↗ {t("tournaments.share")}</Text>
         </Pressable>
       </View>
 
@@ -106,23 +123,23 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {/* Code */}
         <View style={styles.codeCard}>
-          <Text style={styles.codeLabel}>CODE DU TOURNOI</Text>
+          <Text style={styles.codeLabel}>{t("tournaments.codeTournamentLabel")}</Text>
           <Text style={styles.codeValue}>{tournament.code}</Text>
-          <Text style={styles.codeHint}>Partage-le pour inviter</Text>
+          <Text style={styles.codeHint}>{t("tournaments.codeShareHint")}</Text>
         </View>
 
         {/* Infos IRL */}
         {tournament.format === "irl" && (
           <View style={styles.infoCard}>
-            {tournament.date && <InfoRow label="Date" value={tournament.date} />}
-            {tournament.time && <InfoRow label="Heure" value={tournament.time} />}
-            {tournament.duration && <InfoRow label="Durée" value={tournament.duration} />}
+            {tournament.date && <InfoRow label={t("tournaments.infoDate")} value={tournament.date} />}
+            {tournament.time && <InfoRow label={t("tournaments.infoTime")} value={tournament.time} />}
+            {tournament.duration && <InfoRow label={t("tournaments.infoDuration")} value={tournament.duration} />}
             {tournament.location && (
               <View style={{ borderTopWidth: 0.5, borderTopColor: "rgba(245,235,214,0.1)", paddingTop: 10, marginTop: 10 }}>
-                <Text style={styles.infoLabel}>LIEU</Text>
+                <Text style={styles.infoLabel}>{t("tournaments.infoLocation")}</Text>
                 <Text style={styles.locationText}>{tournament.location}</Text>
                 <Pressable onPress={onOpenMap} style={styles.mapBtn}>
-                  <Text style={styles.mapBtnText}>📍 Ouvrir dans Plans / Google Maps</Text>
+                  <Text style={styles.mapBtnText}>{t("tournaments.openInMaps")}</Text>
                 </Pressable>
               </View>
             )}
@@ -131,15 +148,13 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {/* Info mode + paires */}
         <View style={styles.infoCard}>
-          <InfoRow label="Mode" value={labelMode(tournament.mode)} />
+          <InfoRow label={t("tournaments.infoMode")} value={labelMode(tournament.mode, t)} />
           <InfoRow
-            label="Paires"
-            value={tournament.pairingMode === "random" ? "Aléatoires" : "Choisies"}
+            label={t("tournaments.infoPairs")}
+            value={tournament.pairingMode === "random" ? t("tournaments.pairsRandom") : t("tournaments.pairsChosen")}
           />
           {tournament.mode === "championnat" && (
-            <Text style={styles.championnatNote}>
-              Les paires changent à chaque partie, tout le monde joue avec tout le monde.
-            </Text>
+            <Text style={styles.championnatNote}>{t("tournaments.championshipNote")}</Text>
           )}
         </View>
 
@@ -158,7 +173,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
           {Array.from({ length: tournament.maxPlayers - tournament.players.length }).map((_, i) => (
             <View key={`empty-${i}`} style={[styles.playerRow, styles.emptySlot]}>
               <View style={styles.emptyAvatar} />
-              <Text style={styles.emptyText}>En attente…</Text>
+              <Text style={styles.emptyText}>{t("tournaments.waiting")}</Text>
             </View>
           ))}
         </View>
@@ -174,7 +189,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.bigCtaText}>Partager le tournoi</Text>
+                <Text style={styles.bigCtaText}>{t("tournaments.shareBig")}</Text>
               </Pressable>
 
               {isAdmin ? (
@@ -198,11 +213,11 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                           end={{ x: 0, y: 1 }}
                           style={StyleSheet.absoluteFill}
                         />
-                        <Text style={styles.bigCtaText}>▶ Lancer le tournoi</Text>
+                        <Text style={styles.bigCtaText}>{t("tournaments.startBig")}</Text>
                       </Pressable>
                       {!canStart && (
                         <Text style={{ fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", textAlign: "center", marginTop: 8, fontStyle: "italic" }}>
-                          {current} / {needed} joueurs inscrits — en attente des {needed - current} manquant{needed - current > 1 ? "s" : ""}.
+                          {t("tournaments.startHint", { current, needed, missing: needed - current })}
                         </Text>
                       )}
                     </>
@@ -220,17 +235,17 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                       end={{ x: 0, y: 1 }}
                       style={StyleSheet.absoluteFill}
                     />
-                    <Text style={styles.bigCtaText}>▶ Lancer le tournoi</Text>
+                    <Text style={styles.bigCtaText}>{t("tournaments.startBig")}</Text>
                   </Pressable>
                   <Text style={{ fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", textAlign: "center", marginTop: 8, fontStyle: "italic" }}>
-                    Seul l'admin ({tournament.createdBy}) peut le lancer.
+                    {t("tournaments.startOnlyAdmin", { admin: tournament.createdBy })}
                   </Text>
                 </>
               )}
 
               {isAdmin && (
                 <Pressable onPress={onDelete} style={styles.dangerBtn}>
-                  <Text style={styles.dangerText}>Supprimer</Text>
+                  <Text style={styles.dangerText}>{t("tournaments.deleteAction")}</Text>
                 </Pressable>
               )}
             </>
@@ -241,9 +256,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {tournament.status === "started" || tournament.status === "finished" ? (
           <>
             {/* Classement des paires */}
-            <Text style={styles.section}>
-              CLASSEMENT · 3 pts / victoire · −1 / défaite
-            </Text>
+            <Text style={styles.section}>{t("tournaments.rankingSection")}</Text>
             <View style={{ gap: 6, marginTop: 8 }}>
               {[...(tournament.pairs || [])]
                 .map((p) => ({ ...p, classementPoints: p.wins * 3 - p.losses }))
@@ -260,7 +273,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pairNames}>{p.names[0]} & {p.names[1]}</Text>
                       <Text style={styles.pairMeta}>
-                        {p.wins}V / {p.losses}D · cumul {p.points}
+                        {t("tournaments.pairWL", { wins: p.wins, losses: p.losses, points: p.points })}
                       </Text>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
@@ -272,7 +285,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
             </View>
 
             {/* Matchs — bracket visuel en classique, liste en championnat */}
-            <Text style={styles.section}>MATCHS</Text>
+            <Text style={styles.section}>{t("tournaments.matchesSection")}</Text>
             {tournament.mode === "classique" ? (
               <BracketView
                 tournament={tournament}
@@ -286,8 +299,8 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 }
                 onReport={(matchId, pA, pB) => {
                   Alert.prompt?.(
-                    "Saisir résultat",
-                    `${pA.names.join(" & ")} vs ${pB.names.join(" & ")}\nScore au format "600-540"`,
+                    t("tournaments.enterResult"),
+                    t("tournaments.enterResultBody", { pairA: pA.names.join(" & "), pairB: pB.names.join(" & ") }),
                     async (text: string) => {
                       const match = (text || "").match(/^\s*(\d+)\s*[-:_]\s*(\d+)\s*$/);
                       if (!match) return;
@@ -318,13 +331,13 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                       ]}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.matchRound}>ROUND {m.round}</Text>
+                        <Text style={styles.matchRound}>{t("tournaments.round", { n: m.round })}</Text>
                         <Text style={styles.matchPair}>{pA.names.join(" & ")}</Text>
-                        <Text style={styles.matchVs}>vs</Text>
+                        <Text style={styles.matchVs}>{t("tournaments.vs")}</Text>
                         <Text style={styles.matchPair}>{pB.names.join(" & ")}</Text>
                         {m.status === "finished" && (
                           <Text style={styles.matchResult}>
-                            {m.scoreA} - {m.scoreB} · {m.winnerPairId === m.pairAId ? pA.names.join(" & ") : pB.names.join(" & ")} gagne
+                            {t("tournaments.matchWon", { scoreA: m.scoreA, scoreB: m.scoreB, winner: m.winnerPairId === m.pairAId ? pA.names.join(" & ") : pB.names.join(" & ") })}
                           </Text>
                         )}
                       </View>
@@ -340,15 +353,15 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                               }}
                               style={styles.matchPlayBtn}
                             >
-                              <Text style={styles.matchPlayText}>Jouer · {m.roomCode}</Text>
+                              <Text style={styles.matchPlayText}>{t("tournaments.playMatch", { code: m.roomCode })}</Text>
                             </Pressable>
                           )}
                           {isAdmin && (
                             <Pressable
                               onPress={() => {
                                 Alert.prompt?.(
-                                  "Saisir résultat",
-                                  `${pA.names.join(" & ")} vs ${pB.names.join(" & ")}\nScore au format "600-540"`,
+                                  t("tournaments.enterResult"),
+                                  t("tournaments.enterResultBody", { pairA: pA.names.join(" & "), pairB: pB.names.join(" & ") }),
                                   async (text: string) => {
                                     const match = (text || "").match(/^\s*(\d+)\s*[-:_]\s*(\d+)\s*$/);
                                     if (!match) return;
@@ -363,7 +376,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                               }}
                               style={styles.matchReportBtn}
                             >
-                              <Text style={styles.matchReportText}>Saisir résultat</Text>
+                              <Text style={styles.matchReportText}>{t("tournaments.enterResult")}</Text>
                             </Pressable>
                           )}
                         </View>
@@ -376,20 +389,20 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
             {tournament.status === "finished" && (
               <View style={styles.finishedBanner}>
-                <Text style={styles.finishedText}>🏆 TOURNOI TERMINÉ</Text>
+                <Text style={styles.finishedText}>{t("tournaments.finishedTitle")}</Text>
                 <Text style={styles.finishedSub}>
-                  Vainqueur : {[...(tournament.pairs || [])]
+                  {t("tournaments.finishedWinner", { pair: [...(tournament.pairs || [])]
                     .sort(
                       (a, b) =>
                         (b.wins * 3 - b.losses) - (a.wins * 3 - a.losses) ||
                         b.points - a.points,
-                    )[0]?.names.join(" & ")}
+                    )[0]?.names.join(" & ") ?? "—" })}
                 </Text>
               </View>
             )}
 
             <Pressable onPress={onDelete} style={[styles.dangerBtn, { marginTop: 16 }]}>
-              <Text style={styles.dangerText}>Supprimer le tournoi</Text>
+              <Text style={styles.dangerText}>{t("tournaments.deleteFull")}</Text>
             </Pressable>
           </>
         ) : null}
@@ -407,15 +420,15 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function labelFormat(f: string): string {
-  if (f === "online") return "En ligne";
-  if (f === "irl") return "IRL";
+function labelFormat(f: string, t: (k: string, p?: any) => string): string {
+  if (f === "online") return t("tournaments.formatOnlineFull");
+  if (f === "irl") return t("tournaments.formatIrlFull");
   return f;
 }
 
-function labelMode(m: string): string {
-  if (m === "classique") return "Classique · paires fixes";
-  if (m === "championnat") return "Championnat · paires tournantes";
+function labelMode(m: string, t: (k: string, p?: any) => string): string {
+  if (m === "classique") return t("tournaments.modeClassicFull");
+  if (m === "championnat") return t("tournaments.modeChampionshipFull");
   return m;
 }
 
