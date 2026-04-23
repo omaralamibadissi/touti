@@ -83,3 +83,26 @@ export function useT(): typeof t {
   useLocaleStore((s) => s.locale); // subscribe pour re-render
   return t;
 }
+
+// Retourne le nom d'une couleur selon la langue active.
+// - "fr" : nom FR + darija entre parenthèses (ex: "Coupes (Koubbas)")
+// - "en" : même format avec anglais (ex: "Cups (Koubbas)")
+// - "ar" : nom arabe + darija (ex: "الكؤوس (القباب)")
+// La darija reste affichée partout car c'est le terme authentique du jeu.
+export function suitLabel(suit: "oros" | "copas" | "espadas" | "bastos"): string {
+  const key = suit.charAt(0).toUpperCase() + suit.slice(1);
+  const main = t(`game.suit${key}`);
+  const dr = t(`game.suit${key}Dr`);
+  return main === dr ? main : `${main} (${dr})`;
+}
+
+// Nom court (darija uniquement) — pour les petits composants compacts.
+export function suitLabelShort(suit: "oros" | "copas" | "espadas" | "bastos"): string {
+  const key = suit.charAt(0).toUpperCase() + suit.slice(1);
+  return t(`game.suit${key}Dr`);
+}
+
+// Nom court pour Ghna — sans redondance : en FR on veut "Koubbas", en AR "القباب".
+export function suitNameForGhna(suit: "oros" | "copas" | "espadas" | "bastos"): string {
+  return suitLabelShort(suit);
+}

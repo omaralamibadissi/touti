@@ -59,7 +59,7 @@ import { useNetGameStore } from "../store/netGameStore";
 import { useAuthStore } from "../store/authStore";
 import { apiReport, type ReportReason } from "../net/reportsApi";
 import { Coachmark, type CoachmarkStep } from "../components/Coachmark";
-import { useT } from "../lib/i18n";
+import { useT, suitLabel, suitNameForGhna } from "../lib/i18n";
 
 // Ordre d'affichage demandé : oros, copas, espadas, bastos.
 // À l'intérieur d'une couleur : plus fort → plus faible (As, Triss, Rey, Caballo, Sota, 7, 6, 5, 4, 2).
@@ -270,9 +270,9 @@ export default function GameScreen({ route, navigation }: Props) {
       const h = history[i];
       const label =
         h.action.kind === "bid" ? `${h.action.amount}`
-        : h.action.kind === "pass" ? "passe"
-        : h.action.signal === "as" ? "un As"
-        : "un Compte";
+        : h.action.kind === "pass" ? t("game.bidPass")
+        : h.action.signal === "as" ? t("game.bidSignalAs")
+        : t("game.bidSignalCount");
       setBidBubbles((b) => ({ ...b, [h.seat]: label }));
     }
     bidHistoryLenRef.current = history.length;
@@ -288,10 +288,10 @@ export default function GameScreen({ route, navigation }: Props) {
     }
     for (let i = ghnaLenRef.current; i < list.length; i++) {
       const a = list[i];
-      // Ghna 20 : on précise la couleur (3 cartes même couleur — utile de voir laquelle)
-      // Ghna 40 : pas besoin (c'est forcément Touti = atout)
-      const suitName = SUIT_LABELS[a.suit]?.dr ?? a.suit;
-      const label = a.value === 20 ? `Ghna · ${a.value} · ${suitName}` : `Ghna · ${a.value}`;
+      const suitName = suitNameForGhna(a.suit);
+      const label = a.value === 20
+        ? t("game.ghnaBubbleWithSuit", { value: a.value, suit: suitName })
+        : t("game.ghnaBubble", { value: a.value });
       setBidBubbles((b) => ({ ...b, [a.seat]: label }));
     }
     ghnaLenRef.current = list.length;
@@ -825,15 +825,15 @@ export default function GameScreen({ route, navigation }: Props) {
                     <SuitGlyph suit={state.trump} size={18} />
                   </View>
                   <View>
-                    <Text style={styles.trumpEyebrow}>ATOUT</Text>
+                    <Text style={styles.trumpEyebrow}>{t("game.trumpLabel")}</Text>
                     <Text style={styles.trumpName}>
-                      {SUIT_LABELS[state.trump].dr} ({SUIT_LABELS[state.trump].fr})
+                      {suitLabel(state.trump)}
                     </Text>
                   </View>
                 </View>
               ) : (
                 <View style={styles.trumpPill}>
-                  <Text style={styles.trumpNone}>ATOUT · À CHOISIR</Text>
+                  <Text style={styles.trumpNone}>{t("game.trumpPending")}</Text>
                 </View>
               )}
             </View>
@@ -855,15 +855,15 @@ export default function GameScreen({ route, navigation }: Props) {
                   <SuitGlyph suit={state.trump} size={18} />
                 </View>
                 <View>
-                  <Text style={styles.trumpEyebrow}>ATOUT</Text>
+                  <Text style={styles.trumpEyebrow}>{t("game.trumpLabel")}</Text>
                   <Text style={styles.trumpName}>
-                    {SUIT_LABELS[state.trump].dr} ({SUIT_LABELS[state.trump].fr})
+                    {suitLabel(state.trump)}
                   </Text>
                 </View>
               </View>
             ) : (
               <View ref={trumpRef} collapsable={false} style={styles.trumpPill}>
-                <Text style={styles.trumpNone}>ATOUT · À CHOISIR</Text>
+                <Text style={styles.trumpNone}>{t("game.trumpPending")}</Text>
               </View>
             )}
             <View ref={scoreRef} collapsable={false} style={styles.scorePill}>
@@ -2156,8 +2156,8 @@ function TrumpOverlay({ bottomOffset, onChoose }: { bottomOffset: number; onChoo
           {ALL_SUITS.map((s) => (
             <Pressable key={s} onPress={() => onChoose(s)} style={styles.trumpChoice}>
               <SuitGlyph suit={s} size={36} />
-              <Text style={styles.trumpChoiceLabel}>{SUIT_LABELS[s].fr}</Text>
-              <Text style={styles.trumpChoiceSub}>{SUIT_LABELS[s].dr}</Text>
+              <Text style={styles.trumpChoiceLabel}>{t(`game.suit${s.charAt(0).toUpperCase() + s.slice(1)}`)}</Text>
+              <Text style={styles.trumpChoiceSub}>{t(`game.suit${s.charAt(0).toUpperCase() + s.slice(1)}Dr`)}</Text>
             </Pressable>
           ))}
         </View>
@@ -2213,7 +2213,7 @@ function GhnaOverlay({
                   />
                   <SuitGlyph suit={o.suit} size={22} />
                   <Text style={styles.ghnaChipText}>
-                    {SUIT_LABELS[o.suit].fr} · +{o.value}
+                    {suitNameForGhna(o.suit)} · +{o.value}
                   </Text>
                 </Pressable>
               ))}
@@ -2230,7 +2230,7 @@ function GhnaOverlay({
                 <Pressable key={`partner-${o.suit}`} onPress={() => onChoose(o.suit)} style={styles.ghnaChipPartner}>
                   <SuitGlyph suit={o.suit} size={22} />
                   <Text style={styles.ghnaChipText}>
-                    {SUIT_LABELS[o.suit].fr} · +{o.value}
+                    {suitNameForGhna(o.suit)} · +{o.value}
                   </Text>
                 </Pressable>
               ))}
@@ -2353,15 +2353,16 @@ function BidHistory({
   history: import("@touti/shared").BiddingState["history"];
   getName: (seat: Seat) => string;
 }) {
+  const tr = useT();
   const last = history.slice(-4);
   return (
     <View style={styles.bidHistWrap} pointerEvents="none">
       {last.map((h, i) => {
         const label =
           h.action.kind === "bid" ? `${h.action.amount}`
-          : h.action.kind === "pass" ? "passe"
-          : h.action.signal === "as" ? "un As"
-          : "un Compte";
+          : h.action.kind === "pass" ? tr("game.bidPass")
+          : h.action.signal === "as" ? tr("game.bidSignalAs")
+          : tr("game.bidSignalCount");
         return (
           <Text key={i} style={styles.bidHistText}>
             {getName(h.seat).replace("", "")} : {label}
@@ -3153,19 +3154,20 @@ const styles = StyleSheet.create({
 });
 
 function TurnCountdownBadge() {
+  const tr = useT();
   const countdown = useNetGameStore((s) => s.turnCountdown);
   const mySeatServer = useNetGameStore((s) => s.mySeat);
   const players = useNetGameStore((s) => s.players);
   if (!countdown) return null;
   const { seat, secs } = countdown;
   const isMe = mySeatServer != null && seat === mySeatServer;
-  const playerName = players.find((p) => p.seat === seat)?.name ?? `Siège ${seat + 1}`;
+  const playerName = players.find((p) => p.seat === seat)?.name ?? tr("game.seatLabel", { n: seat + 1 });
   return (
     <View style={styles.countdownWrap}>
       <View style={[styles.countdownPill, isMe && { borderColor: "#E8553A", backgroundColor: "rgba(200,70,45,0.25)" }]}>
         <Text style={styles.countdownIcon}>⏱</Text>
         <Text style={styles.countdownText}>
-          {isMe ? "Joue ou tu abandonnes" : `${playerName} · ${secs}s`}
+          {isMe ? tr("game.playOrAbandon") : `${playerName} · ${secs}s`}
         </Text>
         {isMe && (
           <Text style={styles.countdownSecs}>{secs}s</Text>
