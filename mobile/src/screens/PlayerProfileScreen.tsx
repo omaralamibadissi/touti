@@ -1,4 +1,5 @@
 // Profil d'un ami — même layout que ProfileScreen mais avec sections
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 // spécifiques : ligues en commun, matchs en commun (coéquipier / adversaire).
 
 import React, { useMemo } from "react";
@@ -36,6 +37,7 @@ function countTournamentsWon(
 
 export default function PlayerProfileScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { name, friendshipId } = route.params;
   const initials = (name[0] ?? "?").toUpperCase();
 
@@ -152,7 +154,7 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
             <StarBurst size={280} color={COLORS.saffronSoft} strokeW={0.8} />
           </View>
 
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
             <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Text style={styles.backText}>←</Text>
             </Pressable>

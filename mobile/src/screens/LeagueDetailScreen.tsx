@@ -1,4 +1,5 @@
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable, Share, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -16,6 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "LeagueDetail">;
 
 export default function LeagueDetailScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const leave = useLeagueStore((s) => s.leave);
@@ -139,7 +141,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
         <ZelligeBg color={color} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>

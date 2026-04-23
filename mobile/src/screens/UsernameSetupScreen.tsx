@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
@@ -13,6 +14,7 @@ import { useT } from "../lib/i18n";
 // explicite pour que l'utilisateur ne reste pas bloqué.
 export default function UsernameSetupScreen() {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const signOut = useAuthStore((s) => s.signOut);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -46,7 +48,7 @@ export default function UsernameSetupScreen() {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: Math.max(insets.bottom + 20, 28) }]}>
         <View style={styles.hero}>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
           <Text style={styles.eyebrow}>{t("auth.welcome")}</Text>

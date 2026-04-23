@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -33,6 +34,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
 export default function ProfileScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const updatePhoto = useAuthStore((s) => s.updatePhoto);
   const username = user?.username?.trim() || t("common.anonymous");
@@ -155,7 +157,7 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
 
 
-          <View style={styles.idRow}>
+          <View style={[styles.idRow, { paddingTop: insets.top + 60 }]}>
             <Pressable onPress={onAvatarPress} hitSlop={8}>
               <Avatar initials={initials} size={84} color={COLORS.teal} photo={user?.photo} />
               <View style={styles.editPhotoBadge}>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -17,6 +18,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Social">;
 
 export default function SocialScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,7 +68,7 @@ export default function SocialScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + 20 }}>
         <View style={{ height: 60 }} />
 
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <Text style={styles.eyebrow}>{t("tabs.social").toUpperCase()}</Text>
           <Text style={styles.title}>{t("social.title")}</Text>
         </View>

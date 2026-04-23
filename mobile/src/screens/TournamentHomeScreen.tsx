@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -12,6 +13,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "TournamentHome">;
 
 export default function TournamentHomeScreen({ navigation }: Props) {
   const tr = useT();
+  const insets = useSafeAreaInsets();
   const mine = useTournamentStore((s) => s.mine);
   const hydrate = useTournamentStore((s) => s.hydrate);
   useEffect(() => { hydrate(); }, [hydrate]);
@@ -27,7 +29,7 @@ export default function TournamentHomeScreen({ navigation }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>←</Text>
         </Pressable>

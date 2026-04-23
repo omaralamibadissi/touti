@@ -1,4 +1,5 @@
 // Timeline d'activité d'une ligue — joins/leaves, promotions, kicks,
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 // tournois créés, matchs joués. Pull-to-refresh + état vide soigné.
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -18,6 +19,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "LeagueActivity">;
 
 export default function LeagueActivityScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const [events, setEvents] = useState<LeagueActivityApi[]>([]);
@@ -60,7 +62,7 @@ export default function LeagueActivityScreen({ navigation, route }: Props) {
     <View style={styles.root}>
       <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>

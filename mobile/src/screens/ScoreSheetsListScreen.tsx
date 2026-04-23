@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -12,6 +13,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "ScoreSheets">;
 
 export default function ScoreSheetsListScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const sheets = useScoreSheetStore((s) => s.sheets);
   const hydrate = useScoreSheetStore((s) => s.hydrate);
   const create = useScoreSheetStore((s) => s.create);
@@ -55,7 +57,7 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>

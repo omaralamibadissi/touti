@@ -1,4 +1,5 @@
 // Chat dédié à une ligue. Accessible uniquement aux membres.
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Polling simple à l'ouverture — pas de socket (MVP).
 
 import React, { useEffect, useRef, useState } from "react";
@@ -25,6 +26,7 @@ const EMPTY_MESSAGES: LeagueMessage[] = [];
 
 export default function LeagueChatScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const messages = useLeagueChatStore((s) => s.byLeague[id] ?? EMPTY_MESSAGES);
@@ -104,7 +106,7 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>

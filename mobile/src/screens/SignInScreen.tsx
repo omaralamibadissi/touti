@@ -2,6 +2,7 @@
 // Stocke un JWT en SecureStore, tous les appels API sont ensuite authentifiés.
 
 import React, { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View, Text, StyleSheet, Pressable, TextInput,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
@@ -68,6 +69,7 @@ type Mode = "welcome" | "signin" | "signup";
 
 export default function SignInScreen() {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [mode, setMode] = useState<Mode>("welcome");
   const [username, setUsername] = useState("");
@@ -131,7 +133,7 @@ export default function SignInScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 40, paddingBottom: Math.max(insets.bottom + 20, 40) }]}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.hero}>

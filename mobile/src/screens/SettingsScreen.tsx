@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Share, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
@@ -21,6 +22,7 @@ const APP_VERSION = "0.1.0";
 
 export default function SettingsScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const [sfx, setSfx] = useState(true);
@@ -130,7 +132,7 @@ export default function SettingsScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + 20 }}>
         <View style={{ height: 60 }} />
 
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>{t("settings.eyebrow")}</Text>
             <Text style={styles.title}>{t("settings.title")}</Text>

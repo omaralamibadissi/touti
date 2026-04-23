@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -118,6 +119,7 @@ function buildInfoSlides(
 
 export default function OnboardingScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const INFO_SLIDES = buildInfoSlides(t);
   const { width } = useWindowDimensions();
   // 1 (accueil) + INFO_SLIDES.length + 1 (choix à la fin)
@@ -290,7 +292,7 @@ export default function OnboardingScreen({ navigation }: Props) {
 
       {/* CTA "Suivant" — masqué sur la slide de choix (les 3 boutons font office de CTA) */}
       {!isChoiceSlide && (
-        <View style={styles.cta}>
+        <View style={[styles.cta, { paddingBottom: Math.max(insets.bottom + 10, 30) }]}>
           <Pressable onPress={() => goTo(index + 1)} style={styles.primaryBtn}>
             <LinearGradient
               colors={[COLORS.saffron, COLORS.brassDeep]}

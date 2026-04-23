@@ -19,11 +19,15 @@ import { useMatchHistoryStore } from "../store/matchHistoryStore";
 import { totalXp, levelProgress } from "../lib/leveling";
 import { hapticTap } from "../lib/haptics";
 import { useT } from "../lib/i18n";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useResponsive } from "../lib/responsive";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
 export default function HomeScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
+  const { isTablet, maxContentWidth } = useResponsive();
   const user = useAuthStore((s) => s.user);
   const name = user?.username ?? "";
   const canPlay = name.length > 0;
@@ -59,7 +63,11 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 },
+          isTablet && { paddingHorizontal: 60 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header profil */}

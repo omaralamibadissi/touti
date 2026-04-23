@@ -1,4 +1,5 @@
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -11,6 +12,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Terms">;
 
 export default function TermsScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const which = route.params?.section ?? "privacy";
 
   return (
@@ -20,7 +22,7 @@ export default function TermsScreen({ navigation, route }: Props) {
         <ZelligeBg color={COLORS.tealDeep} accent={COLORS.brass} size={60} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>

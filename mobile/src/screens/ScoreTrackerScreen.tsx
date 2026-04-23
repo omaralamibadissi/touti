@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -17,6 +18,7 @@ const TEAM_BY_IDX: Team[] = ["A", "B", "A", "B"];
 
 export default function ScoreTrackerScreen({ route, navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { sheetId } = route.params;
   const sheet = useScoreSheetStore((s) => s.sheets.find((x) => x.id === sheetId));
   const hydrate = useScoreSheetStore((s) => s.hydrate);
@@ -102,7 +104,7 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>

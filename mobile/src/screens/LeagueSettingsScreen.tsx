@@ -1,4 +1,5 @@
 // Paramètres d'une ligue — réservés aux admins.
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Modifier nom / tagline / couleur, ou supprimer la ligue.
 
 import React, { useState } from "react";
@@ -20,6 +21,7 @@ const LEAGUE_COLORS = [COLORS.teal, COLORS.brass, "#8B4A7F", COLORS.terracotta, 
 
 export default function LeagueSettingsScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const updateLeague = useLeagueStore((s) => s.update);
@@ -128,7 +130,7 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
     <View style={styles.root}>
       <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>

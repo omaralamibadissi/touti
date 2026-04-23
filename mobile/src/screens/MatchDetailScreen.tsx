@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -16,6 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "MatchDetail">;
 
 export default function MatchDetailScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { id } = route.params;
   const match = useMatchHistoryStore((s) => s.matches.find((m) => m.id === id));
   const [expandedRound, setExpandedRound] = useState<number | null>(null);
@@ -48,7 +50,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
         <ZelligeBg color="#1a2840" accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>

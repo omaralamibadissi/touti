@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Pressable, Animated, Easing, ScrollView, TextInput, Share, AppState } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
@@ -27,6 +28,7 @@ function randomCode(): string {
 
 export default function QuickMatchScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const myName = useAuthStore((s) => s.user?.username) ?? "Moi";
   const store = useNetGameStore();
   const { room, connected, connecting, error, players, locked, roomCode } = store;
@@ -152,7 +154,7 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => (mode === "menu" ? navigation.goBack() : cancel())}>
           <Svg width={14} height={14} viewBox="0 0 24 24">
             <Path d="M15 18l-6-6 6-6" stroke={COLORS.cream} strokeWidth={2.5} fill="none" strokeLinecap="round" />

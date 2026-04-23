@@ -1,4 +1,5 @@
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Path } from "react-native-svg";
@@ -13,6 +14,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Rules">;
 
 export default function RulesScreen({ navigation }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
       <LinearGradient
@@ -24,7 +26,7 @@ export default function RulesScreen({ navigation }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>

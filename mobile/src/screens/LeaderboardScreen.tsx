@@ -7,6 +7,7 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { PhotoAvatar } from "../components/PhotoAvatar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMatchHistoryStore } from "../store/matchHistoryStore";
 import { useLeagueStore } from "../store/leagueStore";
 import { useFriendsStore } from "../store/friendsStore";
@@ -32,6 +33,7 @@ type Sub = "indiv" | "pairs";
 
 export default function LeaderboardScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const initialScope: Scope = route.params?.scope ?? "global";
   const initialSub: Sub = route.params?.sub ?? "indiv";
   const [scope, setScope] = useState<Scope>(initialScope);
@@ -140,7 +142,7 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
         <ZelligeBg color="#1a2840" accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>

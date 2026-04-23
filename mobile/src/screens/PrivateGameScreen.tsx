@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, Pressable, TextInput, Share, ActivityIndicator, AppState } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -24,6 +25,7 @@ function randomCode(): string {
 
 export default function PrivateGameScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<"menu" | "lobby" | "joining">("menu");
   const [typedCode, setTypedCode] = useState("");
   const incomingCode = route.params?.code?.toUpperCase();
@@ -111,7 +113,7 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.iconBtn} onPress={() => (mode === "menu" ? navigation.goBack() : cancel())}>
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>

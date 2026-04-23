@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Share, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -16,6 +17,7 @@ const LEAGUE_COLORS = [COLORS.teal, COLORS.brass, "#8B4A7F", COLORS.terracotta, 
 
 export default function LeaguesScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const incomingCode = route.params?.code?.toUpperCase();
   const [mode, setMode] = useState<"list" | "create" | "join">(incomingCode ? "join" : "list");
   const [name, setName] = useState("");
@@ -88,7 +90,7 @@ export default function LeaguesScreen({ navigation, route }: Props) {
         <StarBurst size={260} color={COLORS.saffronSoft} strokeW={0.6} />
       </View>
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Pressable
           onPress={() => (mode === "list" ? navigation.goBack() : setMode("list"))}
           style={styles.iconBtn}

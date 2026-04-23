@@ -2,6 +2,7 @@
 // Polling 8s pour refresh, auto-scroll bas, mark-as-read à l'ouverture.
 
 import React, { useEffect, useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View, Text, StyleSheet, Pressable, TextInput,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -23,6 +24,7 @@ const EMPTY_MSGS: DirectMessage[] = [];
 
 export default function DirectMessageScreen({ navigation, route }: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const { otherId, otherName } = route.params;
   const messages = useDirectMessagesStore((s) => s.messagesByOther[otherId] ?? EMPTY_MSGS);
   const loading = useDirectMessagesStore((s) => !!s.loadingConv[otherId]);
@@ -71,7 +73,7 @@ export default function DirectMessageScreen({ navigation, route }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
