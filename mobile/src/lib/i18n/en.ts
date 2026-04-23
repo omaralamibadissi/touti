@@ -297,6 +297,7 @@ export default {
     ghnaBoth: "Announce yourself OR let your partner",
     ghnaSelf: "Caballo + Rey of the same suit",
     ghnaPartner: "Authorize {{name}} to announce their Ghna",
+    ghnaAllowPartner: "Allow {{name}} to sing",
     ghnaSectionMe: "ME",
     ghnaPass: "Don't announce",
     trickWonBy: "{{name}} wins the trick · +{{points}}",

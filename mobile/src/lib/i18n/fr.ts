@@ -299,6 +299,7 @@ export default {
     ghnaBoth: "Chante toi-même OU autorise ton partenaire",
     ghnaSelf: "Caballo + Rey de la même couleur",
     ghnaPartner: "Autoriser {{name}} à chanter sa Ghna",
+    ghnaAllowPartner: "Autoriser {{name}} à chanter",
     ghnaSectionMe: "MOI",
     ghnaPass: "Ne pas annoncer",
     trickWonBy: "{{name}} remporte la main · +{{points}}",

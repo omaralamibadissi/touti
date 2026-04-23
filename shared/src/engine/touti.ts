@@ -116,16 +116,22 @@ export interface GameState {
   tricksWon: { A: TrickEntry[][]; B: TrickEntry[][] };
   roundPoints: { A: number; B: number };   // cartes capturées + ghna + 9a3a
   ghnaAnnounced: GhnaAnnouncement[];
-  // Pending Ghna : le **buyer** (bidWinner) est toujours l'arbitre unique —
-  // c'est lui et lui seul qui décide si on annonce une Ghna après un pli
-  // gagné par son équipe. Les options listent les paires (Rey+Caballo)
-  // disponibles chez lui ET chez son partenaire, chacune étiquetée avec
-  // son `owner` réel. Si l'arbitre autorise une paire du partenaire, la
-  // Ghna est créditée au partenaire dans `ghnaAnnounced`.
+  // Pending Ghna : le **buyer** (bidWinner) est l'arbitre unique. Il voit
+  // SES propres paires (Rey+Caballo) avec détail (suit/value), et s'il y
+  // a lieu un bouton générique "autoriser le partenaire à chanter" SANS
+  // révéler ce que le partenaire a en main (couleur ni valeur). Tant que
+  // le partenaire n'a pas refusé une fois, le bouton reste proposé à
+  // chaque pli gagné par l'équipe. Refuser = il n'a pas de Compte →
+  // `ghnaPartnerRefused=true` pour la suite de la manche.
   ghnaPending: {
     seat: Seat; // toujours = bidWinner (le décideur)
-    options: { suit: Suit; value: 20 | 40; owner: Seat }[];
+    ownOptions: { suit: Suit; value: 20 | 40 }[];
+    partnerCanSing: boolean;
   } | null;
+  // Une fois le partenaire refusé (ou avoué "pas de Compte"), on ne
+  // repropose plus l'option "autoriser partenaire" pour le reste de la
+  // manche. Reset à chaque nouvelle manche.
+  ghnaPartnerRefused: boolean;
   score: { A: number; B: number };         // score cumulé (objectif 600)
   lastTrickWinner: Seat | null;
   message: string | null;
@@ -260,6 +266,7 @@ export function createGame(options?: { tutorial?: boolean }): GameState {
     roundPoints: { A: 0, B: 0 },
     ghnaAnnounced: [],
     ghnaPending: null,
+    ghnaPartnerRefused: false,
     score: { A: 0, B: 0 },
     lastTrickWinner: null,
     message: null,
@@ -291,6 +298,7 @@ function startRound(state: GameState): GameState {
     roundPoints: { A: 0, B: 0 },
     ghnaAnnounced: [],
     ghnaPending: null,
+    ghnaPartnerRefused: false,
     lastTrickWinner: null,
     currentPlayer: mâle,
     message: null,
@@ -653,54 +661,117 @@ function findGhnaCandidates(
   const decider = state.bidWinner;
   const partner = partnerOf(decider);
 
-  // On agrège toutes les paires dispo (buyer + partenaire) dans un seul set
-  // d'options, tagguées avec leur `owner`. Le buyer choisit ensuite l'une
-  // d'elles (ou passe).
-  const options: { suit: Suit; value: 20 | 40; owner: Seat }[] = [];
-  for (const owner of [decider, partner] as Seat[]) {
+  // Paires encore en main (Rey + Caballo même couleur), non déjà annoncées.
+  // Un Compte "cassé" = Rey ou Caballo a été joué → plus dans la main → pair
+  // disparaît → option retirée (géré naturellement par les `some()` sur la
+  // main courante).
+  const pairsOf = (owner: Seat): { suit: Suit; value: 20 | 40 }[] => {
     const h = hands[owner];
+    const out: { suit: Suit; value: 20 | 40 }[] = [];
     for (const suit of ALL_SUITS) {
       const hasCaballo = h.some((c) => c.suit === suit && c.rank === 11);
       const hasRey = h.some((c) => c.suit === suit && c.rank === 12);
       if (!hasCaballo || !hasRey) continue;
-      // Déjà annoncée cette manche par ce joueur précis ?
       if (state.ghnaAnnounced.some((g) => g.seat === owner && g.suit === suit)) continue;
       const isTrump = suit === state.trump;
-      if (isTrump && canAnnounce40) options.push({ suit, value: 40, owner });
-      else if (!isTrump && canAnnounce20) options.push({ suit, value: 20, owner });
+      if (isTrump && canAnnounce40) out.push({ suit, value: 40 });
+      else if (!isTrump && canAnnounce20) out.push({ suit, value: 20 });
     }
-  }
+    return out;
+  };
 
-  if (options.length === 0) return null;
-  return { seat: decider, options };
+  const ownOptions = pairsOf(decider);
+  const partnerHasPair = pairsOf(partner).length > 0;
+  const partnerCanSing = partnerHasPair && !state.ghnaPartnerRefused;
+
+  // Si rien à proposer au buyer, rien à ouvrir.
+  if (ownOptions.length === 0 && !partnerCanSing) return null;
+
+  // Shortcut : buyer n'a rien + partenaire peut chanter → on saute le
+  // prompt et on annonce directement la meilleure Ghna du partenaire.
+  // Cette branche est gérée par l'appelant (playCard) — ici on renvoie
+  // quand même la pending "virtuelle" pour que le front soit informé.
+  return { seat: decider, ownOptions, partnerCanSing };
 }
 
-// Annonce une Ghna. `seat` doit être le décideur (buyer = bidWinner) —
-// c'est lui qui valide, même si la paire appartient au partenaire. La
-// Ghna est créditée au propriétaire réel de la paire (`option.owner`),
-// ce qui permet de dédupliquer correctement et de garder une trace de
-// qui a "chanté" quoi pour l'historique.
+// Annonce une Ghna appartenant au buyer (le décideur) lui-même.
+// Crédite la paire sur son propre nom.
 export function announceGhna(state: GameState, seat: Seat, suit: Suit): GameState {
   if (!state.ghnaPending) return state;
   if (state.ghnaPending.seat !== seat) return state; // seul le buyer décide
-  // Note : si plusieurs options partagent la même suit (ne devrait pas
-  // arriver car un suit ne peut être que dans une main), on prend la 1ère.
-  const opt = state.ghnaPending.options.find((o) => o.suit === suit);
+  const opt = state.ghnaPending.ownOptions.find((o) => o.suit === suit);
   if (!opt) return state;
-  const owner = opt.owner;
-  const team = teamOf(owner);
-  const ann: GhnaAnnouncement = { seat: owner, suit, value: opt.value };
+  const team = teamOf(seat);
+  const ann: GhnaAnnouncement = { seat, suit, value: opt.value };
   return {
     ...state,
     ghnaAnnounced: [...state.ghnaAnnounced, ann],
     roundPoints: { ...state.roundPoints, [team]: state.roundPoints[team] + opt.value },
     ghnaPending: null,
-    message: `${PLAYERS[owner].name} annonce Ghna · +${opt.value}`,
+    message: `${PLAYERS[seat].name} annonce Ghna · +${opt.value}`,
   };
 }
 
 export function dismissGhna(state: GameState): GameState {
   return { ...state, ghnaPending: null };
+}
+
+// Le buyer autorise son partenaire à chanter. Annonce automatique de la
+// meilleure paire disponible chez le partenaire (priorité à la Ghna 40
+// en atout, sinon la 1ère de la liste). Si le partenaire n'a en réalité
+// aucune paire — cas possible en multi humain/humain — on ferme la
+// fenêtre et on set `ghnaPartnerRefused = true` pour les prochains plis.
+export function allowPartnerSing(state: GameState, seat: Seat): GameState {
+  if (!state.ghnaPending) return state;
+  if (state.ghnaPending.seat !== seat) return state;
+  if (!state.ghnaPending.partnerCanSing) return state;
+
+  const partner = partnerOf(seat);
+  const bid = state.bidAmount ?? 0;
+  let cap = 0;
+  if (bid >= 100) cap = 100;
+  else if (bid >= 90) cap = 40;
+  else if (bid >= 80) cap = 20;
+  const teamAnnouncedPoints = state.ghnaAnnounced
+    .filter((g) => teamOf(g.seat) === teamOf(partner))
+    .reduce((sum, g) => sum + g.value, 0);
+  const remaining = cap - teamAnnouncedPoints;
+  const canAnnounce20 = remaining >= 20;
+  const canAnnounce40 = remaining >= 40;
+
+  const h = state.hands[partner];
+  const partnerOptions: { suit: Suit; value: 20 | 40 }[] = [];
+  for (const suit of ALL_SUITS) {
+    const hasCaballo = h.some((c) => c.suit === suit && c.rank === 11);
+    const hasRey = h.some((c) => c.suit === suit && c.rank === 12);
+    if (!hasCaballo || !hasRey) continue;
+    if (state.ghnaAnnounced.some((g) => g.seat === partner && g.suit === suit)) continue;
+    const isTrump = suit === state.trump;
+    if (isTrump && canAnnounce40) partnerOptions.push({ suit, value: 40 });
+    else if (!isTrump && canAnnounce20) partnerOptions.push({ suit, value: 20 });
+  }
+
+  // Partenaire n'a finalement rien — "refuse". On le mémorise pour ne plus
+  // proposer au buyer sur les plis suivants.
+  if (partnerOptions.length === 0) {
+    return {
+      ...state,
+      ghnaPending: null,
+      ghnaPartnerRefused: true,
+    };
+  }
+
+  // Pick la meilleure option : Ghna 40 en atout en priorité, sinon la 1ère.
+  const best = partnerOptions.find((o) => o.value === 40) ?? partnerOptions[0];
+  const team = teamOf(partner);
+  const ann: GhnaAnnouncement = { seat: partner, suit: best.suit, value: best.value };
+  return {
+    ...state,
+    ghnaAnnounced: [...state.ghnaAnnounced, ann],
+    roundPoints: { ...state.roundPoints, [team]: state.roundPoints[team] + best.value },
+    ghnaPending: null,
+    message: `${PLAYERS[partner].name} annonce Ghna · +${best.value}`,
+  };
 }
 
 // ─── Fin de manche + scoring ──────────────────────────────────────
@@ -786,11 +857,19 @@ export function aiBid(state: GameState, seat: Seat): BidAction {
   const currentMax = b.highest?.amount ?? MIN_BID - BID_STEP;
   const nextBid = Math.max(MIN_BID, currentMax + BID_STEP);
 
-  // Seuils de force pour accepter de miser à ce palier
-  const threshold = 55 + (nextBid - 70) * 0.8;
-
   // Si partenaire tient la plus haute, on passe.
   if (b.highest && partnerOf(seat) === b.highest.seat) return { kind: "pass" };
+
+  // Tutoriel : le partenaire (seat 2) DOIT monter jusqu'à au moins 90 —
+  // sinon la main du joueur (qui a Caballo+Rey copas) n'est pas éligible
+  // à la Ghna 20 (cap de 20 ne s'ouvre qu'à partir de 80, et on veut
+  // garantir que le cap 40 est atteint pour permettre une belle démo).
+  if (state.tutorial && seat === 2 && nextBid <= 90) {
+    return { kind: "bid", amount: Math.max(nextBid, MIN_BID) };
+  }
+
+  // Seuils de force pour accepter de miser à ce palier
+  const threshold = 55 + (nextBid - 70) * 0.8;
 
   if (strength >= threshold && nextBid <= MAX_BID) {
     return { kind: "bid", amount: nextBid };

@@ -24,6 +24,7 @@ import {
   aiChooseTrump,
   aiPick,
   announceGhna,
+  allowPartnerSing,
   BID_STEP,
   bid,
   cardKey,
@@ -103,6 +104,7 @@ export default function GameScreen({ route, navigation }: Props) {
     localChooseTrump: chooseTrump,
     localPlay: playCard,
     localAnnounceGhna: announceGhna,
+    localAllowPartnerSing: allowPartnerSing,
     localDismissGhna: dismissGhna,
     localNextTrick: nextTrick,
     localEndRound: endRound,
@@ -715,16 +717,24 @@ export default function GameScreen({ route, navigation }: Props) {
     return () => clearTimeout(t);
   }, [state, src.runLocalAi, tutActiveId]);
 
-  // IA : annonce Ghna si dispo
+  // IA buyer : décide Ghna automatiquement (propre option > autoriser partenaire > pass)
   useEffect(() => {
     if (!src.runLocalAi) return;
     if (!state.ghnaPending) return;
-    if (state.ghnaPending.seat === 0) return;
+    if (state.ghnaPending.seat === 0) return; // Le joueur humain décide lui-même
     if (tutActiveId) return;
-    const { seat, options } = state.ghnaPending;
+    const { seat, ownOptions, partnerCanSing } = state.ghnaPending;
     const t = setTimeout(() => {
-      const pick = options[0];
-      setState((s) => (s.ghnaPending && s.ghnaPending.seat === seat ? announceGhna(s, seat, pick.suit) : s));
+      setState((s) => {
+        if (!s.ghnaPending || s.ghnaPending.seat !== seat) return s;
+        // Priorité : propre Ghna 40 > propre Ghna 20 > autoriser partenaire > pass
+        const best40 = ownOptions.find((o) => o.value === 40);
+        const best20 = ownOptions.find((o) => o.value === 20);
+        const own = best40 ?? best20;
+        if (own) return announceGhna(s, seat, own.suit);
+        if (partnerCanSing) return allowPartnerSing(s, seat);
+        return dismissGhna(s);
+      });
     }, 800);
     return () => clearTimeout(t);
   }, [state.ghnaPending, src.runLocalAi, tutActiveId]);
@@ -1177,10 +1187,11 @@ export default function GameScreen({ route, navigation }: Props) {
       {!isSpectator && state.ghnaPending && state.ghnaPending.seat === 0 && (
         <GhnaOverlay
           bottomOffset={HAND_H + 10}
-          options={state.ghnaPending.options}
-          mySeat={0}
+          ownOptions={state.ghnaPending.ownOptions}
+          partnerCanSing={state.ghnaPending.partnerCanSing}
           partnerName={displayName(2 as Seat)}
           onChoose={(suit) => src.announceGhna(0, suit)}
+          onAllowPartner={() => src.allowPartnerSing(0)}
           onSkip={() => src.dismissGhna()}
         />
       )}
@@ -2236,43 +2247,45 @@ function TrumpOverlay({ bottomOffset, onChoose }: { bottomOffset: number; onChoo
 
 function GhnaOverlay({
   bottomOffset,
-  options,
-  mySeat,
+  ownOptions,
+  partnerCanSing,
   partnerName,
   onChoose,
+  onAllowPartner,
   onSkip,
 }: {
   bottomOffset: number;
-  options: { suit: Suit; value: 20 | 40; owner: Seat }[];
-  mySeat: Seat;
+  ownOptions: { suit: Suit; value: 20 | 40 }[];
+  partnerCanSing: boolean;
   partnerName: string;
   onChoose: (suit: Suit) => void;
+  onAllowPartner: () => void;
   onSkip: () => void;
 }) {
   const t = useT();
-  // Règle : c'est le buyer (toi, qui as gagné les enchères) qui décide
-  // SEUL qui chante — toi ou ton partenaire. Les options sont groupées
-  // pour rendre la décision claire.
-  const mine = options.filter((o) => o.owner === mySeat);
-  const partnerOpts = options.filter((o) => o.owner !== mySeat);
-  const hasBoth = mine.length > 0 && partnerOpts.length > 0;
+  // Buyer view. Il voit :
+  //   - Ses propres options Ghna (détail : couleur + valeur)
+  //   - Un bouton générique "autoriser partenaire" SANS détail (couleur /
+  //     valeur masquées) — uniquement si `partnerCanSing` est vrai.
+  //   - Un bouton "pass" pour ignorer ce tour.
+  const hasOwn = ownOptions.length > 0;
   return (
     <View style={[styles.overlay, { bottom: bottomOffset }]}>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayEyebrow}>{t("game.ghnaTitle")}</Text>
         <Text style={styles.overlayTitle}>{t("game.ghnaDecide")}</Text>
         <Text style={styles.overlaySub}>
-          {hasBoth
+          {hasOwn && partnerCanSing
             ? t("game.ghnaBoth")
-            : mine.length > 0
+            : hasOwn
               ? t("game.ghnaSelf")
               : t("game.ghnaPartner", { name: partnerName })}
         </Text>
         <View style={{ gap: 8, marginTop: 10 }}>
-          {mine.length > 0 && (
+          {hasOwn && (
             <>
-              {hasBoth && <Text style={styles.ghnaGroupLabel}>{t("game.ghnaSectionMe")}</Text>}
-              {mine.map((o) => (
+              {partnerCanSing && <Text style={styles.ghnaGroupLabel}>{t("game.ghnaSectionMe")}</Text>}
+              {ownOptions.map((o) => (
                 <Pressable key={`self-${o.suit}`} onPress={() => onChoose(o.suit)} style={styles.ghnaChip}>
                   <LinearGradient
                     colors={[COLORS.saffron, COLORS.brassDeep]}
@@ -2287,21 +2300,18 @@ function GhnaOverlay({
               ))}
             </>
           )}
-          {partnerOpts.length > 0 && (
+          {partnerCanSing && (
             <>
-              {hasBoth && (
+              {hasOwn && (
                 <Text style={[styles.ghnaGroupLabel, { marginTop: 4 }]}>
                   {partnerName.toUpperCase()}
                 </Text>
               )}
-              {partnerOpts.map((o) => (
-                <Pressable key={`partner-${o.suit}`} onPress={() => onChoose(o.suit)} style={styles.ghnaChipPartner}>
-                  <SuitGlyph suit={o.suit} size={22} />
-                  <Text style={styles.ghnaChipText}>
-                    {suitNameForGhna(o.suit)} · +{o.value}
-                  </Text>
-                </Pressable>
-              ))}
+              <Pressable onPress={onAllowPartner} style={styles.ghnaChipPartner}>
+                <Text style={styles.ghnaChipText}>
+                  {t("game.ghnaAllowPartner", { name: partnerName })}
+                </Text>
+              </Pressable>
             </>
           )}
           <Pressable onPress={onSkip} style={styles.passBtn}>
@@ -2379,7 +2389,7 @@ function GameEndOverlay({
           </View>
         </View>
 
-        <View style={{ gap: 8, marginTop: 18, width: 260 }}>
+        <View style={{ gap: 8, marginTop: 18, alignSelf: "stretch" }}>
           <Pressable onPress={onSeeDetail} style={[styles.endBtn]}>
             <LinearGradient
               colors={[COLORS.saffron, COLORS.brassDeep]}
@@ -2865,6 +2875,7 @@ const styles = StyleSheet.create({
     padding: 20,
     width: "100%",
     maxWidth: 360,
+    alignItems: "center",
   },
   overlayEyebrow: {
     fontFamily: FONT_UI_BOLD,

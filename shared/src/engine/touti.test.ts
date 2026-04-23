@@ -22,6 +22,7 @@ import {
   playCard,
   nextTrick,
   announceGhna,
+  allowPartnerSing,
   dismissGhna,
   endRound,
   startNextRound,
@@ -521,14 +522,12 @@ describe("Ghna — buyer est arbitre unique", () => {
     });
     expect(s.ghnaPending).not.toBeNull();
     expect(s.ghnaPending!.seat).toBe(0); // DÉCIDEUR = buyer
-    // options contient la paire du partenaire
-    const opt = s.ghnaPending!.options.find((o) => o.owner === 2);
-    expect(opt).toBeDefined();
-    expect(opt!.suit).toBe("bastos");
-    expect(opt!.value).toBe(40); // atout
+    // Le buyer n'a rien, le partenaire peut chanter (mais masqué)
+    expect(s.ghnaPending!.ownOptions.length).toBe(0);
+    expect(s.ghnaPending!.partnerCanSing).toBe(true);
   });
 
-  test("paires du buyer ET du partenaire listées ensemble", () => {
+  test("paires du buyer ET du partenaire signalées ensemble", () => {
     const hands: [Card[], Card[], Card[], Card[]] = [
       [mkCard("copas", 12), mkCard("copas", 11)], // buyer : paire copas
       [mkCard("espadas", 5)],
@@ -541,11 +540,10 @@ describe("Ghna — buyer est arbitre unique", () => {
       trump: "bastos",
       trickWinnerSeat: 0, // buyer gagne
     });
-    expect(s.ghnaPending!.options.length).toBe(2);
-    const owners = s.ghnaPending!.options.map((o) => o.owner).sort();
-    expect(owners).toEqual([0, 2]);
-    // Les 2 valent 20 (non-atout)
-    expect(s.ghnaPending!.options.every((o) => o.value === 20)).toBe(true);
+    expect(s.ghnaPending!.ownOptions.length).toBe(1);
+    expect(s.ghnaPending!.ownOptions[0].suit).toBe("copas");
+    expect(s.ghnaPending!.ownOptions[0].value).toBe(20); // non atout
+    expect(s.ghnaPending!.partnerCanSing).toBe(true);
   });
 
   test("annonce créditée au propriétaire réel, pas au buyer", () => {
@@ -640,11 +638,13 @@ describe("Ghna — buyer est arbitre unique", () => {
       trickWinnerSeat: 0,
     });
     expect(s.ghnaPending).not.toBeNull();
-    s = announceGhna(s, 0, "oros");
+    // Buyer autorise son partenaire — il chante automatiquement une de ses
+    // 2 paires (20 pts chacune, non-atout).
+    s = allowPartnerSing(s, 0);
     expect(s.ghnaAnnounced[0].seat).toBe(2);
     expect(s.ghnaAnnounced[0].value).toBe(20);
 
-    // Pli 2 : buyer autorise partner sur copas. On rejoue un pli à la main.
+    // Pli 2 : nouveau pli, on autorise encore le partenaire.
     const handsRound2: [Card[], Card[], Card[], Card[]] = [
       s.hands[0],
       s.hands[1],
@@ -666,14 +666,12 @@ describe("Ghna — buyer est arbitre unique", () => {
       ghnaAnnounced: s.ghnaAnnounced,
     });
     expect(s.ghnaPending).not.toBeNull();
-    // Le bastos (40) du buyer est toujours dispo, et le copas (20) du partner
-    const copas = s.ghnaPending!.options.find((o) => o.suit === "copas");
-    expect(copas).toBeDefined();
-    expect(copas!.owner).toBe(2);
-    s = announceGhna(s, 0, "copas");
+    // Le partenaire a encore une paire dispo
+    expect(s.ghnaPending!.partnerCanSing).toBe(true);
+    s = allowPartnerSing(s, 0);
     expect(s.ghnaAnnounced.length).toBe(2);
 
-    // Pli 3 : buyer annonce son 40 bastos. Total prévu = 20+20+40 = 80
+    // Pli 3 : buyer annonce son propre 40 bastos (atout). Total prévu = 20+20+40
     s = afterTeamTrick(
       [s.hands[0], s.hands[1], s.hands[2], s.hands[3]],
       {
@@ -684,10 +682,9 @@ describe("Ghna — buyer est arbitre unique", () => {
         ghnaAnnounced: s.ghnaAnnounced,
       },
     );
-    const bastos = s.ghnaPending!.options.find((o) => o.suit === "bastos");
+    const bastos = s.ghnaPending!.ownOptions.find((o) => o.suit === "bastos");
     expect(bastos).toBeDefined();
     expect(bastos!.value).toBe(40);
-    expect(bastos!.owner).toBe(0);
     s = announceGhna(s, 0, "bastos");
     expect(s.ghnaAnnounced.length).toBe(3);
     const total = s.ghnaAnnounced.reduce((a, g) => a + g.value, 0);

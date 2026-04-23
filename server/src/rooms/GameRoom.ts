@@ -5,6 +5,7 @@ import {
   aiChooseTrump,
   aiPick,
   announceGhna,
+  allowPartnerSing,
   bid,
   chooseTrump,
   createGame,
@@ -804,13 +805,16 @@ export class GameRoom extends Room<GameState> {
       "[aiTick]",
     );
 
-    // Ghna
+    // Ghna — IA décide : propre Ghna > autoriser partenaire > dismiss
     if (s.ghnaPending && this.seatOwners[s.ghnaPending.seat] === "AI") {
-      // IA annonce si elle a des options, sinon dismiss
-      const pick = s.ghnaPending.options[0];
-      this.engineState = pick
-        ? announceGhna(s, s.ghnaPending.seat, pick.suit)
-        : dismissGhna(s);
+      const own = s.ghnaPending.ownOptions[0];
+      if (own) {
+        this.engineState = announceGhna(s, s.ghnaPending.seat, own.suit);
+      } else if (s.ghnaPending.partnerCanSing) {
+        this.engineState = allowPartnerSing(s, s.ghnaPending.seat);
+      } else {
+        this.engineState = dismissGhna(s);
+      }
       this.afterMutation();
       return;
     }

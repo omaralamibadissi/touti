@@ -349,8 +349,12 @@ export default function App() {
       if (!navigationRef.isReady()) return false;
       const r = navigationRef.getCurrentRoute();
       if (!r) return false;
-      // Pas pendant le jeu ou sur l'écran d'onboarding lui-même
-      if (r.name === "Game" || r.name === "Onboarding") return false;
+      // Ne déclenche que sur l'UN des 4 onglets principaux (MainTabs).
+      // Évite que l'overlay saute dans un écran intermédiaire (Rules,
+      // MatchHistory, TournamentDetail, LeagueChat, etc.) pendant la
+      // navigation post-partie.
+      const mainTabs = new Set(["Home", "Social", "Profile", "Settings"]);
+      if (!mainTabs.has(r.name)) return false;
       setPendingMenuTutorial(false);
       setMenuTutorialActive(true);
       return true;

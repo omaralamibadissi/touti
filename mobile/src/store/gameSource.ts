@@ -35,6 +35,7 @@ export interface GameSource {
   chooseTrump: (seat: Seat, suit: Suit) => void;
   play: (seat: Seat, card: Card) => void;
   announceGhna: (seat: Seat, suit: Suit) => void;
+  allowPartnerSing: (seat: Seat) => void;
   dismissGhna: () => void;
   nextTrick: () => void;
   nextRound: () => void;
@@ -51,6 +52,7 @@ export function useGameSource(
     localChooseTrump?: (s: GameState, seat: Seat, suit: Suit) => GameState;
     localPlay?: (s: GameState, seat: Seat, c: Card) => GameState;
     localAnnounceGhna?: (s: GameState, seat: Seat, suit: Suit) => GameState;
+    localAllowPartnerSing?: (s: GameState, seat: Seat) => GameState;
     localDismissGhna?: (s: GameState) => GameState;
     localNextTrick?: (s: GameState) => GameState;
     localEndRound?: (s: GameState) => GameState;
@@ -146,6 +148,18 @@ export function useGameSource(
     [mode, netAnn, actionBridge],
   );
 
+  const allowPartnerSing = useCallback(
+    (seat: Seat) => {
+      if (mode === "local") {
+        setLocal((s) => actionBridge?.localAllowPartnerSing?.(s, seat) ?? s);
+      } else {
+        // Serveur pas encore câblé — TODO multijoueur
+        netAnn("__allow_partner__" as any);
+      }
+    },
+    [mode, netAnn, actionBridge],
+  );
+
   const dismissGhna = useCallback(() => {
     if (mode === "local") {
       setLocal((s) => actionBridge?.localDismissGhna?.(s) ?? s);
@@ -189,6 +203,7 @@ export function useGameSource(
       chooseTrump,
       play,
       announceGhna,
+      allowPartnerSing,
       dismissGhna,
       nextTrick,
       nextRound,
@@ -210,6 +225,7 @@ export function useGameSource(
     chooseTrump,
     play,
     announceGhna,
+    allowPartnerSing,
     dismissGhna,
     nextTrick,
     nextRound,
@@ -291,7 +307,8 @@ function remapPublicState(
   const ghnaPending = publicState.ghnaPending
     ? {
         seat: rs(publicState.ghnaPending.seat) as Seat,
-        options: publicState.ghnaPending.options,
+        ownOptions: publicState.ghnaPending.ownOptions ?? [],
+        partnerCanSing: !!publicState.ghnaPending.partnerCanSing,
       }
     : null;
 
@@ -321,6 +338,7 @@ function remapPublicState(
     roundPoints: publicState.roundPoints,
     ghnaAnnounced,
     ghnaPending,
+    ghnaPartnerRefused: !!(publicState as any).ghnaPartnerRefused,
     score: publicState.score,
     lastTrickWinner: rs(publicState.lastTrickWinner),
     message: publicState.message,

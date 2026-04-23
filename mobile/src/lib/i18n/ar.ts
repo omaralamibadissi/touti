@@ -300,6 +300,7 @@ export default {
     ghnaBoth: "غنِّ أنت أو اسمح لشريكك",
     ghnaSelf: "Caballo + Rey من نفس اللون",
     ghnaPartner: "السماح لـ {{name}} بالغناء",
+    ghnaAllowPartner: "السماح لـ {{name}} بالغناء",
     ghnaSectionMe: "أنا",
     ghnaPass: "عدم الإعلان",
     trickWonBy: "{{name}} يفوز بالشوط · +{{points}}",
