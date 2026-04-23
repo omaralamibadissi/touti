@@ -1116,11 +1116,14 @@ export default function GameScreen({ route, navigation }: Props) {
         />
       )}
 
-      {/* Overlay : Ghna humain */}
+      {/* Overlay : Ghna — seul le buyer (décideur) le voit. Son siège local
+          est 0 (nous), donc le prompt apparaît quand ghnaPending.seat === 0. */}
       {!isSpectator && state.ghnaPending && state.ghnaPending.seat === 0 && (
         <GhnaOverlay
           bottomOffset={HAND_H + 10}
           options={state.ghnaPending.options}
+          mySeat={0}
+          partnerName={displayName(2 as Seat)}
           onChoose={(suit) => src.announceGhna(0, suit)}
           onSkip={() => src.dismissGhna()}
         />
@@ -2178,34 +2181,72 @@ function TrumpOverlay({ bottomOffset, onChoose }: { bottomOffset: number; onChoo
 function GhnaOverlay({
   bottomOffset,
   options,
+  mySeat,
+  partnerName,
   onChoose,
   onSkip,
 }: {
   bottomOffset: number;
-  options: { suit: Suit; value: 20 | 40 }[];
+  options: { suit: Suit; value: 20 | 40; owner: Seat }[];
+  mySeat: Seat;
+  partnerName: string;
   onChoose: (suit: Suit) => void;
   onSkip: () => void;
 }) {
+  // Règle : c'est le buyer (toi, qui as gagné les enchères) qui décide
+  // SEUL qui chante — toi ou ton partenaire. Les options sont groupées
+  // pour rendre la décision claire.
+  const mine = options.filter((o) => o.owner === mySeat);
+  const partnerOpts = options.filter((o) => o.owner !== mySeat);
+  const hasBoth = mine.length > 0 && partnerOpts.length > 0;
   return (
     <View style={[styles.overlay, { bottom: bottomOffset }]}>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayEyebrow}>GHNA</Text>
-        <Text style={styles.overlayTitle}>Annoncer une Ghna</Text>
-        <Text style={styles.overlaySub}>Caballo + Rey de la même couleur</Text>
+        <Text style={styles.overlayTitle}>À toi de décider</Text>
+        <Text style={styles.overlaySub}>
+          {hasBoth
+            ? "Chante toi-même OU autorise ton partenaire"
+            : mine.length > 0
+              ? "Caballo + Rey de la même couleur"
+              : `Autoriser ${partnerName} à chanter sa Ghna`}
+        </Text>
         <View style={{ gap: 8, marginTop: 10 }}>
-          {options.map((o) => (
-            <Pressable key={o.suit} onPress={() => onChoose(o.suit)} style={styles.ghnaChip}>
-              <LinearGradient
-                colors={[COLORS.saffron, COLORS.brassDeep]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <SuitGlyph suit={o.suit} size={22} />
-              <Text style={styles.ghnaChipText}>
-                {SUIT_LABELS[o.suit].fr} · +{o.value}
-              </Text>
-            </Pressable>
-          ))}
+          {mine.length > 0 && (
+            <>
+              {hasBoth && <Text style={styles.ghnaGroupLabel}>MOI</Text>}
+              {mine.map((o) => (
+                <Pressable key={`self-${o.suit}`} onPress={() => onChoose(o.suit)} style={styles.ghnaChip}>
+                  <LinearGradient
+                    colors={[COLORS.saffron, COLORS.brassDeep]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <SuitGlyph suit={o.suit} size={22} />
+                  <Text style={styles.ghnaChipText}>
+                    {SUIT_LABELS[o.suit].fr} · +{o.value}
+                  </Text>
+                </Pressable>
+              ))}
+            </>
+          )}
+          {partnerOpts.length > 0 && (
+            <>
+              {hasBoth && (
+                <Text style={[styles.ghnaGroupLabel, { marginTop: 4 }]}>
+                  {partnerName.toUpperCase()}
+                </Text>
+              )}
+              {partnerOpts.map((o) => (
+                <Pressable key={`partner-${o.suit}`} onPress={() => onChoose(o.suit)} style={styles.ghnaChipPartner}>
+                  <SuitGlyph suit={o.suit} size={22} />
+                  <Text style={styles.ghnaChipText}>
+                    {SUIT_LABELS[o.suit].fr} · +{o.value}
+                  </Text>
+                </Pressable>
+              ))}
+            </>
+          )}
           <Pressable onPress={onSkip} style={styles.passBtn}>
             <Text style={styles.passBtnText}>Ne pas annoncer</Text>
           </Pressable>
@@ -2873,11 +2914,31 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
+  ghnaChipPartner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "rgba(46,122,140,0.25)", // teal pâle pour différencier
+    borderWidth: 1,
+    borderColor: COLORS.teal,
+  },
   ghnaChipText: {
     fontFamily: FONT_UI_BOLD,
     fontSize: 14,
     fontWeight: "800",
     color: COLORS.terracottaDark,
+  },
+  ghnaGroupLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: COLORS.brass,
+    fontWeight: "700",
+    marginTop: 2,
   },
 
   bidHistWrap: {

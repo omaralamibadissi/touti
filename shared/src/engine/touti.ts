@@ -111,7 +111,16 @@ export interface GameState {
   tricksWon: { A: TrickEntry[][]; B: TrickEntry[][] };
   roundPoints: { A: number; B: number };   // cartes capturées + ghna + 9a3a
   ghnaAnnounced: GhnaAnnouncement[];
-  ghnaPending: { seat: Seat; options: { suit: Suit; value: 20 | 40 }[] } | null;
+  // Pending Ghna : le **buyer** (bidWinner) est toujours l'arbitre unique —
+  // c'est lui et lui seul qui décide si on annonce une Ghna après un pli
+  // gagné par son équipe. Les options listent les paires (Rey+Caballo)
+  // disponibles chez lui ET chez son partenaire, chacune étiquetée avec
+  // son `owner` réel. Si l'arbitre autorise une paire du partenaire, la
+  // Ghna est créditée au partenaire dans `ghnaAnnounced`.
+  ghnaPending: {
+    seat: Seat; // toujours = bidWinner (le décideur)
+    options: { suit: Suit; value: 20 | 40; owner: Seat }[];
+  } | null;
   score: { A: number; B: number };         // score cumulé (objectif 600)
   lastTrickWinner: Seat | null;
   message: string | null;
@@ -525,16 +534,20 @@ export function nextTrick(state: GameState): GameState {
 
 // ─── Ghna ─────────────────────────────────────────────────────────
 
-// Retourne les ghnas potentielles pour l'équipe qui vient de gagner un pli.
+// Retourne les ghnas potentielles à décider par le BUYER après un pli gagné
+// par son équipe. Le décideur est toujours le buyer (bidWinner) — peu importe
+// qui des deux coéquipiers a physiquement gagné le pli. Les options incluent
+// les paires Rey+Caballo possédées par le buyer ET par son partenaire, avec
+// leur `owner` respectif pour créditer la bonne personne à l'annonce.
 function findGhnaCandidates(
   state: GameState,
   hands: GameState["hands"],
-  winner: Seat,
+  trickWinner: Seat,
 ): GameState["ghnaPending"] {
   if (state.bidWinner == null || state.bidAmount == null || state.trump == null) return null;
-  const winnerTeam = teamOf(winner);
+  const trickTeam = teamOf(trickWinner);
   const bidderTeam = teamOf(state.bidWinner);
-  if (winnerTeam !== bidderTeam) return null;
+  if (trickTeam !== bidderTeam) return null;
 
   const bid = state.bidAmount;
 
@@ -561,42 +574,52 @@ function findGhnaCandidates(
   const canAnnounce20 = remaining >= 20;
   const canAnnounce40 = remaining >= 40;
 
-  // Cherche chez le vainqueur ou son partenaire
-  const candidates: Seat[] = [winner, partnerOf(winner)];
-  for (const seat of candidates) {
-    const h = hands[seat];
-    const options: { suit: Suit; value: 20 | 40 }[] = [];
+  const decider = state.bidWinner;
+  const partner = partnerOf(decider);
+
+  // On agrège toutes les paires dispo (buyer + partenaire) dans un seul set
+  // d'options, tagguées avec leur `owner`. Le buyer choisit ensuite l'une
+  // d'elles (ou passe).
+  const options: { suit: Suit; value: 20 | 40; owner: Seat }[] = [];
+  for (const owner of [decider, partner] as Seat[]) {
+    const h = hands[owner];
     for (const suit of ALL_SUITS) {
       const hasCaballo = h.some((c) => c.suit === suit && c.rank === 11);
       const hasRey = h.some((c) => c.suit === suit && c.rank === 12);
-      if (hasCaballo && hasRey) {
-        const isTrump = suit === state.trump;
-        if (isTrump && canAnnounce40) options.push({ suit, value: 40 });
-        else if (!isTrump && canAnnounce20) options.push({ suit, value: 20 });
-      }
+      if (!hasCaballo || !hasRey) continue;
+      // Déjà annoncée cette manche par ce joueur précis ?
+      if (state.ghnaAnnounced.some((g) => g.seat === owner && g.suit === suit)) continue;
+      const isTrump = suit === state.trump;
+      if (isTrump && canAnnounce40) options.push({ suit, value: 40, owner });
+      else if (!isTrump && canAnnounce20) options.push({ suit, value: 20, owner });
     }
-    // Exclure les ghnas déjà annoncées (même seat + même suit)
-    const filtered = options.filter(
-      (o) => !state.ghnaAnnounced.some((g) => g.seat === seat && g.suit === o.suit),
-    );
-    if (filtered.length > 0) return { seat, options: filtered };
   }
-  return null;
+
+  if (options.length === 0) return null;
+  return { seat: decider, options };
 }
 
+// Annonce une Ghna. `seat` doit être le décideur (buyer = bidWinner) —
+// c'est lui qui valide, même si la paire appartient au partenaire. La
+// Ghna est créditée au propriétaire réel de la paire (`option.owner`),
+// ce qui permet de dédupliquer correctement et de garder une trace de
+// qui a "chanté" quoi pour l'historique.
 export function announceGhna(state: GameState, seat: Seat, suit: Suit): GameState {
   if (!state.ghnaPending) return state;
-  if (state.ghnaPending.seat !== seat) return state;
+  if (state.ghnaPending.seat !== seat) return state; // seul le buyer décide
+  // Note : si plusieurs options partagent la même suit (ne devrait pas
+  // arriver car un suit ne peut être que dans une main), on prend la 1ère.
   const opt = state.ghnaPending.options.find((o) => o.suit === suit);
   if (!opt) return state;
-  const team = teamOf(seat);
-  const ann: GhnaAnnouncement = { seat, suit, value: opt.value };
+  const owner = opt.owner;
+  const team = teamOf(owner);
+  const ann: GhnaAnnouncement = { seat: owner, suit, value: opt.value };
   return {
     ...state,
     ghnaAnnounced: [...state.ghnaAnnounced, ann],
     roundPoints: { ...state.roundPoints, [team]: state.roundPoints[team] + opt.value },
     ghnaPending: null,
-    message: `${PLAYERS[seat].name} annonce Ghna · +${opt.value}`,
+    message: `${PLAYERS[owner].name} annonce Ghna · +${opt.value}`,
   };
 }
 
