@@ -169,8 +169,9 @@ function deal10Each(dealer: Seat): [Card[], Card[], Card[], Card[]] {
 
 // Distribution scriptée pour le tutoriel. Construite pour garantir :
 //   - Seat 2 (partenaire IA) : main forte → il va bider
-//   - Seat 0 (joueur humain) : Caballo + Rey copas (Ghna 20 ou 40) + qqs
-//     cartes moyennes pour pouvoir gagner un pli
+//   - Seat 0 (joueur humain) : Caballo + Rey copas (Ghna 20) + Sota copas
+//     + deux basses cartes d'autres couleurs (main pauvre, vrai rôle de
+//     soutien — il ne peut pas porter la mise tout seul).
 //   - Seats 1 & 3 (adversaires) : mains faibles → ils passent
 // L'AI du partenaire va choisir l'atout qui maximise SA main (oros ici).
 // Copas n'étant pas atout, le joueur annoncera Ghna 20 (Rey + Caballo copas).
@@ -178,28 +179,28 @@ function dealTutorial(): [Card[], Card[], Card[], Card[]] {
   const make = (suit: Suit, rank: Rank): Card => ({ suit, rank, id: cardId(suit, rank) });
   // 10 cartes par joueur. Vérifié : 40 cartes distinctes, pas de doublon.
   const hands: [Card[], Card[], Card[], Card[]] = [
-    // Seat 0 — joueur humain : 5 copas hautes (Ghna!) + fillers
+    // Seat 0 — joueur humain : Caballo + Rey + Sota de copas (Ghna!) + 7 fillers
     [
-      make("copas", 1),   // As copas (11 pts)
-      make("copas", 3),   // Triss copas (10 pts)
       make("copas", 12),  // Rey copas (4 pts) — Ghna pair
       make("copas", 11),  // Caballo copas (3 pts) — Ghna pair
       make("copas", 10),  // Sota copas (2 pts)
       make("oros", 5),    // 0
+      make("oros", 6),    // 0
       make("oros", 7),    // 0
       make("espadas", 4), // 0
+      make("espadas", 5), // 0
       make("bastos", 2),  // 0
       make("bastos", 4),  // 0
     ],
-    // Seat 1 — adversaire faible
+    // Seat 1 — adversaire faible, récupère As et Triss copas (hors équipe player)
     [
+      make("copas", 1),   // As copas — on les donne à l'adversaire
+      make("copas", 3),   // Triss copas
       make("oros", 2),
-      make("oros", 6),
       make("oros", 10),   // Sota (2 pts)
       make("copas", 4),
       make("copas", 7),
       make("espadas", 1), // As espadas (11 pts — quand même)
-      make("espadas", 5),
       make("espadas", 6),
       make("bastos", 3),  // Triss bastos (10 pts)
       make("bastos", 6),

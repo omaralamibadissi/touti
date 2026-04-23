@@ -342,14 +342,14 @@ export default {
 
   tuto: {
     welcome: "Salut. Je t'accompagne sur une manche complète. Tu es en bas, ton partenaire est en face de toi — vous êtes une équipe. Les 2 adversaires sont sur les côtés.",
-    yourHand: "Voici tes 10 cartes. Dans ce tuto, on t'a donné 5 Coupes fortes (As, Triss, Rey, Caballo, Sota) — ça va t'aider à gagner des plis et à annoncer une Ghna.",
+    yourHand: "Voici tes 10 cartes. Main pauvre (seulement 9 points) — MAIS tu as Rey + Caballo de Coupes, donc tu pourras annoncer Ghna si ton équipe gagne un pli.",
     scoreHud: "Ici, le score cumulé : « Nous » (toi + partenaire) vs « Eux ». Il ne bouge qu'à la FIN de chaque manche, pas pendant. Dans une vraie partie, premier à 600 points gagne.",
     trumpPill: "Cette pille affiche l'atout (Tronfo) quand il est choisi. Pour l'instant vide — l'atout est décidé par celui qui gagne les enchères.",
     bidIntro: "On entre en phase d'enchères (Chra). Chaque joueur parle à son tour : MISER (70-230) · PASSER · ou SIGNALER (« un As » / « un Compte »).",
-    bidYourTurn: "À toi. Ta main a 30 points mais toutes dans la même couleur — risqué à porter seul. Passe ou signale « un Compte » (tu as au moins 3 figures). Ton partenaire, qui a une main plus équilibrée, va prendre le relais.",
+    bidYourTurn: "À toi. Ta main fait seulement 9 pts — trop faible pour miser. Passe simplement. Ton partenaire, qui a une main bien plus forte, va acheter les enchères à ta place.",
     partnerBought: "Ton partenaire a acheté les enchères ! Il va maintenant choisir la couleur d'atout en fonction de SA main. Toi, tu vas l'aider à faire les points.",
     trumpSet: "Voilà l'atout choisi. Toute carte d'atout bat les 3 autres couleurs. L'atout le plus fort gagne le pli.",
-    playIntro: "À toi d'ouvrir le 1er pli. Règle : celui qui ouvre pose ce qu'il veut. Les 3 autres doivent suivre la couleur s'ils l'ont + monter plus fort, sinon couper à l'atout. Commence par ton As de Coupes — imbattable dans sa couleur.",
+    playIntro: "À toi d'ouvrir le 1er pli. Règle : celui qui ouvre pose ce qu'il veut. Les 3 autres doivent suivre la couleur s'ils l'ont + monter plus fort, sinon couper à l'atout. Comme ta main est faible, joue une basse carte d'une autre couleur que Coupes — ton partenaire coupera à l'atout pour gagner.",
     cardsValue: "Pli terminé. Rappel des valeurs : As=11 · Triss(3)=10 · Rey(12)=4 · Caballo(11)=3 · Sota(10)=2 · le reste=0. 120 pts en jeu + 10 pour le dernier pli.",
     lastTrickBtn: "Bouton ◁ : tu peux rejouer le dernier pli à tout moment. Utile si tu as raté qui a joué quoi.",
     ghnaAvailable: "GHNA dispo ! Tu as Caballo + Rey de Coupes. Comme les Coupes ne sont pas atout, c'est une Ghna à 20 points. C'est toi qui décides d'annoncer ou pas.",

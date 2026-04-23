@@ -340,14 +340,14 @@ export default {
 
   tuto: {
     welcome: "Hi! I'll guide you through a full round. You're at the bottom, your partner is across from you — you're a team. The 2 opponents are on the sides.",
-    yourHand: "Here are your 10 cards. For this tutorial we gave you 5 strong Cups (Ace, Triss, Rey, Caballo, Sota) — they'll help you win tricks and call a Ghna.",
+    yourHand: "Here are your 10 cards. Poor hand (only 9 points) — BUT you have Rey + Caballo of Cups, so you can call Ghna if your team wins a trick.",
     scoreHud: "Cumulative score: \"Us\" (you + partner) vs \"Them\". Only updates at the END of each round. In a real game, first to 600 wins.",
     trumpPill: "This pill shows the trump (Tronfo) when set. Currently empty — trump is decided by whoever wins the bidding.",
     bidIntro: "Bidding phase (Chra). Each player in turn: BID (70-230) · PASS · or SIGNAL (\"an Ace\" / \"a Count\").",
-    bidYourTurn: "Your turn. Your hand has 30 points but all in one suit — risky to carry alone. Pass or signal \"a Count\" (you have at least 3 face cards). Your partner, with a more balanced hand, will take over.",
+    bidYourTurn: "Your turn. Your hand only has 9 points — too weak to bid. Just pass. Your partner, with a much stronger hand, will buy the bidding for you.",
     partnerBought: "Your partner bought the bidding! They'll now pick the trump suit based on THEIR hand. Your job is to help them score.",
     trumpSet: "Trump is set. Any trump card beats the 3 other suits. Highest trump wins the trick.",
-    playIntro: "Your turn to open. Opener plays any card. The 3 others must follow suit + beat highest if they can, otherwise ruff with trump. Start with your Ace of Cups — unbeatable in its suit.",
+    playIntro: "Your turn to open. Opener plays any card. The 3 others must follow suit + beat highest if they can, otherwise ruff with trump. Since your hand is weak, play a low card from a suit other than Cups — your partner will ruff with trump to win.",
     cardsValue: "Trick done. Values: Ace=11 · Triss(3)=10 · Rey(12)=4 · Caballo(11)=3 · Sota(10)=2 · rest=0. 120 pts in play + 10 bonus for last trick.",
     lastTrickBtn: "◁ button: replay the last trick anytime. Handy if you missed who played what.",
     ghnaAvailable: "GHNA available! You have Caballo + Rey of Cups. Since Cups isn't trump, it's a 20-point Ghna. Up to you to call it or not.",
