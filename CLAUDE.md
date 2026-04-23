@@ -81,10 +81,21 @@ npm run typecheck
 
 ## TODO
 
+**Fait :**
 - [x] Déployer serveur Colyseus (Fly.io) — `kbirkbir-server.fly.dev`
-- [ ] Wirer le client mobile au serveur (engine côté serveur, messages
-      privés pour la main)
-- [ ] Build EAS iOS pour Apple Sign-In + TestFlight
-- [ ] Tests logique de règles (Jest sur `engine/touti.ts`)
-- [ ] CI GitHub Actions : typecheck à chaque push
-- [ ] Déclarer le traitement à la CNDP (Maroc) avant publication
+- [x] Wirer le client mobile au serveur Colyseus (partie rapide + privée)
+- [x] Tests logique de règles (Jest sur `engine/touti.ts`)
+- [x] CI GitHub Actions : typecheck + tests à chaque push
+- [x] Observabilité serveur : pino logs + Sentry + Resend (emails reports)
+- [x] Musique du menu (Desert City, Kevin MacLeod CC-BY 3.0)
+- [x] Nettoyage Settings (vitesse / vibrations / dos cartes / couleur table retirés)
+- [x] Row Notifications → ouvre les réglages système
+- [x] i18n FR / EN / AR complet (tous les écrans visibles)
+
+**À faire :**
+- [ ] Build EAS iOS (Apple Sign-In + TestFlight) — débloque OAuth natif
+- [ ] Déclaration CNDP (Loi 09-08 Maroc) — obligatoire avant publi
+- [ ] Apple / Google / Facebook OAuth réels (dépend du build EAS)
+- [ ] Notifications push (amis, tournois, tour en partie asynchrone)
+- [ ] Anti-triche — vérif côté serveur pour parties privées / solo
+- [ ] Screenshots + textes App Store / Play Store
