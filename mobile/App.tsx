@@ -79,7 +79,7 @@ export type RootStackParamList = {
   // nested : `navigate("MainTabs", { screen: "Social" })`.
   MainTabs: { screen?: "Home" | "Social" | "Profile" | "Settings" } | undefined;
   Home: undefined;
-  Game: { mode?: "local" | "net"; tutorial?: boolean } | undefined;
+  Game: { mode?: "local" | "net"; tutorial?: boolean; aiLevel?: "easy" | "medium" | "hard" } | undefined;
   Social: undefined;
   Profile: undefined;
   Settings: undefined;

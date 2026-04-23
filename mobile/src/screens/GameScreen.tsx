@@ -99,6 +99,9 @@ export default function GameScreen({ route, navigation }: Props) {
   const isTutorialSession =
     mode === "local" &&
     (forceTutorial || !useAuthStore.getState().coachmarksDone);
+  // Niveau IA en solo. Par défaut "medium". Route param ou tuto = "easy".
+  const aiLevel: "easy" | "medium" | "hard" =
+    isTutorialSession ? "easy" : (route.params?.aiLevel ?? "medium");
   const src = useGameSource(mode, {
     localBid: bid,
     localChooseTrump: chooseTrump,
@@ -681,7 +684,7 @@ export default function GameScreen({ route, navigation }: Props) {
     if (tutActiveId) return;
     const seat = state.bidding.currentSeat;
     const t = setTimeout(() => {
-      setState((s) => (s.phase === "bidding" && s.bidding?.currentSeat === seat ? bid(s, seat, aiBid(s, seat)) : s));
+      setState((s) => (s.phase === "bidding" && s.bidding?.currentSeat === seat ? bid(s, seat, aiBid(s, seat, aiLevel)) : s));
     }, 650);
     return () => clearTimeout(t);
   }, [state, src.runLocalAi, dealAnim, tutActiveId]);
@@ -695,7 +698,7 @@ export default function GameScreen({ route, navigation }: Props) {
     const seat = state.bidWinner;
     if (seat == null) return;
     const t = setTimeout(() => {
-      setState((s) => (s.phase === "choosing-trump" && s.bidWinner === seat ? chooseTrump(s, seat, aiChooseTrump(s, seat)) : s));
+      setState((s) => (s.phase === "choosing-trump" && s.bidWinner === seat ? chooseTrump(s, seat, aiChooseTrump(s, seat, aiLevel)) : s));
     }, 700);
     return () => clearTimeout(t);
   }, [state.phase, state.bidWinner, src.runLocalAi, tutActiveId]);
@@ -710,7 +713,7 @@ export default function GameScreen({ route, navigation }: Props) {
     const t = setTimeout(() => {
       setState((s) => {
         if (s.phase !== "playing" || s.currentPlayer !== seat) return s;
-        const pick = aiPick(s, seat);
+        const pick = aiPick(s, seat, aiLevel);
         return pick ? playCard(s, seat, pick) : s;
       });
     }, 650);

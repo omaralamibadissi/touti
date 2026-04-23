@@ -21,6 +21,7 @@ import { hapticTap } from "../lib/haptics";
 import { useT } from "../lib/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useResponsive } from "../lib/responsive";
+import { Alert } from "react-native";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -103,7 +104,19 @@ export default function HomeScreen({ navigation }: Props) {
               sub={t("home.soloSub")}
               accent={COLORS.brass}
               icon="bolt"
-              onPress={() => { hapticTap(); navigation.navigate("Game", { mode: "local" }); }}
+              onPress={() => {
+                hapticTap();
+                Alert.alert(
+                  t("home.soloLevelTitle"),
+                  t("home.soloLevelBody"),
+                  [
+                    { text: t("home.soloLevelEasy"), onPress: () => navigation.navigate("Game", { mode: "local", aiLevel: "easy" }) },
+                    { text: t("home.soloLevelMedium"), onPress: () => navigation.navigate("Game", { mode: "local", aiLevel: "medium" }) },
+                    { text: t("home.soloLevelHard"), onPress: () => navigation.navigate("Game", { mode: "local", aiLevel: "hard" }) },
+                    { text: t("common.cancel"), style: "cancel" },
+                  ],
+                );
+              }}
             />
             <ModeTile
               fr={t("home.quickMatch")}

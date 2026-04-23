@@ -822,7 +822,7 @@ export class GameRoom extends Room<GameState> {
     if (s.phase === "bidding" && s.bidding) {
       const seat = s.bidding.currentSeat;
       if (this.seatOwners[seat] !== "AI") return;
-      this.engineState = bid(s, seat, aiBid(s, seat));
+      this.engineState = bid(s, seat, aiBid(s, seat, "hard"));
       this.afterMutation();
       return;
     }
@@ -830,7 +830,7 @@ export class GameRoom extends Room<GameState> {
     if (s.phase === "choosing-trump" && s.bidWinner != null) {
       const seat = s.bidWinner;
       if (this.seatOwners[seat] !== "AI") return;
-      this.engineState = chooseTrump(s, seat, aiChooseTrump(s, seat));
+      this.engineState = chooseTrump(s, seat, aiChooseTrump(s, seat, "hard"));
       this.afterMutation();
       return;
     }
@@ -838,7 +838,7 @@ export class GameRoom extends Room<GameState> {
     if (s.phase === "playing") {
       const seat = s.currentPlayer;
       if (this.seatOwners[seat] !== "AI") return;
-      const pick = aiPick(s, seat);
+      const pick = aiPick(s, seat, "hard");
       if (!pick) return;
       this.engineState = playCard(s, seat, pick);
       this.afterMutation();
