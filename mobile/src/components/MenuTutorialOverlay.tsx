@@ -22,12 +22,36 @@ import { useT } from "../lib/i18n";
 function useSteps(): { title: string; text: string }[] {
   const t = useT();
   return [
+    // Intro
     { title: t("menuTuto.step1Title"), text: t("menuTuto.step1Body") },
-    { title: t("menuTuto.step2Title"), text: t("menuTuto.step2Body") },
-    { title: t("menuTuto.step3Title"), text: t("menuTuto.step3Body") },
-    { title: t("menuTuto.step4Title"), text: t("menuTuto.step4Body") },
-    { title: t("menuTuto.step5Title"), text: t("menuTuto.step5Body") },
+    // Home — tuiles
+    { title: t("menuTuto.homeSoloTitle"), text: t("menuTuto.homeSoloBody") },
+    { title: t("menuTuto.homeQuickTitle"), text: t("menuTuto.homeQuickBody") },
+    { title: t("menuTuto.homePrivateTitle"), text: t("menuTuto.homePrivateBody") },
+    { title: t("menuTuto.homeTournamentsTitle"), text: t("menuTuto.homeTournamentsBody") },
+    { title: t("menuTuto.homeLeaguesTitle"), text: t("menuTuto.homeLeaguesBody") },
+    { title: t("menuTuto.homeIrlTitle"), text: t("menuTuto.homeIrlBody") },
+    { title: t("menuTuto.homeRulesTitle"), text: t("menuTuto.homeRulesBody") },
+    { title: t("menuTuto.homeHistoryTitle"), text: t("menuTuto.homeHistoryBody") },
+    { title: t("menuTuto.homeLeaderboardTitle"), text: t("menuTuto.homeLeaderboardBody") },
+    // Social
+    { title: t("menuTuto.socialAddTitle"), text: t("menuTuto.socialAddBody") },
+    { title: t("menuTuto.socialRequestsTitle"), text: t("menuTuto.socialRequestsBody") },
+    { title: t("menuTuto.socialFriendsTitle"), text: t("menuTuto.socialFriendsBody") },
+    { title: t("menuTuto.socialDMTitle"), text: t("menuTuto.socialDMBody") },
+    // Profil
+    { title: t("menuTuto.profilePhotoTitle"), text: t("menuTuto.profilePhotoBody") },
+    { title: t("menuTuto.profileStatsTitle"), text: t("menuTuto.profileStatsBody") },
+    { title: t("menuTuto.profileLevelTitle"), text: t("menuTuto.profileLevelBody") },
+    { title: t("menuTuto.profileHistoryTitle"), text: t("menuTuto.profileHistoryBody") },
+    // Settings
+    { title: t("menuTuto.settingsLanguageTitle"), text: t("menuTuto.settingsLanguageBody") },
+    { title: t("menuTuto.settingsSoundTitle"), text: t("menuTuto.settingsSoundBody") },
+    { title: t("menuTuto.settingsNotifsTitle"), text: t("menuTuto.settingsNotifsBody") },
+    { title: t("menuTuto.settingsAccountTitle"), text: t("menuTuto.settingsAccountBody") },
+    // In-game
     { title: t("menuTuto.step6Title"), text: t("menuTuto.step6Body") },
+    // Fin
     { title: t("menuTuto.step7Title"), text: t("menuTuto.step7Body") },
   ];
 }

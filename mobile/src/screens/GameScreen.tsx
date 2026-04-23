@@ -91,6 +91,13 @@ export default function GameScreen({ route, navigation }: Props) {
   // on force les coachmarks pour cette session même si markCoachmarksDone()
   // a déjà été appelé précédemment.
   const forceTutorial = route.params?.tutorial === true;
+  // Tutoriel = 1ère partie solo d'un nouveau compte OU replay forcé.
+  // Active la distribution scriptée de l'engine + stop après 1 manche.
+  // NB : on lit la valeur initiale via getState() pour ne pas re-hooker en
+  // milieu de session (`isTutorialSession` est figé pour la partie en cours).
+  const isTutorialSession =
+    mode === "local" &&
+    (forceTutorial || !useAuthStore.getState().coachmarksDone);
   const src = useGameSource(mode, {
     localBid: bid,
     localChooseTrump: chooseTrump,
@@ -100,7 +107,7 @@ export default function GameScreen({ route, navigation }: Props) {
     localNextTrick: nextTrick,
     localEndRound: endRound,
     localStartNextRound: startNextRound,
-  });
+  }, isTutorialSession);
   const state = src.state;
   const setState = src.setLocalState;
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -1409,6 +1416,7 @@ export default function GameScreen({ route, navigation }: Props) {
           scoreA={state.score.A}
           scoreB={state.score.B}
           mode={mode}
+          tutorial={state.tutorial === true}
           onRestart={async () => {
             if (mode === "net") {
               // Net : on quitte la room et on retourne à l'accueil
@@ -2263,6 +2271,7 @@ function GameEndOverlay({
   scoreA,
   scoreB,
   mode,
+  tutorial,
   onRestart,
   onHome,
   onSeeDetail,
@@ -2271,6 +2280,7 @@ function GameEndOverlay({
   scoreA: number;
   scoreB: number;
   mode: GameMode;
+  tutorial?: boolean;
   onRestart: () => void;
   onHome: () => void;
   onSeeDetail: () => void;
@@ -2296,11 +2306,20 @@ function GameEndOverlay({
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
         <Text style={styles.overlayEyebrow}>
-          {won ? t("game.gameEndWon").toUpperCase() : t("game.gameEndLost").toUpperCase()}
+          {tutorial
+            ? t("game.tutoRoundDoneEyebrow").toUpperCase()
+            : won ? t("game.gameEndWon").toUpperCase() : t("game.gameEndLost").toUpperCase()}
         </Text>
         <Text style={[styles.overlayTitle, { fontSize: 28 }]}>
-          {t("game.gameEndScore", { us: scoreA, them: scoreB })}
+          {tutorial
+            ? t("game.tutoRoundDoneTitle")
+            : t("game.gameEndScore", { us: scoreA, them: scoreB })}
         </Text>
+        {tutorial && (
+          <Text style={[styles.overlaySub, { textAlign: "center", marginTop: 8, paddingHorizontal: 8 }]}>
+            {t("game.tutoRoundDoneBody")}
+          </Text>
+        )}
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, marginTop: 8 }}>
           <View style={{ alignItems: "center" }}>
             <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: COLORS.brass }}>{t("game.scoreUs").toUpperCase()}</Text>

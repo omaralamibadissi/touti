@@ -13,6 +13,7 @@ import {
   CARD_POINTS,
   CARD_STRENGTH,
   Card,
+  Rank,
   Suit,
   cardId,
 } from "../types";
@@ -98,6 +99,10 @@ export interface GameState {
   trickNumber: number;                     // 1..10 dans la manche
   dealerSeat: Seat;
   currentPlayer: Seat;                     // siège dont c'est le tour
+  // Tutoriel : si true, la partie utilise une distribution scriptée et
+  // s'arrête à la fin de la 1ère manche (phase = "game-end" même si
+  // personne n'a 600). Permet un tuto pédagogique sans scores cumulés.
+  tutorial?: boolean;
   hands: [Card[], Card[], Card[], Card[]];
   trump: Suit | null;
   bidding: BiddingState | null;
@@ -162,16 +167,86 @@ function deal10Each(dealer: Seat): [Card[], Card[], Card[], Card[]] {
   return hands;
 }
 
+// Distribution scriptée pour le tutoriel. Construite pour garantir :
+//   - Seat 2 (partenaire IA) : main forte → il va bider
+//   - Seat 0 (joueur humain) : Caballo + Rey copas (Ghna 20 ou 40) + qqs
+//     cartes moyennes pour pouvoir gagner un pli
+//   - Seats 1 & 3 (adversaires) : mains faibles → ils passent
+// L'AI du partenaire va choisir l'atout qui maximise SA main (oros ici).
+// Copas n'étant pas atout, le joueur annoncera Ghna 20 (Rey + Caballo copas).
+function dealTutorial(): [Card[], Card[], Card[], Card[]] {
+  const make = (suit: Suit, rank: Rank): Card => ({ suit, rank, id: cardId(suit, rank) });
+  // 10 cartes par joueur. Vérifié : 40 cartes distinctes, pas de doublon.
+  const hands: [Card[], Card[], Card[], Card[]] = [
+    // Seat 0 — joueur humain : 5 copas hautes (Ghna!) + fillers
+    [
+      make("copas", 1),   // As copas (11 pts)
+      make("copas", 3),   // Triss copas (10 pts)
+      make("copas", 12),  // Rey copas (4 pts) — Ghna pair
+      make("copas", 11),  // Caballo copas (3 pts) — Ghna pair
+      make("copas", 10),  // Sota copas (2 pts)
+      make("oros", 5),    // 0
+      make("oros", 7),    // 0
+      make("espadas", 4), // 0
+      make("bastos", 2),  // 0
+      make("bastos", 4),  // 0
+    ],
+    // Seat 1 — adversaire faible
+    [
+      make("oros", 2),
+      make("oros", 6),
+      make("oros", 10),   // Sota (2 pts)
+      make("copas", 4),
+      make("copas", 7),
+      make("espadas", 1), // As espadas (11 pts — quand même)
+      make("espadas", 5),
+      make("espadas", 6),
+      make("bastos", 3),  // Triss bastos (10 pts)
+      make("bastos", 6),
+    ],
+    // Seat 2 — partenaire IA : main forte oros → il bide, choisit oros
+    [
+      make("oros", 1),    // As oros (11)
+      make("oros", 3),    // Triss oros (10)
+      make("oros", 12),   // Rey oros (4)
+      make("oros", 11),   // Caballo oros (3)
+      make("oros", 4),
+      make("espadas", 3), // Triss espadas (10)
+      make("espadas", 10),// Sota espadas (2)
+      make("bastos", 1),  // As bastos (11)
+      make("copas", 2),
+      make("copas", 6),
+    ],
+    // Seat 3 — adversaire faible
+    [
+      make("espadas", 2),
+      make("espadas", 7),
+      make("espadas", 12),// Rey espadas (4)
+      make("espadas", 11),// Caballo espadas (3)
+      make("bastos", 5),
+      make("bastos", 7),
+      make("bastos", 10), // Sota (2)
+      make("bastos", 11), // Caballo bastos (3)
+      make("bastos", 12), // Rey bastos (4)
+      make("copas", 5),
+    ],
+  ];
+  return hands;
+}
+
 // ─── Init / nouvelle manche ───────────────────────────────────────
 
-export function createGame(): GameState {
-  const dealerSeat: Seat = 0;
+export function createGame(options?: { tutorial?: boolean }): GameState {
+  // Tutoriel : dealer = 3 pour que le mâle soit seat 0 (joueur humain)
+  // → le joueur parle en premier aux enchères, ce qui rend le tuto clair.
+  const dealerSeat: Seat = options?.tutorial ? 3 : 0;
   return startRound({
     phase: "dealing",
     roundNumber: 0,
     trickNumber: 1,
     dealerSeat,
     currentPlayer: 0,
+    tutorial: options?.tutorial ?? false,
     hands: [[], [], [], []],
     trump: null,
     bidding: null,
@@ -191,7 +266,7 @@ export function createGame(): GameState {
 }
 
 function startRound(state: GameState): GameState {
-  const hands = deal10Each(state.dealerSeat);
+  const hands = state.tutorial ? dealTutorial() : deal10Each(state.dealerSeat);
   const mâle = ((state.dealerSeat + 1) % 4) as Seat;
   return {
     ...state,
@@ -655,7 +730,12 @@ export function endRound(state: GameState): GameState {
     [scoringTeam]: state.score[scoringTeam] + delta,
   };
 
-  const gameOver = newScore.A >= 600 || newScore.B >= 600;
+  // Tutoriel : la partie s'arrête à la fin de la 1ère manche quel que soit
+  // le score. On passe en "game-end" et l'UI affichera un message "en vrai
+  // première équipe à 600 gagne — là c'est juste le tuto".
+  const gameOver =
+    state.tutorial ||
+    newScore.A >= 600 || newScore.B >= 600;
   const winningGame: TeamKey | null = gameOver
     ? (newScore.A > newScore.B ? "A" : "B")
     : null;

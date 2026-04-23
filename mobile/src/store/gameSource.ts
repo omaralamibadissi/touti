@@ -56,9 +56,10 @@ export function useGameSource(
     localEndRound?: (s: GameState) => GameState;
     localStartNextRound?: (s: GameState) => GameState;
   },
+  tutorial?: boolean,
 ): GameSource {
   // ─── Mode LOCAL ──────────────────────────────────────────────
-  const [localState, setLocal] = useState<GameState>(() => createGame());
+  const [localState, setLocal] = useState<GameState>(() => createGame({ tutorial }));
 
   // ─── Mode NET — reads depuis le store ────────────────────────
   const publicState = useNetGameStore((s) => s.publicState);
@@ -173,9 +174,9 @@ export function useGameSource(
   }, [mode, netNextRound, actionBridge]);
 
   const resetGame = useCallback(() => {
-    if (mode === "local") setLocal(createGame());
+    if (mode === "local") setLocal(createGame({ tutorial }));
     // En net, pas de reset — le serveur gère
-  }, [mode]);
+  }, [mode, tutorial]);
 
   if (mode === "local") {
     return {
