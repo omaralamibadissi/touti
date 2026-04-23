@@ -17,6 +17,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { Avatar } from "../components/Avatar";
 import { PhotoAvatar } from "../components/PhotoAvatar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, SuitGlyph } from "../components/Card";
 import {
   aiBid,
@@ -127,6 +128,7 @@ export default function GameScreen({ route, navigation }: Props) {
   const [soundOn, setSoundOn] = useState<boolean>(isSoundEnabled());
   const isSpectator = useNetGameStore((s) => s.isSpectator);
   const { width: SW, height: SH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   // Coachmarks (1ère partie solo du compte) — tutoriel guidé événementiel,
   // déclenché au fur et à mesure que la manche se déroule.
@@ -791,10 +793,14 @@ export default function GameScreen({ route, navigation }: Props) {
 
   // Géométrie table — adaptative portrait/landscape
   const isLandscape = SW > SH;
-  const TOP_BAR_H = isLandscape ? 48 : 150;
+  // Sur tablette (plus petite dim ≥ 600), on laisse la table grossir jusqu'à 560px
+  // au lieu de plafonner à 360/400 comme sur téléphone.
+  const isTabletSize = Math.min(SW, SH) >= 600;
+  const tableCap = isTabletSize ? (isLandscape ? 560 : 520) : (isLandscape ? 400 : 360);
+  const TOP_BAR_H = (isLandscape ? 48 : 150) + insets.top;
   const HAND_H = isLandscape ? 82 : 180;
-  const availH = SH - TOP_BAR_H - HAND_H;
-  const diameter = Math.min(SW - 28, availH - 8, isLandscape ? 400 : 360);
+  const availH = SH - TOP_BAR_H - HAND_H - insets.bottom;
+  const diameter = Math.min(SW - 28, availH - 8, tableCap);
   const tableCenterX = SW / 2;
   const tableCenterY = TOP_BAR_H + availH / 2;
   const tableLeft = tableCenterX - diameter / 2;
@@ -821,7 +827,7 @@ export default function GameScreen({ route, navigation }: Props) {
       />
 
       {/* Barre haute — en landscape, atout et score étalés aux deux bords */}
-      <View style={[styles.topBar, { top: isLandscape ? 12 : 72, justifyContent: isLandscape ? "space-between" : "center" }]}>
+      <View style={[styles.topBar, { top: (isLandscape ? 12 : 20) + insets.top, justifyContent: isLandscape ? "space-between" : "center" }]}>
         {isLandscape ? (
           <>
             {/* Atout à gauche */}
@@ -890,8 +896,8 @@ export default function GameScreen({ route, navigation }: Props) {
           style={[
             styles.roundInfo,
             isLandscape
-              ? { top: 64, right: 14, left: undefined, alignItems: "flex-end" }
-              : { top: 128 },
+              ? { top: 64 + insets.top, right: 14, left: undefined, alignItems: "flex-end" }
+              : { top: 128 + insets.top },
           ]}
         >
           <Text style={styles.roundInfoText}>
@@ -1040,7 +1046,7 @@ export default function GameScreen({ route, navigation }: Props) {
           <View
             ref={handRef}
             collapsable={false}
-            style={[styles.myHand, { bottom: 12, height: HAND_H - 16, opacity: dealAnim ? 0 : 1 }]}
+            style={[styles.myHand, { bottom: 12 + insets.bottom, height: HAND_H - 16, opacity: dealAnim ? 0 : 1 }]}
             pointerEvents={dealAnim ? "none" : "auto"}
           >
             {myHand.map((card, i) => {
@@ -1145,7 +1151,7 @@ export default function GameScreen({ route, navigation }: Props) {
       )}
 
       {/* Bouton pause — placé EN DESSOUS de la pille atout dans les deux modes */}
-      <View ref={pauseRef} collapsable={false} style={[styles.pauseBtnWrap, { top: isLandscape ? 70 : 130 }]}>
+      <View ref={pauseRef} collapsable={false} style={[styles.pauseBtnWrap, { top: (isLandscape ? 70 : 130) + insets.top }]}>
         <Pressable
           onPress={() => setPaused(true)}
           style={styles.pauseBtn}
