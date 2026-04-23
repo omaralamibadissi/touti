@@ -249,6 +249,26 @@ app.post("/auth/me/onboarding-done", requireAuth, (req, res) => {
   }
 });
 
+// Photo de profil : reçoit un data URL base64 (JPEG, limité côté client à ~80KB).
+// Passer null/"" supprime la photo — fallback sur l'initiale.
+app.post("/auth/me/photo", requireAuth, (req, res) => {
+  try {
+    const { photo } = req.body || {};
+    if (photo != null && typeof photo !== "string") {
+      res.status(400).json({ error: "photo must be a string or null" });
+      return;
+    }
+    if (typeof photo === "string" && photo.length > 200_000) {
+      res.status(413).json({ error: "photo too large (max ~150KB base64)" });
+      return;
+    }
+    accounts.setPhoto(req.user!.id, photo && photo.length > 0 ? photo : null);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "failed" });
+  }
+});
+
 app.post("/auth/change-password", requireAuth, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body || {};

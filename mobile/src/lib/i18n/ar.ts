@@ -198,6 +198,13 @@ export default {
     xpLine: "{{into}} / {{total}} XP → مستوى {{next}}",
     send_message: "إرسال رسالة",
     remove_friend: "إزالة من الأصدقاء",
+    photoPermTitle: "الإذن مطلوب",
+    photoPermBody: "امنح الوصول إلى الصور لتغيير صورتك.",
+    photoFailBody: "تعذر تحديث الصورة.",
+    photoRemoveTitle: "إزالة الصورة؟",
+    photoRemoveBody: "ستعود إلى الحرف الأول من اسمك.",
+    photoActionsTitle: "صورة الملف الشخصي",
+    photoChange: "تغيير الصورة",
   },
 
   settings: {

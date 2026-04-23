@@ -7,6 +7,7 @@ export interface AccountApi {
   createdAt: number;
   displayName?: string;
   onboardingDone?: boolean;
+  photo?: string; // data URL base64 JPEG
 }
 
 export interface AuthResponse {
@@ -74,4 +75,12 @@ export async function apiSetPushToken(token: string | null): Promise<void> {
 // Marque l'onboarding comme fait côté serveur (cross-device).
 export async function apiMarkOnboardingDone(): Promise<void> {
   await fetchJson("/auth/me/onboarding-done", { method: "POST" });
+}
+
+// Met à jour la photo de profil. null ou "" = supprimer.
+export async function apiSetPhoto(photo: string | null): Promise<void> {
+  await fetchJson("/auth/me/photo", {
+    method: "POST",
+    body: JSON.stringify({ photo }),
+  });
 }

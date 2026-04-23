@@ -19,6 +19,7 @@ export interface Account {
   createdAt: number;
   displayName?: string;
   onboardingDone: boolean;
+  photo?: string; // data URL base64 (JPEG 200x200)
 }
 
 interface AccountRow {
@@ -31,6 +32,7 @@ interface AccountRow {
   display_name: string | null;
   deleted_at: number | null;
   onboarding_done: number | null; // 0/1 en SQLite
+  photo: string | null;
 }
 
 function rowToAccount(r: AccountRow): Account {
@@ -41,6 +43,7 @@ function rowToAccount(r: AccountRow): Account {
     createdAt: r.created_at,
     displayName: r.display_name || undefined,
     onboardingDone: !!r.onboarding_done,
+    photo: r.photo || undefined,
   };
 }
 
@@ -215,6 +218,12 @@ const setOnboardingDoneStmt = db.prepare(
 
 export function markOnboardingDone(accountId: string): void {
   setOnboardingDoneStmt.run(accountId);
+}
+
+const setPhotoStmt = db.prepare(`UPDATE accounts SET photo = ? WHERE id = ?`);
+
+export function setPhoto(accountId: string, photo: string | null): void {
+  setPhotoStmt.run(photo, accountId);
 }
 
 // ─── OAuth linking ──────────────────────────────────────────────

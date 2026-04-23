@@ -250,6 +250,14 @@ try {
     db.exec(`ALTER TABLE accounts ADD COLUMN onboarding_done INTEGER DEFAULT 0`);
     logger.info("[db] added accounts.onboarding_done");
   }
+  // Photo de profil — data URL base64 (JPEG compressée 200x200 ~20-40KB),
+  // stockée directement en SQLite pour éviter un storage externe côté MVP.
+  // Remplace la lettre initiale dans les Avatar.
+  const hasPhoto = cols.some((c) => c.name === "photo");
+  if (!hasPhoto) {
+    db.exec(`ALTER TABLE accounts ADD COLUMN photo TEXT`);
+    logger.info("[db] added accounts.photo");
+  }
 } catch (e: any) {
   logger.warn({ err: e?.message }, "[db] migration failed");
 }

@@ -15,6 +15,7 @@ export interface AuthUser {
   username: string | null;
   displayName?: string;
   email?: string;
+  photo?: string; // data URL base64 (JPEG 200x200)
 }
 
 interface AuthState {
@@ -49,6 +50,7 @@ interface AuthState {
   clearError: () => void;
   markOnboardingDone: () => Promise<void>;
   markCoachmarksDone: () => Promise<void>;
+  updatePhoto: (photo: string | null) => Promise<void>;
   resetOnboarding: () => Promise<void>;
   setPostOnboardingAction: (a: "play" | "home" | "menu" | null) => void;
   setPendingMenuTutorial: (v: boolean) => void;
@@ -85,6 +87,7 @@ function accountToAuthUser(account: AccountApi): AuthUser {
     username: account.username,
     displayName: account.displayName,
     email: account.email,
+    photo: account.photo,
   };
 }
 
@@ -319,6 +322,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   markCoachmarksDone: async () => {
     await AsyncStorage.setItem(COACHMARKS_KEY, "1");
     set({ coachmarksDone: true });
+  },
+
+  updatePhoto: async (photo: string | null) => {
+    const current = get().user;
+    if (!current) return;
+    // Optimiste : on applique localement, on synchronise serveur en best-effort.
+    const updated: AuthUser = { ...current, photo: photo ?? undefined };
+    await storeUser(updated);
+    set({ user: updated });
+    try {
+      const { apiSetPhoto } = await import("../net/authApi");
+      await apiSetPhoto(photo);
+    } catch (e) {
+      console.warn("[authStore] updatePhoto: push serveur échoué", e);
+    }
   },
 
   resetOnboarding: async () => {

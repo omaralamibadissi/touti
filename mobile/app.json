@@ -48,7 +48,13 @@
         }
       ],
       "@sentry/react-native",
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'app utilise tes photos uniquement quand tu changes ton avatar. Aucune image n'est stockée sans ton action."
+        }
+      ]
     ],
     "owner": "oab10",
     "runtimeVersion": {

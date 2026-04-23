@@ -1,5 +1,7 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -32,8 +34,66 @@ type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 export default function ProfileScreen({ navigation }: Props) {
   const t = useT();
   const user = useAuthStore((s) => s.user);
+  const updatePhoto = useAuthStore((s) => s.updatePhoto);
   const username = user?.username?.trim() || t("common.anonymous");
   const initials = (username[0] ?? "?").toUpperCase();
+
+  const pickPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t("profile.photoPermTitle"), t("profile.photoPermBody"));
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (res.canceled) return;
+    const asset = res.assets?.[0];
+    if (!asset?.uri) return;
+    try {
+      // Compress to ~200x200 JPEG pour rester sous 150KB base64
+      const out = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 200, height: 200 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      if (!out.base64) throw new Error("no base64");
+      const dataUrl = `data:image/jpeg;base64,${out.base64}`;
+      await updatePhoto(dataUrl);
+    } catch (e: any) {
+      Alert.alert(t("common.error"), e?.message ?? t("profile.photoFailBody"));
+    }
+  };
+
+  const removePhoto = () => {
+    Alert.alert(
+      t("profile.photoRemoveTitle"),
+      t("profile.photoRemoveBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("common.remove"), style: "destructive", onPress: () => updatePhoto(null) },
+      ],
+    );
+  };
+
+  const onAvatarPress = () => {
+    if (user?.photo) {
+      Alert.alert(
+        t("profile.photoActionsTitle"),
+        undefined,
+        [
+          { text: t("profile.photoChange"), onPress: pickPhoto },
+          { text: t("common.remove"), style: "destructive", onPress: removePhoto },
+          { text: t("common.cancel"), style: "cancel" },
+        ],
+      );
+    } else {
+      pickPhoto();
+    }
+  };
 
   const history = useMatchHistoryStore((s) => s.matches) as MatchEntry[];
   const tournaments = useTournamentStore((s) => s.mine);
@@ -96,8 +156,11 @@ export default function ProfileScreen({ navigation }: Props) {
 
 
           <View style={styles.idRow}>
-            <View>
-              <Avatar initials={initials} size={84} color={COLORS.teal} />
+            <Pressable onPress={onAvatarPress} hitSlop={8}>
+              <Avatar initials={initials} size={84} color={COLORS.teal} photo={user?.photo} />
+              <View style={styles.editPhotoBadge}>
+                <Text style={styles.editPhotoIcon}>✎</Text>
+              </View>
               <View style={styles.levelBadge}>
                 <LinearGradient
                   colors={[COLORS.saffron, COLORS.brassDeep]}
@@ -107,7 +170,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 />
                 <Text style={styles.levelText}>{stats.level}</Text>
               </View>
-            </View>
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{username}</Text>
               <Text style={styles.handle}>@{username.toLowerCase().replace(/\s+/g, "_")}</Text>
@@ -255,6 +318,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     color: COLORS.terracottaDark,
+  },
+  editPhotoBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.saffron,
+    borderWidth: 2,
+    borderColor: COLORS.terracottaDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editPhotoIcon: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 13,
+    color: COLORS.terracottaDark,
+    fontWeight: "800",
+    lineHeight: 14,
   },
   name: {
     fontFamily: FONT_UI_BOLD,

@@ -195,6 +195,13 @@ export default {
     xpLine: "{{into}} / {{total}} XP → lv. {{next}}",
     send_message: "Send message",
     remove_friend: "Remove from friends",
+    photoPermTitle: "Permission required",
+    photoPermBody: "Grant photo access to change your avatar.",
+    photoFailBody: "Could not update photo.",
+    photoRemoveTitle: "Remove photo?",
+    photoRemoveBody: "You'll go back to your username initial.",
+    photoActionsTitle: "Profile photo",
+    photoChange: "Change photo",
   },
 
   settings: {

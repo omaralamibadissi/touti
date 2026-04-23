@@ -196,6 +196,13 @@ export default {
     xpLine: "{{into}} / {{total}} XP → niv. {{next}}",
     send_message: "Envoyer un message",
     remove_friend: "Supprimer de mes amis",
+    photoPermTitle: "Autorisation requise",
+    photoPermBody: "Autorise l'accès aux photos pour changer ton avatar.",
+    photoFailBody: "Impossible de mettre à jour la photo.",
+    photoRemoveTitle: "Retirer ma photo ?",
+    photoRemoveBody: "Tu reviendras à l'initiale de ton pseudo.",
+    photoActionsTitle: "Photo de profil",
+    photoChange: "Changer la photo",
   },
 
   settings: {
