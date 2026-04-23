@@ -24,7 +24,7 @@
     },
     "extra": {
       "SERVER_URL": "ws://localhost:2567",
-      "SENTRY_DSN": "",
+      "SENTRY_DSN": "https://aaf6001766401e072e0d79c09fa1e9b4@o4511269837406208.ingest.de.sentry.io/4511269851758672",
       "eas": {
         "projectId": "ce4cda81-23d1-4740-84d5-66f38dfeaf59"
       }
