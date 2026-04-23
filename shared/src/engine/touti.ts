@@ -997,6 +997,49 @@ function countFigures(hand: Card[]): number {
   return hand.filter((c) => CARD_POINTS[c.rank] > 0).length;
 }
 
+// Singleton = je n'ai qu'UNE SEULE carte dans cette couleur.
+function isSingleton(hand: Card[], suit: Suit): boolean {
+  return hand.filter((c) => c.suit === suit).length === 1;
+}
+
+// Y-a-t-il une paire Rey+Caballo dans la même couleur dans ma main ?
+// Retourne la couleur trouvée ou null.
+function ghnaPairSuit(hand: Card[]): Suit | null {
+  for (const suit of ALL_SUITS) {
+    const hasCaballo = hand.some((c) => c.suit === suit && c.rank === 11);
+    const hasRey = hand.some((c) => c.suit === suit && c.rank === 12);
+    if (hasCaballo && hasRey) return suit;
+  }
+  return null;
+}
+
+// Couleurs dans lesquelles MON partenaire a mené un pli gagné par notre
+// équipe. Heuristique : un leader qui a choisi cette couleur était fort
+// dedans, donc relead = 3ᵉ main support pour lui.
+function suitsPartnerLedAndTeamWon(state: GameState, mySeat: Seat): Set<Suit> {
+  const out = new Set<Suit>();
+  const partner = partnerOf(mySeat);
+  const myTeam = teamOf(mySeat);
+  const wonTricks = myTeam === "A" ? state.tricksWon.A : state.tricksWon.B;
+  for (const entries of wonTricks) {
+    if (entries.length === 0) continue;
+    const leader = entries[0];
+    if (leader.player === partner) out.add(leader.card.suit);
+  }
+  return out;
+}
+
+// Nombre de plis restants (total 10 par manche).
+function tricksLeft(state: GameState): number {
+  const played = state.tricksWon.A.length + state.tricksWon.B.length;
+  return Math.max(0, 10 - played - (state.trick.length === 4 ? 0 : 0));
+}
+
+// Est-ce le dernier pli de la manche (celui de la 9a3a, +10 bonus) ?
+function isLastTrick(state: GameState): boolean {
+  return tricksLeft(state) === 1;
+}
+
 // Force approximative d'une main pour décider d'enchérir
 function handStrength(hand: Card[]): number {
   // Points de haute (As=11 etc.) + bonus figures
@@ -1055,7 +1098,7 @@ export function aiBid(state: GameState, seat: Seat, level: AiLevel = "medium"): 
 
   // ─── Branche HARD ────────────────────────────────────────────────────
   if (level === "hard") {
-    // Score estimé basé sur hand : points + figures bonus + concentration
+    // Score estimé : points + figures bonus + concentration - pénalités
     let score = 0;
     const bySuit: Record<Suit, { count: number; highs: number }> = {
       oros: { count: 0, highs: 0 },
@@ -1074,7 +1117,27 @@ export function aiBid(state: GameState, seat: Seat, level: AiLevel = "medium"): 
       .map((s) => bySuit[s].count * 5 + bySuit[s].highs * 3)
       .reduce((a, b) => Math.max(a, b), 0);
     score += bestConcentration;
-    score += supportBonus; // Signal partenaire = vraiment plus de points visés
+    score += supportBonus;
+
+    // Pénalités : As singleton (risque de se faire couper sans follow-up)
+    for (const suit of ALL_SUITS) {
+      const hasAce = hand.some((c) => c.suit === suit && c.rank === 1);
+      if (hasAce && isSingleton(hand, suit)) score -= 5;
+    }
+    // Bonus : voids (potentiel de coupe) si j'ai ≥3 atouts en main
+    const voidsInHand = ALL_SUITS.filter((s) => bySuit[s].count === 0).length;
+    const bestSuitCount = ALL_SUITS
+      .map((s) => bySuit[s].count)
+      .reduce((a, b) => Math.max(a, b), 0);
+    if (bestSuitCount >= 3) score += voidsInHand * 8;
+
+    // Boost Ghna 40 : si j'ai Rey+Caballo dans une couleur ET que ma main
+    // suggère que je vais choisir cette couleur atout → je vise 90+ pour
+    // débloquer le cap 40 (30 pts Ghna bonus potentiels en plus).
+    const ghnaSuit = ghnaPairSuit(hand);
+    if (ghnaSuit && bySuit[ghnaSuit].count + bySuit[ghnaSuit].highs >= 4) {
+      score += 20; // booste l'ambition de bid
+    }
 
     const targetBid = Math.min(MAX_BID, Math.max(MIN_BID, Math.floor(score * 0.65 / 10) * 10));
 
@@ -1120,17 +1183,46 @@ export function aiBid(state: GameState, seat: Seat, level: AiLevel = "medium"): 
   return { kind: "pass" };
 }
 
-export function aiChooseTrump(state: GameState, seat: Seat, _level: AiLevel = "medium"): Suit {
-  // Choisit la couleur où la main est la plus forte (points + nombre).
-  // Même logique pour tous les niveaux — c'est déjà optimal pour le buyer
-  // (il prend atout dans sa couleur dominante).
+export function aiChooseTrump(state: GameState, seat: Seat, level: AiLevel = "medium"): Suit {
   const hand = state.hands[seat];
+
+  // Easy/Medium : "couleur la plus forte" historique (count + points + 2)
+  if (level !== "hard") {
+    let best: Suit = "oros";
+    let bestScore = -1;
+    for (const s of ALL_SUITS) {
+      const cards = hand.filter((c) => c.suit === s);
+      const pts = cards.reduce((sum, c) => sum + CARD_POINTS[c.rank] + 2, 0);
+      if (pts > bestScore) { bestScore = pts; best = s; }
+    }
+    return best;
+  }
+
+  // Hard : favorise la LONGUEUR (un trump court = perdu). Formule :
+  //   count × 8   (longueur = contrôle)
+  //   + points × 1 (cartes qui rapportent)
+  //   + hasGhnaPair × 15 (Ghna 40 = bonus énorme)
+  // Rejette les couleurs ≤ 2 cartes même si full honors.
   let best: Suit = "oros";
-  let bestScore = -1;
+  let bestScore = -Infinity;
   for (const s of ALL_SUITS) {
     const cards = hand.filter((c) => c.suit === s);
-    const pts = cards.reduce((sum, c) => sum + CARD_POINTS[c.rank] + 2, 0);
-    if (pts > bestScore) { bestScore = pts; best = s; }
+    if (cards.length <= 2) continue; // trop court = mauvais atout
+    const count = cards.length;
+    const points = cards.reduce((a, c) => a + CARD_POINTS[c.rank], 0);
+    const hasGhna =
+      cards.some((c) => c.rank === 11) && cards.some((c) => c.rank === 12);
+    const score = count * 8 + points + (hasGhna ? 15 : 0);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  // Fallback si toutes les couleurs sont ≤ 2 cartes (impossible avec 10
+  // cartes en main mais safety) : fallback sur best de medium.
+  if (bestScore === -Infinity) {
+    for (const s of ALL_SUITS) {
+      const cards = hand.filter((c) => c.suit === s);
+      const pts = cards.reduce((sum, c) => sum + CARD_POINTS[c.rank] + 2, 0);
+      if (pts > bestScore) { bestScore = pts; best = s; }
+    }
   }
   return best;
 }
@@ -1209,9 +1301,26 @@ function aiPickHard(state: GameState, seat: Seat, legal: Card[]): Card {
 
   // ─── POSITION 0 : je mène le pli ─────────────────────────────
   if (position === 0) {
-    // (A) Drawing trumps : je suis buyer, j'ai ≥4 atouts, et les adversaires
-    //     en ont encore. Je sors mon plus fort atout SI c'est un "sure winner"
-    //     (sinon je brûle un atout pour rien).
+    // (A) C'EST LE DERNIER PLI (9a3a = +10 bonus) : jouer ABSOLUMENT le
+    //     meilleur sure winner disponible, peu importe sa valeur. Si aucun
+    //     sure winner, jouer la plus haute carte pour max chances.
+    if (isLastTrick(state)) {
+      const sureWinners = legal.filter((c) => isSureWinner(c, state, seat));
+      if (sureWinners.length) {
+        return [...sureWinners].sort(
+          (a, b) =>
+            (CARD_POINTS[b.rank] + CARD_STRENGTH[b.rank]) -
+            (CARD_POINTS[a.rank] + CARD_STRENGTH[a.rank]),
+        )[0];
+      }
+      // Pas de sure winner — joue la plus forte en force (meilleure chance)
+      return [...legal].sort(
+        (a, b) => CARD_STRENGTH[b.rank] - CARD_STRENGTH[a.rank],
+      )[0];
+    }
+
+    // (B) Drawing trumps : je suis buyer, ≥4 atouts, adversaires en ont
+    //     encore. Sort mon plus fort atout SI c'est un sure winner.
     if (iAmBuyer && trump != null && myTrumps >= 4 && oppTrumpsTotal > 0) {
       const myTrumpCards = legal
         .filter((c) => c.suit === trump)
@@ -1220,18 +1329,57 @@ function aiPickHard(state: GameState, seat: Seat, legal: Card[]): Card {
       if (bestTrump && isSureWinner(bestTrump, state, seat)) return bestTrump;
     }
 
-    // (B) Sure winner non-atout : préférer la plus forte en points.
+    // (C) Défense (je ne suis PAS buyer) : ne lead JAMAIS mon atout, ça
+    //     aide l'adversaire buyer à drainer. Force-le à ouvrir atout.
+    //     Priorité : couleur où j'ai les PLUS PETITES cartes (safe lead).
+    if (!iAmBuyer) {
+      const nonTrumpLegal = legal.filter((c) => c.suit !== trump);
+      if (nonTrumpLegal.length) {
+        // Défense : lead basse non-atout, éviter couleurs où adversaires
+        // buyer side sont void (ils coupent direct)
+        const opp1 = ((seat + 1) % 4) as Seat;
+        const opp2 = ((seat + 3) % 4) as Seat;
+        const safe = nonTrumpLegal.filter(
+          (c) => !(voids[opp1].has(c.suit) && voids[opp2].has(c.suit)),
+        );
+        const pool = safe.length ? safe : nonTrumpLegal;
+        // Priorité : relead couleur où partenaire a joué leader
+        const partnerSuits = suitsPartnerLedAndTeamWon(state, seat);
+        const reLead = pool.find((c) => partnerSuits.has(c.suit));
+        if (reLead) {
+          // Dans partner suit, sors une grosse (As/Triss si présente)
+          const inSuit = pool.filter((c) => c.suit === reLead.suit);
+          inSuit.sort((a, b) => CARD_STRENGTH[b.rank] - CARD_STRENGTH[a.rank]);
+          return inSuit[0];
+        }
+        // Sinon : basse safe
+        const lowSafe = [...pool].sort(
+          (a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
+        );
+        return lowSafe[0];
+      }
+      // Forcé de jouer atout (singleton atout ou main 100% atout)
+      return sortByPointsThenForce(legal)[0];
+    }
+
+    // (D) Sure winner non-atout : préférer la plus forte en points.
+    //     MAIS si j'ai plusieurs sure winners et ce N'EST PAS trick 10,
+    //     je garde le plus haut-valeur pour la 9a3a → je sors le plus
+    //     BAS qui soit encore un sure winner.
     const sureWinners = legal
       .filter((c) => isSureWinner(c, state, seat))
       .sort((a, b) =>
         (CARD_POINTS[b.rank] + CARD_STRENGTH[b.rank]) -
         (CARD_POINTS[a.rank] + CARD_STRENGTH[a.rank]),
       );
-    if (sureWinners.length) return sureWinners[0];
+    if (sureWinners.length >= 2) {
+      // Garde le plus haut, sort le 2e (suffisamment fort pour gagner,
+      // mais on économise l'atout majeur / As pour trick 10).
+      return sureWinners[1];
+    }
+    if (sureWinners.length === 1) return sureWinners[0];
 
-    // (C) Endgame (≤3 cartes en main) : pas de sure winner → jouer la
-    //     plus haute valeur qu'on a (maximum les points, on va tomber
-    //     de toute façon).
+    // (E) Endgame (≤3 cartes en main) : jouer la plus haute valeur.
     if (myHand.length <= 3) {
       return [...legal].sort(
         (a, b) =>
@@ -1240,9 +1388,21 @@ function aiPickHard(state: GameState, seat: Seat, legal: Card[]): Card {
       )[0];
     }
 
-    // (D) Lead une basse non-atout dans une couleur où je suis void pas
-    //     (= je peux suivre). Éviter couleurs où les 2 adversaires sont
-    //     void (ils vont couper).
+    // (F) Relead partenaire : retourner à une couleur où partenaire a
+    //     déjà mené avec succès (= il est fort).
+    const partnerSuits = suitsPartnerLedAndTeamWon(state, seat);
+    const reLeadCards = legal.filter(
+      (c) => c.suit !== trump && partnerSuits.has(c.suit),
+    );
+    if (reLeadCards.length) {
+      // Dans cette couleur : sort une moyenne (pour pas cramer notre As)
+      const sorted = [...reLeadCards].sort(
+        (a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
+      );
+      return sorted[0]; // basse pour laisser partner gagner avec son fort
+    }
+
+    // (G) Lead basse non-atout, évite couleurs où les 2 opp sont void
     const nonTrumpLow = legal
       .filter((c) => c.suit !== trump && CARD_POINTS[c.rank] === 0)
       .filter((c) => {
@@ -1254,7 +1414,7 @@ function aiPickHard(state: GameState, seat: Seat, legal: Card[]): Card {
       .sort((a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank]);
     if (nonTrumpLow.length) return nonTrumpLow[0];
 
-    // (E) Fallback : la moins précieuse
+    // (H) Fallback : la moins précieuse
     return sortByPointsThenForce(legal)[0];
   }
 
