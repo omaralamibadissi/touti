@@ -886,14 +886,11 @@ function unseenCards(state: GameState, mySeat: Seat): Card[] {
 function isSureWinner(card: Card, state: GameState, mySeat: Seat): boolean {
   const unseen = unseenCards(state, mySeat);
   const trump = state.trump;
-  // Si je pose un atout, il faut aucun atout plus fort chez un adversaire
   if (trump != null && card.suit === trump) {
     return !unseen.some(
       (c) => c.suit === trump && CARD_STRENGTH[c.rank] > CARD_STRENGTH[card.rank],
     );
   }
-  // Sinon : aucune carte plus haute dans ma couleur ouverte ET aucun atout
-  // ne peut venir couper (= atouts épuisés chez autrui).
   const higherInSuit = unseen.some(
     (c) => c.suit === card.suit && CARD_STRENGTH[c.rank] > CARD_STRENGTH[card.rank],
   );
@@ -901,6 +898,103 @@ function isSureWinner(card: Card, state: GameState, mySeat: Seat): boolean {
   const trumpsOutside = trump != null && unseen.some((c) => c.suit === trump);
   if (trumpsOutside) return false;
   return true;
+}
+
+// Ensemble des voids connus par siège : quand un joueur ne suit pas la
+// couleur menée (coupe ou défausse), il est révélé void dans cette couleur.
+// Retourne Record<Seat, Set<Suit>>.
+function knownVoids(state: GameState): Record<Seat, Set<Suit>> {
+  const voids: Record<Seat, Set<Suit>> = {
+    0: new Set(), 1: new Set(), 2: new Set(), 3: new Set(),
+  };
+  const scanTrick = (entries: TrickEntry[]) => {
+    if (entries.length === 0) return;
+    const ledSuit = entries[0].card.suit;
+    for (let i = 1; i < entries.length; i++) {
+      const e = entries[i];
+      if (e.card.suit !== ledSuit) {
+        // ne suit pas la couleur ouverte → révélé void dans ledSuit
+        voids[e.player].add(ledSuit);
+      }
+    }
+  };
+  for (const t of state.tricksWon.A) scanTrick(t);
+  for (const t of state.tricksWon.B) scanTrick(t);
+  scanTrick(state.trick);
+  return voids;
+}
+
+// Estime combien d'atouts sont encore en main par siège adverse.
+// Version simple : nombre d'atouts non joués et non chez moi, réparti
+// entre les 3 autres joueurs en excluant ceux connus void en atout.
+function trumpsRemainingPerSeat(state: GameState, mySeat: Seat): Record<Seat, number> {
+  const result: Record<Seat, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  if (state.trump == null) return result;
+  const unseen = unseenCards(state, mySeat).filter((c) => c.suit === state.trump);
+  const voids = knownVoids(state);
+  // Joueurs candidats à posséder de l'atout = pas moi, pas révélé void atout
+  const candidates: Seat[] = [];
+  for (const s of [0, 1, 2, 3] as Seat[]) {
+    if (s === mySeat) continue;
+    if (voids[s].has(state.trump)) continue;
+    candidates.push(s);
+  }
+  if (candidates.length === 0) return result;
+  // Distribution uniforme approximative (fallback sans distributions exactes)
+  const share = Math.floor(unseen.length / candidates.length);
+  const rem = unseen.length - share * candidates.length;
+  candidates.forEach((s, i) => {
+    result[s] = share + (i < rem ? 1 : 0);
+  });
+  return result;
+}
+
+// Partenaire a-t-il émis ce signal ?
+function hasPartnerSignaled(
+  state: GameState,
+  mySeat: Seat,
+  type: "as" | "compte",
+): boolean {
+  if (!state.bidding) return false;
+  const partner = partnerOf(mySeat);
+  return state.bidding.history.some(
+    (h) => h.seat === partner && h.action.kind === "signal" && h.action.signal === type,
+  );
+}
+
+// Ce type de signal a-t-il déjà été utilisé par qqn (il n'en reste qu'un
+// utilisable par phase, first-come wins) ?
+function signalTypeUsed(state: GameState, type: "as" | "compte"): boolean {
+  if (!state.bidding) return false;
+  return state.bidding.history.some(
+    (h) => h.action.kind === "signal" && h.action.signal === type,
+  );
+}
+
+// Est-ce que j'ai déjà misé dans cette phase ? (si oui, plus de signal)
+function seatHasBid(state: GameState, seat: Seat): boolean {
+  if (!state.bidding) return false;
+  return state.bidding.history.some(
+    (h) => h.seat === seat && h.action.kind === "bid",
+  );
+}
+
+// Ai-je déjà signalé ce type moi-même ?
+function seatHasSignaled(state: GameState, seat: Seat, type: "as" | "compte"): boolean {
+  if (!state.bidding) return false;
+  return state.bidding.history.some(
+    (h) => h.seat === seat && h.action.kind === "signal" && h.action.signal === type,
+  );
+}
+
+// Nombre d'As dans la main
+function countAces(hand: Card[]): number {
+  return hand.filter((c) => c.rank === 1).length;
+}
+
+// Nombre de figures (cartes qui rapportent des points) dans la main
+function countFigures(hand: Card[]): number {
+  return hand.filter((c) => CARD_POINTS[c.rank] > 0).length;
 }
 
 // Force approximative d'une main pour décider d'enchérir
@@ -923,34 +1017,45 @@ function handStrength(hand: Card[]): number {
 export function aiBid(state: GameState, seat: Seat, level: AiLevel = "medium"): BidAction {
   if (!state.bidding) return { kind: "pass" };
   const b = state.bidding;
-  const strength = handStrength(state.hands[seat]);
+  const hand = state.hands[seat];
+  const strength = handStrength(hand);
   const currentMax = b.highest?.amount ?? MIN_BID - BID_STEP;
   const nextBid = Math.max(MIN_BID, currentMax + BID_STEP);
-
-  // Si partenaire tient la plus haute, on passe.
-  if (b.highest && partnerOf(seat) === b.highest.seat) return { kind: "pass" };
 
   // Tutoriel : le partenaire (seat 2) DOIT monter jusqu'à au moins 90
   if (state.tutorial && seat === 2 && nextBid <= 90) {
     return { kind: "bid", amount: Math.max(nextBid, MIN_BID) };
   }
 
-  // Easy : n'enchérit presque jamais (+25 pts de seuil)
+  // ─── Si partenaire tient la plus haute, on ne surbidde pas. Mais on
+  //     peut SIGNALER pour lui donner l'info qu'il a du support. ──────
+  const partnerLeads = !!b.highest && partnerOf(seat) === b.highest.seat;
+
+  // Easy : n'enchérit presque jamais, ne signale pas
   if (level === "easy") {
     const threshold = 85 + (nextBid - 70) * 0.8;
-    if (strength >= threshold && nextBid <= MAX_BID) {
+    if (!partnerLeads && strength >= threshold && nextBid <= MAX_BID) {
       return { kind: "bid", amount: nextBid };
     }
     return { kind: "pass" };
   }
 
-  // Hard : plus agressif, monte jusqu'à la valeur estimée réaliste de sa
-  // main. On prend la concentration de la meilleure couleur + les hautes
-  // cartes pour estimer combien de plis on gagnera en moyenne. Puis on
-  // mise ~60-70% du potentiel (marge pour le partenaire + aléa).
+  // ─── Signal helpers (medium et hard) ────────────────────────────────
+  const aces = countAces(hand);
+  const figures = countFigures(hand);
+  const canSignalAs = aces >= 1 && !signalTypeUsed(state, "as") && !seatHasBid(state, seat) && !seatHasSignaled(state, seat, "as");
+  const canSignalCompte = figures >= 3 && !signalTypeUsed(state, "compte") && !seatHasBid(state, seat) && !seatHasSignaled(state, seat, "compte");
+
+  // Si partenaire a déjà signalé "un Compte" → j'ajoute ~25 pts à mon
+  // estimation. Si "un As" → ~15 pts. Opp signal → pas de bonus (on
+  // sait juste que l'équipe adverse est solide).
+  const partnerAsBonus = hasPartnerSignaled(state, seat, "as") ? 15 : 0;
+  const partnerCompteBonus = hasPartnerSignaled(state, seat, "compte") ? 25 : 0;
+  const supportBonus = partnerAsBonus + partnerCompteBonus;
+
+  // ─── Branche HARD ────────────────────────────────────────────────────
   if (level === "hard") {
-    const hand = state.hands[seat];
-    // Score estimé : As=11, Triss=10, figures en bonus
+    // Score estimé basé sur hand : points + figures bonus + concentration
     let score = 0;
     const bySuit: Record<Suit, { count: number; highs: number }> = {
       oros: { count: 0, highs: 0 },
@@ -965,22 +1070,52 @@ export function aiBid(state: GameState, seat: Seat, level: AiLevel = "medium"): 
       if (c.rank === 11 || c.rank === 12) { score += 3; bySuit[c.suit].highs += 1; }
       bySuit[c.suit].count++;
     }
-    const best = ALL_SUITS
+    const bestConcentration = ALL_SUITS
       .map((s) => bySuit[s].count * 5 + bySuit[s].highs * 3)
       .reduce((a, b) => Math.max(a, b), 0);
-    score += best; // bonus concentration
-    // Valeur estimée ~ score ; on mise ~65% du score jusqu'à un max raisonnable.
+    score += bestConcentration;
+    score += supportBonus; // Signal partenaire = vraiment plus de points visés
+
     const targetBid = Math.min(MAX_BID, Math.max(MIN_BID, Math.floor(score * 0.65 / 10) * 10));
-    if (nextBid <= targetBid) {
+
+    // 1) Partenaire mène : ne surbidde pas MAIS peut confirmer avec signal
+    if (partnerLeads) {
+      if (canSignalCompte && figures >= 3) return { kind: "signal", signal: "compte" };
+      if (canSignalAs && aces >= 1) return { kind: "signal", signal: "as" };
+      return { kind: "pass" };
+    }
+    // 2) Je peux bidder à ce palier
+    if (nextBid <= targetBid && nextBid <= MAX_BID) {
       return { kind: "bid", amount: nextBid };
+    }
+    // 3) Pas assez pour bidder, mais je peux signaler pour aider partenaire
+    //    IF un adversaire a misé (partenaire pourrait sur-bidder avec info)
+    //    OU si personne n'a encore misé (boost préventif)
+    const oppLeads = !!b.highest && teamOf(b.highest.seat) !== teamOf(seat);
+    if (oppLeads || !b.highest) {
+      if (canSignalCompte) return { kind: "signal", signal: "compte" };
+      if (canSignalAs) return { kind: "signal", signal: "as" };
     }
     return { kind: "pass" };
   }
 
-  // Medium (défaut) : seuils de force pour accepter de miser à ce palier
+  // ─── Branche MEDIUM (défaut) ─────────────────────────────────────────
   const threshold = 55 + (nextBid - 70) * 0.8;
-  if (strength >= threshold && nextBid <= MAX_BID) {
+  const effectiveStrength = strength + supportBonus;
+
+  if (partnerLeads) {
+    // Partenaire mène : signal si pertinent, sinon pass
+    if (canSignalCompte && figures >= 3) return { kind: "signal", signal: "compte" };
+    if (canSignalAs && aces >= 2) return { kind: "signal", signal: "as" }; // Un As peu signalé en medium
+    return { kind: "pass" };
+  }
+  if (effectiveStrength >= threshold && nextBid <= MAX_BID) {
     return { kind: "bid", amount: nextBid };
+  }
+  // Pas assez pour bidder : signaler aide le partenaire
+  if (canSignalCompte && figures >= 3) return { kind: "signal", signal: "compte" };
+  if (canSignalAs && aces >= 1 && !hasPartnerSignaled(state, seat, "compte")) {
+    return { kind: "signal", signal: "as" };
   }
   return { kind: "pass" };
 }
@@ -1047,19 +1182,45 @@ function aiPickMedium(state: GameState, seat: Seat, legal: Card[]): Card {
   return sorted[0];
 }
 
-// IA hard : compte les cartes déjà jouées, raisonne sur ce qu'il peut
-// encore tomber chez les adversaires, et maximise les points de l'équipe.
+// IA hard : compte les cartes jouées, tracker voids + atouts restants par
+// siège, stratégies de position (2e main basse / 3e main haute / 4e parfait),
+// drawing trumps quand buyer long, économie atout, endgame perfect-play.
 function aiPickHard(state: GameState, seat: Seat, legal: Card[]): Card {
   const partner = partnerOf(seat);
   const trump = state.trump;
   const isLastToPlay = state.trick.length === 3;
+  const position = state.trick.length; // 0 = meneur, 1 = 2e main, 2 = 3e, 3 = 4e
   const partnerWinning =
     trump != null && state.trick.length > 0 && trickWinner(state.trick, trump) === partner;
+  const iAmBuyer = state.bidWinner != null && teamOf(state.bidWinner) === teamOf(seat);
+  const myHand = state.hands[seat];
+  const myTrumps = trump != null ? myHand.filter((c) => c.suit === trump).length : 0;
+  const voids = knownVoids(state);
+  const trumpsPerSeat = trumpsRemainingPerSeat(state, seat);
+  const oppTrumpsTotal =
+    trump != null
+      ? trumpsPerSeat[(seat + 1) % 4 as Seat] + trumpsPerSeat[(seat + 3) % 4 as Seat]
+      : 0;
 
-  // ─── Je mène le pli ───────────────────────────────────────────
-  if (state.trick.length === 0) {
-    // 1) Jouer une "sure winner" dans une couleur où tous les atouts
-    //    adverses sont épuisés — classe du plus fort au plus faible.
+  const sortByPointsThenForce = (cards: Card[]) =>
+    [...cards].sort(
+      (a, b) => CARD_POINTS[a.rank] - CARD_POINTS[b.rank] || CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
+    );
+
+  // ─── POSITION 0 : je mène le pli ─────────────────────────────
+  if (position === 0) {
+    // (A) Drawing trumps : je suis buyer, j'ai ≥4 atouts, et les adversaires
+    //     en ont encore. Je sors mon plus fort atout SI c'est un "sure winner"
+    //     (sinon je brûle un atout pour rien).
+    if (iAmBuyer && trump != null && myTrumps >= 4 && oppTrumpsTotal > 0) {
+      const myTrumpCards = legal
+        .filter((c) => c.suit === trump)
+        .sort((a, b) => CARD_STRENGTH[b.rank] - CARD_STRENGTH[a.rank]);
+      const bestTrump = myTrumpCards[0];
+      if (bestTrump && isSureWinner(bestTrump, state, seat)) return bestTrump;
+    }
+
+    // (B) Sure winner non-atout : préférer la plus forte en points.
     const sureWinners = legal
       .filter((c) => isSureWinner(c, state, seat))
       .sort((a, b) =>
@@ -1068,71 +1229,133 @@ function aiPickHard(state: GameState, seat: Seat, legal: Card[]): Card {
       );
     if (sureWinners.length) return sureWinners[0];
 
-    // 2) Sinon : sortir une basse carte non-atout (force les autres à
-    //    brûler leurs cartes fortes ou à couper leurs atouts).
+    // (C) Endgame (≤3 cartes en main) : pas de sure winner → jouer la
+    //     plus haute valeur qu'on a (maximum les points, on va tomber
+    //     de toute façon).
+    if (myHand.length <= 3) {
+      return [...legal].sort(
+        (a, b) =>
+          (CARD_POINTS[b.rank] + CARD_STRENGTH[b.rank]) -
+          (CARD_POINTS[a.rank] + CARD_STRENGTH[a.rank]),
+      )[0];
+    }
+
+    // (D) Lead une basse non-atout dans une couleur où je suis void pas
+    //     (= je peux suivre). Éviter couleurs où les 2 adversaires sont
+    //     void (ils vont couper).
     const nonTrumpLow = legal
       .filter((c) => c.suit !== trump && CARD_POINTS[c.rank] === 0)
+      .filter((c) => {
+        const opp1 = ((seat + 1) % 4) as Seat;
+        const opp2 = ((seat + 3) % 4) as Seat;
+        const bothOppVoid = voids[opp1].has(c.suit) && voids[opp2].has(c.suit);
+        return !bothOppVoid;
+      })
       .sort((a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank]);
     if (nonTrumpLow.length) return nonTrumpLow[0];
 
-    // 3) Sinon : la moins précieuse
-    return [...legal].sort(
-      (a, b) => CARD_POINTS[a.rank] - CARD_POINTS[b.rank] || CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
-    )[0];
+    // (E) Fallback : la moins précieuse
+    return sortByPointsThenForce(legal)[0];
   }
 
-  // ─── Je suis, partenaire en train de gagner ──────────────────
-  if (partnerWinning) {
-    // Si je suis le dernier à jouer (le pli est clos après moi) : je peux
-    // lâcher une GROSSE carte (As/Triss) car personne ne pourra battre
-    // mon partenaire derrière → renforce le score capturé.
-    if (isLastToPlay) {
-      const byPoints = [...legal].sort(
-        (a, b) => CARD_POINTS[b.rank] - CARD_POINTS[a.rank],
-      );
-      return byPoints[0];
+  // ─── POSITION 1 : 2e main — règle "2e main basse" ────────────
+  if (position === 1) {
+    if (partnerWinning) {
+      // partenaire leader ? rare ici (2e main = juste après meneur), donc
+      // partnerWinning improbable sauf si meneur = partenaire
+      return sortByPointsThenForce(legal)[0];
     }
-    // Sinon : lâcher la plus basse (pas de point, pas utile d'y mettre As)
-    return [...legal].sort(
-      (a, b) => CARD_POINTS[a.rank] - CARD_POINTS[b.rank] || CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
-    )[0];
+    // Adversaire (RHO) vient de mener. Règle 2e main basse : SAUF si je
+    // peux gagner à peu de frais, je joue la plus petite.
+    if (trump == null) return sortByPointsThenForce(legal)[0];
+    const winners = legal.filter((c) => {
+      const test = trickWinner([...state.trick, { player: seat, card: c }], trump);
+      return test === seat;
+    });
+    const trickPointsSoFar = state.trick.reduce((a, e) => a + CARD_POINTS[e.card.rank], 0);
+    // Je ne gagne QUE si le pli vaut déjà 10+ pts ET mon winner mini est pas une grosse
+    if (winners.length && trickPointsSoFar >= 10) {
+      winners.sort((a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank]);
+      return winners[0];
+    }
+    // Sinon dump la plus basse
+    return sortByPointsThenForce(legal)[0];
   }
 
-  // ─── Je suis, adversaire en train de gagner ──────────────────
-  if (trump == null) return legal[0];
+  // ─── POSITION 2 : 3e main — règle "3e main haute" ────────────
+  if (position === 2) {
+    if (partnerWinning) {
+      // Partenaire mène et est toujours gagnant (2e main n'a pas passé) →
+      // je dump haut sauf si 4e adversaire peut encore passer.
+      // Heuristique : si 4e adversaire est connu void de la couleur ouverte
+      // ET void d'atout → partenaire est garanti gagnant, je balance As/Triss.
+      const ledSuit = state.trick[0].card.suit;
+      const opp4 = ((seat + 1) % 4) as Seat;
+      const opp4CantWin =
+        voids[opp4].has(ledSuit) && (trump == null || voids[opp4].has(trump));
+      if (opp4CantWin) {
+        return [...legal].sort((a, b) => CARD_POINTS[b.rank] - CARD_POINTS[a.rank])[0];
+      }
+      // Sinon dump prudent (basse)
+      return sortByPointsThenForce(legal)[0];
+    }
+    // Adversaire mène en ce moment. 3e main haute : je pousse une carte
+    // forte si je peux gagner (et que je crains pas le 4e).
+    if (trump == null) return sortByPointsThenForce(legal)[0];
+    const winners = legal.filter((c) => {
+      const test = trickWinner([...state.trick, { player: seat, card: c }], trump);
+      return test === seat;
+    });
+    if (winners.length) {
+      // Le 4e adversaire peut-il sur-couper ? Check trumpsRemaining + voids
+      const opp4 = ((seat + 1) % 4) as Seat;
+      const ledSuit = state.trick[0].card.suit;
+      const canOpp4BeatTrump = trumpsPerSeat[opp4] > 0 && !voids[opp4].has(trump);
+      const canOpp4FollowHigher = !voids[opp4].has(ledSuit);
+      // Si opp4 n'a plus d'atout ET pas la couleur en plus haut → je peux
+      // envoyer une grosse winner sans crainte
+      if (!canOpp4BeatTrump && !canOpp4FollowHigher) {
+        // Sur-coupe high-value pour sécuriser le pli
+        const byValue = [...winners].sort(
+          (a, b) =>
+            (CARD_POINTS[b.rank] + CARD_STRENGTH[b.rank]) -
+            (CARD_POINTS[a.rank] + CARD_STRENGTH[a.rank]),
+        );
+        return byValue[0];
+      }
+      // Sinon gagne avec le minimum nécessaire
+      winners.sort((a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank]);
+      return winners[0];
+    }
+    return sortByPointsThenForce(legal)[0];
+  }
 
-  // Coups qui me feraient gagner le pli
+  // ─── POSITION 3 : 4e main — info parfaite sur le pli ─────────
+  // Je vois tout : ledSuit, les 3 cartes jouées, qui gagne actuellement
+  if (partnerWinning) {
+    // Partenaire gagne, 4e = moi → personne ne peut plus battre → dump
+    // la plus grosse (As/Triss pour maximiser les points récoltés)
+    return [...legal].sort((a, b) => CARD_POINTS[b.rank] - CARD_POINTS[a.rank])[0];
+  }
+  // Adversaire gagne actuellement : je gagne avec le minimum ou j'abandonne
+  if (trump == null) return sortByPointsThenForce(legal)[0];
   const winners = legal.filter((c) => {
     const test = trickWinner([...state.trick, { player: seat, card: c }], trump);
     return test === seat;
   });
-
   if (winners.length) {
-    // Si je peux gagner, je gagne avec le MINIMUM nécessaire (conserver
-    // les cartes fortes pour plus tard). Tri par force croissante.
     winners.sort((a, b) => CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank]);
-    // Si je suis le dernier à jouer ET que le pli contient peu de points,
-    // ça vaut parfois le coup de ne PAS sur-couper et garder mon atout.
-    // Heuristique simple : si le pli vaut <= 4 points (pas de haute),
-    // on lâche une non-point.
-    if (isLastToPlay) {
-      const trickPoints = state.trick.reduce((a, e) => a + CARD_POINTS[e.card.rank], 0);
-      if (trickPoints <= 4) {
-        const dump = [...legal].sort(
-          (a, b) => CARD_POINTS[a.rank] - CARD_POINTS[b.rank] || CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
-        );
-        // Ne dump que si une non-winner est dispo (sinon on est contraint)
-        const nonWinner = dump.find((c) => !winners.includes(c));
-        if (nonWinner) return nonWinner;
-      }
+    const trickPoints = state.trick.reduce((a, e) => a + CARD_POINTS[e.card.rank], 0);
+    // Si pli faible (≤4 pts) ET j'ai des non-winners dispos → économie atout
+    if (trickPoints <= 4) {
+      const nonWinner = sortByPointsThenForce(legal).find((c) => !winners.includes(c));
+      if (nonWinner) return nonWinner;
     }
     return winners[0];
   }
-
-  // Je ne peux pas gagner : je lâche la plus basse en points + force
-  return [...legal].sort(
-    (a, b) => CARD_POINTS[a.rank] - CARD_POINTS[b.rank] || CARD_STRENGTH[a.rank] - CARD_STRENGTH[b.rank],
-  )[0];
+  // Je ne gagne pas : lâche la plus basse en points+force (évite de donner
+  // un As/Triss à l'adversaire qui va gagner)
+  return sortByPointsThenForce(legal)[0];
 }
 
 // Compat : ancien nom conservé pour ne pas casser l'UI existante.
