@@ -401,13 +401,22 @@ export default function GameScreen({ route, navigation }: Props) {
     targetRef: React.RefObject<View | null> | null;
     placement?: "above" | "below" | "auto";
   }[] = [
+    // Intro — bulle flottante, on ne met en valeur rien de particulier
     {
       id: "welcome",
       when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
       text: t("tuto.welcome"),
+      targetRef: null,
+    },
+    // Ta main
+    {
+      id: "your-hand",
+      when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
+      text: t("tuto.yourHand"),
       targetRef: handRef,
       placement: "above",
     },
+    // Score HUD
     {
       id: "score-hud",
       when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
@@ -415,13 +424,22 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: scoreRef,
       placement: "below",
     },
+    // Pille atout
+    {
+      id: "trump-pill",
+      when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
+      text: t("tuto.trumpPill"),
+      targetRef: trumpRef,
+      placement: "below",
+    },
+    // Phase enchères (sans highlight)
     {
       id: "bid-intro",
       when: () => !dealAnim && state.phase === "bidding" && state.bidding != null,
       text: t("tuto.bidIntro"),
-      targetRef: trumpRef,
-      placement: "below",
+      targetRef: null,
     },
+    // À toi de parler — highlight main (où sont les boutons bid)
     {
       id: "bid-your-turn",
       when: () =>
@@ -432,6 +450,17 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: handRef,
       placement: "above",
     },
+    // Partenaire a acheté
+    {
+      id: "partner-bought",
+      when: () =>
+        state.phase === "choosing-trump" &&
+        state.bidWinner === 2 &&
+        state.roundNumber === 1,
+      text: t("tuto.partnerBought"),
+      targetRef: null,
+    },
+    // Atout choisi — highlight atout
     {
       id: "trump-set",
       when: () => state.phase === "playing" && state.trump != null && state.trickNumber === 1 && state.trick.length === 0,
@@ -439,6 +468,7 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: trumpRef,
       placement: "below",
     },
+    // Tu ouvres le 1er pli — highlight la main
     {
       id: "play-intro",
       when: () =>
@@ -450,15 +480,17 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: handRef,
       placement: "above",
     },
+    // Valeur des cartes — highlight main (on parle de TES cartes)
     {
       id: "cards-value",
       when: () =>
         state.phase === "trick-end" &&
         state.trickNumber === 1,
       text: t("tuto.cardsValue"),
-      targetRef: scoreRef,
-      placement: "below",
+      targetRef: handRef,
+      placement: "above",
     },
+    // Bouton dernier pli
     {
       id: "last-trick-btn",
       when: () =>
@@ -470,17 +502,29 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: lastTrickRef,
       placement: "above",
     },
+    // Ghna pending — highlight main quand l'overlay Ghna s'ouvre
+    {
+      id: "ghna-available",
+      when: () =>
+        state.ghnaPending != null &&
+        state.ghnaPending.seat === 0 &&
+        state.roundNumber === 1,
+      text: t("tuto.ghnaAvailable"),
+      targetRef: handRef,
+      placement: "above",
+    },
+    // Info Ghna général (pendant le jeu) — bulle flottante
     {
       id: "ghna-info",
       when: () =>
         state.phase === "playing" &&
-        state.trickNumber >= 2 &&
-        state.trickNumber <= 4 &&
+        state.trickNumber >= 3 &&
+        state.trickNumber <= 5 &&
         state.roundNumber === 1,
       text: t("tuto.ghnaInfo"),
-      targetRef: handRef,
-      placement: "above",
+      targetRef: null,
     },
+    // Fin de manche — highlight score
     {
       id: "round-done",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
@@ -488,6 +532,7 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: scoreRef,
       placement: "below",
     },
+    // Tableau suivi — highlight bouton tableau
     {
       id: "score-sheet",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
@@ -495,6 +540,7 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: scoreSheetRef,
       placement: "above",
     },
+    // Menu pause — highlight bouton pause
     {
       id: "pause-tools",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
@@ -502,6 +548,7 @@ export default function GameScreen({ route, navigation }: Props) {
       targetRef: pauseRef,
       placement: "below",
     },
+    // Farewell — bulle flottante
     {
       id: "farewell",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
