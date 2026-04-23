@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ArabesqueDivider, ZelligeBg } from "../components/Patterns";
 import { useAuthStore } from "../store/authStore";
+import { useT } from "../lib/i18n";
 
 // NB : aujourd'hui, le pseudo est toujours fixé à la création de compte
 // (signUp côté serveur). Cet écran n'est utile QUE pour un user OAuth qui
@@ -11,6 +12,7 @@ import { useAuthStore } from "../store/authStore";
 // câbler un endpoint PATCH /auth/me/username, on fait signOut + message
 // explicite pour que l'utilisateur ne reste pas bloqué.
 export default function UsernameSetupScreen() {
+  const t = useT();
   const signOut = useAuthStore((s) => s.signOut);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -21,11 +23,11 @@ export default function UsernameSetupScreen() {
     setSaving(true);
     try {
       Alert.alert(
-        "Pseudo figé",
-        "Ton pseudo a été choisi à la création du compte et ne peut plus être changé depuis cet écran. Reconnecte-toi avec ton pseudo d'origine, ou crée un nouveau compte.",
+        t("auth.usernameFixed"),
+        t("auth.usernameFixedBody"),
         [
-          { text: "OK", style: "cancel" },
-          { text: "Se déconnecter", style: "destructive", onPress: () => signOut() },
+          { text: t("common.ok"), style: "cancel" },
+          { text: t("auth.signOutAction"), style: "destructive", onPress: () => signOut() },
         ],
       );
     } finally {
@@ -47,17 +49,17 @@ export default function UsernameSetupScreen() {
       <View style={styles.content}>
         <View style={styles.hero}>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-          <Text style={styles.eyebrow}>BIENVENUE</Text>
-          <Text style={styles.title}>Choisis ton pseudo</Text>
+          <Text style={styles.eyebrow}>{t("auth.welcome")}</Text>
+          <Text style={styles.title}>{t("auth.username")}</Text>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
         </View>
 
         <View style={styles.inputBlock}>
-          <Text style={styles.inputLabel}>PSEUDO</Text>
+          <Text style={styles.inputLabel}>{t("auth.username")}</Text>
           <TextInput
             value={name}
             onChangeText={setName}
-            placeholder="Ton nom de joueur…"
+            placeholder={t("auth.usernamePlaceholder")}
             placeholderTextColor="rgba(245,235,214,0.5)"
             style={styles.input}
             autoCapitalize="words"
@@ -65,7 +67,7 @@ export default function UsernameSetupScreen() {
             maxLength={20}
             autoFocus
           />
-          <Text style={styles.hint}>2 à 20 caractères · visible par les autres joueurs</Text>
+          <Text style={styles.hint}>{t("auth.usernameHint")}</Text>
         </View>
 
         <Pressable
@@ -86,7 +88,7 @@ export default function UsernameSetupScreen() {
           {saving ? (
             <ActivityIndicator color={COLORS.terracottaDark} />
           ) : (
-            <Text style={styles.ctaText}>Confirmer</Text>
+            <Text style={styles.ctaText}>{t("common.confirm")}</Text>
           )}
         </Pressable>
       </View>

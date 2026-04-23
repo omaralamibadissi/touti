@@ -9,10 +9,12 @@ import { Avatar } from "../components/Avatar";
 import { useTournamentStore, type Tournament, type TournamentPair } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
 import { buildTournamentLink } from "../lib/deepLink";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "TournamentDetail">;
 
 export default function TournamentDetailScreen({ route, navigation }: Props) {
+  const t = useT();
   const { id } = route.params;
   const tournament = useTournamentStore((s) => s.mine.find((t) => t.id === id));
   const remove = useTournamentStore((s) => s.remove);
@@ -30,7 +32,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   if (!tournament) {
     return (
       <View style={[styles.root, { alignItems: "center", justifyContent: "center" }]}>
-        <Text style={{ color: COLORS.cream }}>Tournoi introuvable</Text>
+        <Text style={{ color: COLORS.cream }}>{t("tournaments.notFound")}</Text>
       </View>
     );
   }
@@ -143,7 +145,7 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
 
         {/* Joueurs */}
         <Text style={styles.section}>
-          JOUEURS · {tournament.players.length}/{tournament.maxPlayers}
+          {t("tournaments.playersShort").toUpperCase()} · {tournament.players.length}/{tournament.maxPlayers}
         </Text>
         <View style={{ gap: 6, marginTop: 8 }}>
           {tournament.players.map((p) => (

@@ -8,10 +8,12 @@ import { ZelligeBg } from "../components/Patterns";
 import { useTournamentStore } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
 import { apiGetTournamentByCode, type TournamentApi } from "../net/tournamentsApi";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "JoinTournament">;
 
 export default function JoinTournamentScreen({ navigation, route }: Props) {
+  const tr = useT();
   const incomingCode = route.params?.code?.toUpperCase();
   const [code, setCode] = useState(incomingCode ?? "");
   const [preview, setPreview] = useState<TournamentApi | null>(null);
@@ -48,12 +50,12 @@ export default function JoinTournamentScreen({ navigation, route }: Props) {
   const onJoin = async () => {
     if (!user?.username || !canSubmit) return;
     const partner = needsPartner ? partnerName.trim() : undefined;
-    const t = await joinByCode(code, user.username, partner);
-    if (!t) {
-      Alert.alert("Impossible de rejoindre", "Code invalide ou tournoi complet.");
+    const joined = await joinByCode(code, user.username, partner);
+    if (!joined) {
+      Alert.alert(tr("tournaments.joinFailTitle"), tr("tournaments.joinFailBody"));
       return;
     }
-    navigation.replace("TournamentDetail", { id: t.id });
+    navigation.replace("TournamentDetail", { id: joined.id });
   };
 
   return (
@@ -74,40 +76,40 @@ export default function JoinTournamentScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.center}>
-        <Text style={styles.eyebrow}>REJOINDRE UN TOURNOI</Text>
-        <Text style={styles.title}>Entre le code</Text>
+        <Text style={styles.eyebrow}>{tr("tournaments.joinEyebrow")}</Text>
+        <Text style={styles.title}>{tr("tournaments.joinShort")}</Text>
 
         <TextInput
           value={code}
-          onChangeText={(t) => setCode(t.toUpperCase().slice(0, 6))}
-          placeholder="CODE"
+          onChangeText={(txt) => setCode(txt.toUpperCase().slice(0, 6))}
+          placeholder={tr("tournaments.codePlaceholder")}
           placeholderTextColor="rgba(245,235,214,0.3)"
           autoCapitalize="characters"
           autoCorrect={false}
           maxLength={6}
           style={styles.codeInput}
         />
-        <Text style={styles.hint}>6 caractères — reçus d'un ami</Text>
+        <Text style={styles.hint}>{tr("tournaments.codeHint")}</Text>
 
         {/* Preview du tournoi */}
         {previewing && (
           <ActivityIndicator color={COLORS.saffronSoft} style={{ marginTop: 14 }} />
         )}
         {!previewing && code.length === 6 && !preview && (
-          <Text style={styles.errText}>Code invalide</Text>
+          <Text style={styles.errText}>{tr("tournaments.codeInvalid")}</Text>
         )}
         {!previewing && preview && (
           <View style={styles.previewBox}>
             <Text style={styles.previewName}>{preview.name}</Text>
             <Text style={styles.previewSub}>
-              {preview.format === "irl" ? "IRL" : "En ligne"}
+              {preview.format === "irl" ? tr("tournaments.formatIrl") : tr("tournaments.formatOnline")}
               {" · "}
-              {preview.mode === "classique" ? "Élimination" : "Championnat"}
+              {preview.mode === "classique" ? tr("tournaments.modeClassic") : tr("tournaments.modeChampionship")}
               {" · "}
-              {preview.pairingMode === "chosen" ? "Paires choisies" : "Paires aléatoires"}
+              {preview.pairingMode === "chosen" ? tr("tournaments.pairingFixed") : tr("tournaments.pairingRandom")}
             </Text>
             <Text style={styles.previewCount}>
-              {preview.players.length} / {preview.maxPlayers} joueurs
+              {preview.players.length} / {preview.maxPlayers} {tr("tournaments.playersShort")}
             </Text>
           </View>
         )}
@@ -115,19 +117,17 @@ export default function JoinTournamentScreen({ navigation, route }: Props) {
         {/* Champ partenaire (mode chosen uniquement) */}
         {needsPartner && (
           <View style={styles.partnerWrap}>
-            <Text style={styles.partnerLabel}>Ton partenaire</Text>
+            <Text style={styles.partnerLabel}>{tr("tournaments.yourPartner")}</Text>
             <TextInput
               value={partnerName}
               onChangeText={setPartnerName}
-              placeholder="Pseudo du partenaire"
+              placeholder={tr("tournaments.partnerPlaceholder")}
               placeholderTextColor="rgba(245,235,214,0.35)"
               autoCapitalize="none"
               autoCorrect={false}
               style={styles.partnerInput}
             />
-            <Text style={styles.partnerHint}>
-              Ton partenaire doit ensuite aussi rejoindre en te nommant en retour
-            </Text>
+            <Text style={styles.partnerHint}>{tr("tournaments.partnerHint")}</Text>
           </View>
         )}
 
@@ -146,7 +146,7 @@ export default function JoinTournamentScreen({ navigation, route }: Props) {
             end={{ x: 0, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Text style={styles.ctaText}>Rejoindre</Text>
+          <Text style={styles.ctaText}>{tr("tournaments.joinAction")}</Text>
         </Pressable>
       </View>
     </View>

@@ -9,6 +9,7 @@ import { Avatar } from "../components/Avatar";
 import { useNetGameStore } from "../store/netGameStore";
 import { useAuthStore } from "../store/authStore";
 import { buildPrivateLink } from "../lib/deepLink";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PrivateGame">;
 
@@ -21,6 +22,7 @@ function randomCode(): string {
 }
 
 export default function PrivateGameScreen({ navigation, route }: Props) {
+  const t = useT();
   const [mode, setMode] = useState<"menu" | "lobby" | "joining">("menu");
   const [typedCode, setTypedCode] = useState("");
   const incomingCode = route.params?.code?.toUpperCase();
@@ -113,8 +115,8 @@ export default function PrivateGameScreen({ navigation, route }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>PARTIE PERSO</Text>
-          <Text style={styles.title}>Personnalisée</Text>
+          <Text style={styles.eyebrow}>{t("privateGame.eyebrow")}</Text>
+          <Text style={styles.title}>{t("privateGame.titleShort")}</Text>
         </View>
       </View>
 

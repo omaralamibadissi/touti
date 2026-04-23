@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { useScoreSheetStore, ScoreRound, Team, totalsOf } from "../store/scoreSheetStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScoreTracker">;
 
@@ -15,6 +16,7 @@ type BidRange = 70 | 80 | 90 | 100 | 110 | 120 | 130 | 140 | 150 | 160 | 170 | 1
 const TEAM_BY_IDX: Team[] = ["A", "B", "A", "B"];
 
 export default function ScoreTrackerScreen({ route, navigation }: Props) {
+  const t = useT();
   const { sheetId } = route.params;
   const sheet = useScoreSheetStore((s) => s.sheets.find((x) => x.id === sheetId));
   const hydrate = useScoreSheetStore((s) => s.hydrate);
@@ -105,8 +107,8 @@ export default function ScoreTrackerScreen({ route, navigation }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>COMPTEUR DE PARTIE</Text>
-          <Text style={styles.title}>Score IRL</Text>
+          <Text style={styles.eyebrow}>{t("scoreSheets.trackerEyebrow")}</Text>
+          <Text style={styles.title}>{t("scoreSheets.title")}</Text>
         </View>
         {sheet.rounds.length > 0 && (
           <Pressable style={styles.iconBtn} onPress={onReset}>

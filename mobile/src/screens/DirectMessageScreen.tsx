@@ -14,12 +14,14 @@ import { Avatar } from "../components/Avatar";
 import { useDirectMessagesStore, type DirectMessage } from "../store/directMessagesStore";
 import { useAuthStore } from "../store/authStore";
 import { useFriendsStore } from "../store/friendsStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "DirectMessage">;
 
 const EMPTY_MSGS: DirectMessage[] = [];
 
 export default function DirectMessageScreen({ navigation, route }: Props) {
+  const t = useT();
   const { otherId, otherName } = route.params;
   const messages = useDirectMessagesStore((s) => s.messagesByOther[otherId] ?? EMPTY_MSGS);
   const loading = useDirectMessagesStore((s) => !!s.loadingConv[otherId]);
@@ -75,7 +77,7 @@ export default function DirectMessageScreen({ navigation, route }: Props) {
         <Avatar initials={otherName[0]?.toUpperCase() ?? "?"} size={34} color={COLORS.teal} online={onlineFriend} />
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{otherName}</Text>
-          {onlineFriend && <Text style={styles.subOnline}>En ligne</Text>}
+          {onlineFriend && <Text style={styles.subOnline}>{t("dm.online")}</Text>}
         </View>
       </View>
 
@@ -86,8 +88,8 @@ export default function DirectMessageScreen({ navigation, route }: Props) {
         </View>
       ) : messages.length === 0 ? (
         <View style={styles.centerBox}>
-          <Text style={styles.emptyTitle}>Aucun message</Text>
-          <Text style={styles.emptySub}>Écris le premier message à {otherName}.</Text>
+          <Text style={styles.emptyTitle}>{t("dm.empty")}</Text>
+          <Text style={styles.emptySub}>{t("dm.placeholder")}</Text>
         </View>
       ) : (
         <FlatList
@@ -130,7 +132,7 @@ export default function DirectMessageScreen({ navigation, route }: Props) {
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder={`Écris à ${otherName}…`}
+          placeholder={t("dm.placeholder")}
           placeholderTextColor="rgba(245,235,214,0.4)"
           style={styles.input}
           multiline
@@ -147,7 +149,7 @@ export default function DirectMessageScreen({ navigation, route }: Props) {
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Text style={styles.sendBtnText}>{sending ? "…" : "Envoyer"}</Text>
+          <Text style={styles.sendBtnText}>{sending ? "…" : t("dm.send")}</Text>
         </Pressable>
       </View>
       </KeyboardAvoidingView>

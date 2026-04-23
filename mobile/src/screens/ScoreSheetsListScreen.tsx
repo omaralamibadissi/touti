@@ -6,10 +6,12 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { useScoreSheetStore, totalsOf } from "../store/scoreSheetStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScoreSheets">;
 
 export default function ScoreSheetsListScreen({ navigation }: Props) {
+  const t = useT();
   const sheets = useScoreSheetStore((s) => s.sheets);
   const hydrate = useScoreSheetStore((s) => s.hydrate);
   const create = useScoreSheetStore((s) => s.create);
@@ -33,8 +35,8 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
       navigation.navigate("ScoreTracker", { sheetId: s.id });
     } catch (e: any) {
       Alert.alert(
-        "Impossible de créer la feuille",
-        "Connexion au serveur requise pour créer une nouvelle feuille de score.",
+        t("scoreSheets.createFailTitle"),
+        t("scoreSheets.createFailBody"),
       );
     }
   };
@@ -58,8 +60,8 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>COMPTEUR DE PARTIES</Text>
-          <Text style={styles.title}>Fiches de score</Text>
+          <Text style={styles.eyebrow}>{t("scoreSheets.eyebrow")}</Text>
+          <Text style={styles.title}>{t("scoreSheets.sheetsTitle")}</Text>
         </View>
       </View>
 

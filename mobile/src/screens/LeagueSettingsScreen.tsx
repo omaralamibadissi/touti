@@ -12,12 +12,14 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { useLeagueStore } from "../store/leagueStore";
 import { useAuthStore } from "../store/authStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueSettings">;
 
 const LEAGUE_COLORS = [COLORS.teal, COLORS.brass, "#8B4A7F", COLORS.terracotta, "#2E7A8C"];
 
 export default function LeagueSettingsScreen({ navigation, route }: Props) {
+  const t = useT();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const updateLeague = useLeagueStore((s) => s.update);
@@ -34,7 +36,7 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
       <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
         <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
         <Text style={{ color: COLORS.cream, fontFamily: FONT_UI, fontSize: 14 }}>
-          Ligue introuvable
+          {t("leagues.notFound")}
         </Text>
         <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { marginTop: 20 }]}>
           <Text style={styles.backText}>←</Text>
@@ -131,7 +133,7 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>PARAMÈTRES</Text>
+          <Text style={styles.eyebrow}>{t("leagues.settings").toUpperCase()}</Text>
           <Text style={styles.title}>{league.name}</Text>
         </View>
       </View>

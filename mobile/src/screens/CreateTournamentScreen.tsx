@@ -8,10 +8,12 @@ import { ZelligeBg } from "../components/Patterns";
 import { useTournamentStore, TournamentFormat, TournamentMode, PairingMode } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
 import { useLeagueStore } from "../store/leagueStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CreateTournament">;
 
 export default function CreateTournamentScreen({ navigation, route }: Props) {
+  const t = useT();
   const create = useTournamentStore((s) => s.create);
   const user = useAuthStore((s) => s.user);
 
@@ -75,8 +77,8 @@ export default function CreateTournamentScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>NOUVEAU TOURNOI</Text>
-          <Text style={styles.title}>Créer</Text>
+          <Text style={styles.eyebrow}>{t("tournaments.createEyebrow")}</Text>
+          <Text style={styles.title}>{t("tournaments.createShort")}</Text>
         </View>
       </View>
 

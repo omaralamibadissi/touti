@@ -9,10 +9,12 @@ import { Avatar } from "../components/Avatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useAuthStore } from "../store/authStore";
 import { buildLeagueLink } from "../lib/deepLink";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueDetail">;
 
 export default function LeagueDetailScreen({ navigation, route }: Props) {
+  const t = useT();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const leave = useLeagueStore((s) => s.leave);
@@ -141,7 +143,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>LIGUE</Text>
+          <Text style={styles.eyebrow}>{t("leagues.eyebrow")}</Text>
           <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
         </View>
         <Pressable onPress={share} style={styles.iconBtn}>
@@ -152,11 +154,11 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         {/* Code card */}
         <View style={styles.codeCard}>
-          <Text style={styles.codeLabel}>CODE D'INVITATION</Text>
+          <Text style={styles.codeLabel}>{t("tournaments.code").toUpperCase()}</Text>
           <Text style={styles.codeValue}>{league.code}</Text>
           {league.tagline && <Text style={styles.tagline}>"{league.tagline}"</Text>}
           <Pressable onPress={share} style={styles.shareBtn}>
-            <Text style={styles.shareBtnText}>↗ Partager le code</Text>
+            <Text style={styles.shareBtnText}>↗ {t("common.share")}</Text>
           </Pressable>
         </View>
 
@@ -211,7 +213,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
           onPress={() => navigation.navigate("LeagueChat", { id: league.id })}
           style={[styles.bigBtn, { marginTop: 24, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
         >
-          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>💬 Chat de la ligue</Text>
+          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>💬 {t("leagues.chat")}</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
             Discute avec les membres de "{league.name}"
           </Text>
@@ -222,7 +224,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
           onPress={() => navigation.navigate("LeagueActivity", { id: league.id })}
           style={[styles.bigBtn, { marginTop: 10, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
         >
-          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>📜 Fil d'activité</Text>
+          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>📜 {t("leagues.activity")}</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
             Membres, tournois, matchs joués
           </Text>
@@ -233,7 +235,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
           onPress={() => navigation.navigate("Leaderboard", { scope: "league" })}
           style={[styles.bigBtn, { marginTop: 10, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
         >
-          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Voir le classement</Text>
+          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("leagues.viewLeaderboard")}</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
             Individuel + paires, filtré sur la ligue
           </Text>
@@ -247,7 +249,7 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
             end={{ x: 0, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Text style={styles.bigBtnTitle}>Créer un tournoi de ligue</Text>
+          <Text style={styles.bigBtnTitle}>{t("tournaments.create")}</Text>
           <Text style={styles.bigBtnSub}>Réservé aux membres de "{league.name}"</Text>
         </Pressable>
 

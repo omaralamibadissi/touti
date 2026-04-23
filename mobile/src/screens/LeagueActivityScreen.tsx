@@ -12,10 +12,12 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { useLeagueStore } from "../store/leagueStore";
 import { apiGetLeagueActivity, type LeagueActivityApi } from "../net/leagueActivityApi";
+import { useT, i18n } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueActivity">;
 
 export default function LeagueActivityScreen({ navigation, route }: Props) {
+  const t = useT();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const [events, setEvents] = useState<LeagueActivityApi[]>([]);
@@ -45,7 +47,7 @@ export default function LeagueActivityScreen({ navigation, route }: Props) {
       <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
         <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
         <Text style={{ color: COLORS.cream, fontFamily: FONT_UI, fontSize: 14 }}>
-          Ligue introuvable
+          {t("leagues.notFound")}
         </Text>
         <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { marginTop: 20 }]}>
           <Text style={styles.backText}>←</Text>
@@ -63,7 +65,7 @@ export default function LeagueActivityScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>FIL D'ACTIVITÉ</Text>
+          <Text style={styles.eyebrow}>{t("leagues.activity").toUpperCase()}</Text>
           <Text style={styles.title}>{league.name}</Text>
         </View>
       </View>
@@ -74,10 +76,8 @@ export default function LeagueActivityScreen({ navigation, route }: Props) {
         </View>
       ) : events.length === 0 ? (
         <View style={styles.centerBox}>
-          <Text style={styles.emptyTitle}>Pas encore d'activité</Text>
-          <Text style={styles.emptySub}>
-            Les événements (arrivées, matchs, tournois…) apparaîtront ici.
-          </Text>
+          <Text style={styles.emptyTitle}>{t("leagues.activityEmpty")}</Text>
+          <Text style={styles.emptySub}>{t("leagues.activityFirst")}</Text>
         </View>
       ) : (
         <FlatList

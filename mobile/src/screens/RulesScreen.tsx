@@ -7,10 +7,12 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ArabesqueDivider, ZelligeBg } from "../components/Patterns";
 import { Card, SuitGlyph } from "../components/Card";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Rules">;
 
 export default function RulesScreen({ navigation }: Props) {
+  const t = useT();
   return (
     <View style={styles.root}>
       <LinearGradient
@@ -27,7 +29,7 @@ export default function RulesScreen({ navigation }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>LES RÈGLES DU</Text>
+          <Text style={styles.eyebrow}>{t("rules.eyebrowPre")}</Text>
           <Text style={styles.title}>TOUTI</Text>
         </View>
       </View>

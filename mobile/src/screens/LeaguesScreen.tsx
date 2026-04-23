@@ -8,12 +8,14 @@ import { ZelligeBg, StarBurst } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useLeagueStore, type League } from "../store/leagueStore";
 import { useAuthStore } from "../store/authStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Leagues">;
 
 const LEAGUE_COLORS = [COLORS.teal, COLORS.brass, "#8B4A7F", COLORS.terracotta, "#2E7A8C"];
 
 export default function LeaguesScreen({ navigation, route }: Props) {
+  const t = useT();
   const incomingCode = route.params?.code?.toUpperCase();
   const [mode, setMode] = useState<"list" | "create" | "join">(incomingCode ? "join" : "list");
   const [name, setName] = useState("");
@@ -45,7 +47,7 @@ export default function LeaguesScreen({ navigation, route }: Props) {
 
   const submitCreate = async () => {
     if (name.trim().length < 3) {
-      Alert.alert("Nom trop court", "Donne un nom d'au moins 3 caractères.");
+      Alert.alert(t("common.error"), t("leagues.name"));
       return;
     }
     try {
@@ -58,10 +60,9 @@ export default function LeaguesScreen({ navigation, route }: Props) {
       setName("");
       setTagline("");
       setMode("list");
-      // Navigation directe (plus de setTimeout)
       navigation.navigate("LeagueDetail", { id: l.id });
     } catch (e: any) {
-      Alert.alert("Erreur", e?.message ?? "Création impossible");
+      Alert.alert(t("common.error"), e?.message ?? "");
     }
   };
 
@@ -69,7 +70,7 @@ export default function LeaguesScreen({ navigation, route }: Props) {
     if (joinCode.length !== 6) return;
     const l = await joinLeague(joinCode, { id: myUsername, name: myUsername });
     if (!l) {
-      Alert.alert("Code inconnu", "Personne autour de toi n'a partagé cette ligue sur cet appareil.\n\nDemande au créateur d'ouvrir sa ligue en même temps que toi (v1 locale, serveur à venir).");
+      Alert.alert(t("common.error"), t("tournaments.code"));
       return;
     }
     setMode("list");
@@ -95,8 +96,8 @@ export default function LeaguesScreen({ navigation, route }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>LIGUES</Text>
-          <Text style={styles.title}>Mes ligues</Text>
+          <Text style={styles.eyebrow}>{t("leagues.eyebrow")}</Text>
+          <Text style={styles.title}>{t("leaderboard.myLeagues")}</Text>
         </View>
       </View>
 
@@ -106,15 +107,12 @@ export default function LeaguesScreen({ navigation, route }: Props) {
             {leagues.length === 0 ? (
               <View style={styles.emptyBlock}>
                 <Text style={styles.emptyEmoji}>✦</Text>
-                <Text style={styles.emptyTitle}>Aucune ligue pour l'instant</Text>
-                <Text style={styles.emptySub}>
-                  Crée ta propre ligue pour organiser des tournois privés avec tes potes réguliers,
-                  ou rejoins celle d'un ami avec son code.
-                </Text>
+                <Text style={styles.emptyTitle}>{t("leagues.mineEmpty")}</Text>
+                <Text style={styles.emptySub}>{t("leagues.mineEmptyBody")}</Text>
               </View>
             ) : (
               <View style={{ gap: 10 }}>
-                <Text style={styles.sectionLabel}>TES LIGUES</Text>
+                <Text style={styles.sectionLabel}>{t("leagues.mine")}</Text>
                 {leagues.map((l) => (
                   <LeagueCard
                     key={l.id}
@@ -134,51 +132,48 @@ export default function LeaguesScreen({ navigation, route }: Props) {
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Créer une ligue</Text>
-              <Text style={styles.bigBtnSub}>Invite tes potes par code</Text>
+              <Text style={styles.bigBtnTitle}>{t("leagues.create")}</Text>
+              <Text style={styles.bigBtnSub}>{t("leagues.shareMessage", { name: "", code: "", link: "" }).split("\n")[0] || ""}</Text>
             </Pressable>
             <Pressable onPress={() => setMode("join")} style={[styles.bigBtn, styles.bigBtnSecondary]}>
-              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Rejoindre avec un code</Text>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>{t("leagues.join")}</Text>
             </Pressable>
           </View>
         )}
 
         {mode === "create" && (
           <View style={{ gap: 14 }}>
-            <Text style={styles.sectionLabel}>NOUVELLE LIGUE</Text>
+            <Text style={styles.sectionLabel}>{t("leagues.createTitle").toUpperCase()}</Text>
             <View>
               <View style={styles.inputLabelRow}>
-                <Text style={styles.inputLabel}>Nom</Text>
-                <Text style={styles.inputCounter}>
-                  {name.trim().length}/32 · min 3
-                </Text>
+                <Text style={styles.inputLabel}>{t("leagues.name")}</Text>
+                <Text style={styles.inputCounter}>{name.trim().length}/32</Text>
               </View>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Les Champions de Casa"
+                placeholder={t("leagues.namePlaceholder")}
                 placeholderTextColor="rgba(245,235,214,0.3)"
                 maxLength={32}
                 style={styles.input}
               />
-              <Text style={styles.inputHint}>3 caractères minimum</Text>
             </View>
             <View>
               <View style={styles.inputLabelRow}>
-                <Text style={styles.inputLabel}>Slogan (optionnel)</Text>
+                <Text style={styles.inputLabel}>{t("leagues.name")}</Text>
                 <Text style={styles.inputCounter}>{tagline.length}/60</Text>
               </View>
               <TextInput
                 value={tagline}
                 onChangeText={setTagline}
-                placeholder="On joue tous les dimanches"
+                placeholder={t("leagues.namePlaceholder")}
                 placeholderTextColor="rgba(245,235,214,0.3)"
                 maxLength={60}
                 style={styles.input}
               />
             </View>
             <View>
-              <Text style={styles.inputLabel}>Couleur</Text>
+              <Text style={styles.inputLabel}>{t("leagues.color")}</Text>
               <View style={styles.colorRow}>
                 {LEAGUE_COLORS.map((c) => (
                   <Pressable
@@ -206,22 +201,22 @@ export default function LeaguesScreen({ navigation, route }: Props) {
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Créer</Text>
+              <Text style={styles.bigBtnTitle}>{t("leagues.create")}</Text>
             </Pressable>
           </View>
         )}
 
         {mode === "join" && (
           <View style={{ gap: 14 }}>
-            <Text style={styles.sectionLabel}>REJOINDRE</Text>
+            <Text style={styles.sectionLabel}>{t("leagues.join").toUpperCase()}</Text>
             <View>
               <View style={styles.inputLabelRow}>
-                <Text style={styles.inputLabel}>Code de la ligue</Text>
+                <Text style={styles.inputLabel}>{t("tournaments.code")}</Text>
                 <Text style={styles.inputCounter}>{joinCode.length}/6</Text>
               </View>
               <TextInput
                 value={joinCode}
-                onChangeText={(t) => setJoinCode(t.toUpperCase().slice(0, 6))}
+                onChangeText={(v) => setJoinCode(v.toUpperCase().slice(0, 6))}
                 placeholder="AB12CD"
                 placeholderTextColor="rgba(245,235,214,0.3)"
                 autoCapitalize="characters"
@@ -229,7 +224,6 @@ export default function LeaguesScreen({ navigation, route }: Props) {
                 maxLength={6}
                 style={[styles.input, { textAlign: "center", letterSpacing: 6, fontSize: 22 }]}
               />
-              <Text style={styles.inputHint}>6 caractères exactement</Text>
             </View>
             <Pressable
               onPress={submitJoin}
@@ -242,7 +236,7 @@ export default function LeaguesScreen({ navigation, route }: Props) {
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.bigBtnTitle}>Rejoindre</Text>
+              <Text style={styles.bigBtnTitle}>{t("leagues.join")}</Text>
             </Pressable>
           </View>
         )}

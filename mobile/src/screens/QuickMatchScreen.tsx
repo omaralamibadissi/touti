@@ -11,6 +11,7 @@ import { useAuthStore } from "../store/authStore";
 import { buildQuickLink } from "../lib/deepLink";
 import { apiMatchmakingStats, apiHybridCandidate, type MatchmakingStats } from "../net/statsApi";
 import { useNetGameStore } from "../store/netGameStore";
+import { useT, t as tPlain } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuickMatch">;
 
@@ -24,6 +25,7 @@ function randomCode(): string {
 }
 
 export default function QuickMatchScreen({ navigation, route }: Props) {
+  const t = useT();
   const myName = useAuthStore((s) => s.user?.username) ?? "Moi";
   const store = useNetGameStore();
   const { room, connected, connecting, error, players, locked, roomCode } = store;
@@ -156,7 +158,7 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
           </Svg>
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={styles.eyebrow}>PARTIE RAPIDE</Text>
+          <Text style={styles.eyebrow}>{t("quickMatch.eyebrow")}</Text>
           <Text style={styles.title}>{titleForMode(mode)}</Text>
         </View>
         <View style={{ width: 38 }} />
@@ -323,11 +325,11 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
 
 function titleForMode(m: Mode): string {
   switch (m) {
-    case "menu": return "En ligne";
-    case "pool": return "Recherche random…";
+    case "menu": return tPlain("quickMatch.modeMenu");
+    case "pool": return tPlain("quickMatch.modePool");
     case "create":
-    case "lobby": return "Salon en attente";
-    case "join": return "Rejoindre un salon";
+    case "lobby": return tPlain("quickMatch.modeLobby");
+    case "join": return tPlain("quickMatch.modeJoin");
   }
 }
 

@@ -9,10 +9,12 @@ import { Avatar } from "../components/Avatar";
 import { Card as PlayingCard } from "../components/Card";
 import { useMatchHistoryStore, type RoundDetail } from "../store/matchHistoryStore";
 import type { Rank, Suit } from "@touti/shared";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MatchDetail">;
 
 export default function MatchDetailScreen({ navigation, route }: Props) {
+  const t = useT();
   const { id } = route.params;
   const match = useMatchHistoryStore((s) => s.matches.find((m) => m.id === id));
   const [expandedRound, setExpandedRound] = useState<number | null>(null);
@@ -21,7 +23,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
     return (
       <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
         <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
-        <Text style={{ color: COLORS.cream, fontFamily: FONT_UI }}>Partie introuvable</Text>
+        <Text style={{ color: COLORS.cream, fontFamily: FONT_UI }}>{t("common.error")}</Text>
         <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { marginTop: 20 }]}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
@@ -33,8 +35,8 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
   const teamAName = `${match.playerNames[0]} & ${match.playerNames[2]}`;
   const teamBName = `${match.playerNames[1]} & ${match.playerNames[3]}`;
   const date = new Date(match.finishedAt);
-  const dateStr = date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const timeStr = date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const timeStr = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
   const rounds: RoundDetail[] = match.rounds || [];
 
@@ -50,8 +52,8 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>PARTIE · {labelType(match.type)}</Text>
-          <Text style={styles.title}>{won ? "Victoire" : "Défaite"}</Text>
+          <Text style={styles.eyebrow}>{labelType(match.type, t)}</Text>
+          <Text style={styles.title}>{won ? t("matchHistory.victory") : t("matchHistory.defeat")}</Text>
           <Text style={styles.date}>{dateStr} · {timeStr}</Text>
         </View>
       </View>
@@ -60,7 +62,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
         {/* Totaux */}
         <View style={styles.totals}>
           <TeamBlock
-            label="NOUS"
+            label={t("common.nous")}
             names={teamAName}
             score={match.scoreA}
             accent={COLORS.brass}
@@ -68,7 +70,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
           />
           <Text style={styles.vs}>·</Text>
           <TeamBlock
-            label="EUX"
+            label={t("common.eux")}
             names={teamBName}
             score={match.scoreB}
             accent={COLORS.cream}
@@ -76,27 +78,23 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
           />
         </View>
 
-        {/* Méta */}
         <View style={styles.metaCard}>
-          <MetaRow label="Manches jouées" value={String(match.roundsPlayed)} />
-          {match.tournamentName && <MetaRow label="Tournoi" value={match.tournamentName} />}
+          <MetaRow label={t("matchHistory.detailRounds")} value={String(match.roundsPlayed)} />
+          {match.tournamentName && <MetaRow label={t("tournaments.title")} value={match.tournamentName} />}
         </View>
 
-        {/* Détail manches */}
-        <Text style={styles.sectionLabel}>DÉTAIL MANCHE PAR MANCHE</Text>
+        <Text style={styles.sectionLabel}>{t("matchHistory.detailRounds").toUpperCase()}</Text>
         {rounds.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>
-              Pas de détail enregistré pour cette partie. Le détail manche-par-manche n'est capturé que pour les nouvelles parties depuis la mise à jour.
-            </Text>
+            <Text style={styles.emptyText}>{t("matchHistory.noneBody")}</Text>
           </View>
         ) : (
           <View style={styles.roundsList}>
             <View style={styles.roundsHeader}>
-              <Text style={[styles.colHead, { width: 32 }]}>M.</Text>
-              <Text style={[styles.colHead, { flex: 1 }]}>Mise</Text>
-              <Text style={[styles.colHead, { width: 60, textAlign: "right" }]}>NOUS</Text>
-              <Text style={[styles.colHead, { width: 60, textAlign: "right" }]}>EUX</Text>
+              <Text style={[styles.colHead, { width: 32 }]}>#</Text>
+              <Text style={[styles.colHead, { flex: 1 }]}>{t("game.bid")}</Text>
+              <Text style={[styles.colHead, { width: 60, textAlign: "right" }]}>{t("common.nous")}</Text>
+              <Text style={[styles.colHead, { width: 60, textAlign: "right" }]}>{t("common.eux")}</Text>
             </View>
             {rounds.map((r) => {
               const success = r.bidTeam === "A" ? r.deltaA >= 0 : r.deltaB >= 0;
@@ -129,7 +127,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
                           { color: success ? "#3FC26A" : "#E8553A" },
                         ]}
                       >
-                        {success ? "réussie" : "ratée"}
+                        {success ? t("scoreSheets.success") : t("scoreSheets.failure")}
                       </Text>
                     </View>
                     <Text style={[styles.colDelta, { width: 60, color: deltaColor(r.deltaA) }]}>
@@ -149,7 +147,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
             <View style={[styles.roundRow, styles.totalRow]}>
               <Text style={[styles.colNum, { width: 32, color: COLORS.saffronSoft }]}>=</Text>
               <Text style={{ flex: 1, fontFamily: FONT_UI_BOLD, fontSize: 12, color: COLORS.cream, fontWeight: "700" }}>
-                Total
+                {t("matchHistory.statsTotal")}
               </Text>
               <Text style={[styles.colDelta, { width: 60, color: COLORS.saffronSoft, fontSize: 16 }]}>
                 {match.scoreA}
@@ -162,7 +160,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
         )}
 
         {/* Joueurs */}
-        <Text style={[styles.sectionLabel, { marginTop: 18 }]}>JOUEURS</Text>
+        <Text style={[styles.sectionLabel, { marginTop: 18 }]}>{t("tournaments.players").toUpperCase()}</Text>
         <View style={styles.playersGrid}>
           {match.playerNames.map((n, i) => {
             const isTeamA = i % 2 === 0;
@@ -172,7 +170,7 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.playerName}>{n}</Text>
                   <Text style={[styles.playerTeam, { color: isTeamA ? COLORS.saffronSoft : "rgba(245,235,214,0.6)" }]}>
-                    {isTeamA ? "NOUS" : "EUX"} · siège {i}
+                    {isTeamA ? t("common.nous") : t("common.eux")}
                   </Text>
                 </View>
               </View>
@@ -274,13 +272,14 @@ function deltaColor(d: number): string {
   return "rgba(245,235,214,0.5)";
 }
 
-function labelType(t: string): string {
-  switch (t) {
-    case "solo-ai": return "SOLO";
-    case "private": return "PRIVÉE";
-    case "tournament": return "TOURNOI";
-    case "irl": return "IRL";
-    default: return t.toUpperCase();
+function labelType(type: string, t: (k: string) => string): string {
+  switch (type) {
+    case "solo-ai": return t("matchHistory.typeSolo").toUpperCase();
+    case "private": return t("matchHistory.typePrivate").toUpperCase();
+    case "quick": return t("matchHistory.typeQuick").toUpperCase();
+    case "tournament": return t("matchHistory.typeTournament").toUpperCase();
+    case "irl": return t("matchHistory.typeIrl").toUpperCase();
+    default: return type.toUpperCase();
   }
 }
 

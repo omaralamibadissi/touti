@@ -14,6 +14,7 @@ import { Avatar } from "../components/Avatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useLeagueChatStore, type LeagueMessage } from "../store/leagueChatStore";
 import { useAuthStore } from "../store/authStore";
+import { useT, i18n } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueChat">;
 
@@ -22,6 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "LeagueChat">;
 const EMPTY_MESSAGES: LeagueMessage[] = [];
 
 export default function LeagueChatScreen({ navigation, route }: Props) {
+  const t = useT();
   const { id } = route.params;
   const league = useLeagueStore((s) => s.leagues.find((l) => l.id === id));
   const messages = useLeagueChatStore((s) => s.byLeague[id] ?? EMPTY_MESSAGES);
@@ -72,7 +74,7 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
       <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
         <LinearGradient colors={["#2E1B5B", "#0B0721"]} style={StyleSheet.absoluteFill} />
         <Text style={{ color: COLORS.cream, fontFamily: FONT_UI, fontSize: 14 }}>
-          Ligue introuvable
+          {t("leagues.notFound")}
         </Text>
         <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { marginTop: 20 }]}>
           <Text style={styles.backText}>←</Text>
@@ -106,7 +108,7 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>CHAT DE LIGUE</Text>
+          <Text style={styles.eyebrow}>{t("leagues.chat").toUpperCase()}</Text>
           <Text style={styles.title}>{league.name}</Text>
         </View>
       </View>
@@ -118,8 +120,8 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
         </View>
       ) : messages.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyTitle}>Pas encore de messages</Text>
-          <Text style={styles.emptySub}>Sois le premier à écrire dans cette ligue.</Text>
+          <Text style={styles.emptyTitle}>{t("leagues.chatEmpty")}</Text>
+          <Text style={styles.emptySub}>{t("leagues.chatFirst")}</Text>
         </View>
       ) : (
         <FlatList
@@ -170,7 +172,7 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="Écris un message…"
+          placeholder={t("leagues.chatPlaceholder")}
           placeholderTextColor="rgba(245,235,214,0.4)"
           style={styles.input}
           multiline
@@ -187,7 +189,7 @@ export default function LeagueChatScreen({ navigation, route }: Props) {
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Text style={styles.sendBtnText}>{sending ? "…" : "Envoyer"}</Text>
+          <Text style={styles.sendBtnText}>{sending ? "…" : t("dm.send")}</Text>
         </Pressable>
       </View>
       </KeyboardAvoidingView>
@@ -217,7 +219,8 @@ function formatDateLabel(ts: number): string {
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   if (sameDay(ts, yesterday.getTime())) return "Hier";
-  return d.toLocaleDateString("fr-FR", {
+  const loc = i18n.locale.startsWith("en") ? "en-US" : i18n.locale.startsWith("ar") ? "ar-MA" : "fr-FR";
+  return d.toLocaleDateString(loc, {
     weekday: "long",
     day: "numeric",
     month: "long",

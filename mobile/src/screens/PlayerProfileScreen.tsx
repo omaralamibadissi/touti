@@ -15,6 +15,7 @@ import { useLeagueStore } from "../store/leagueStore";
 import { useTournamentStore } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
 import { totalXp, levelProgress, rankLabel, matchUserTeam, matchUserWon } from "../lib/leveling";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PlayerProfile">;
 
@@ -33,6 +34,7 @@ function countTournamentsWon(
 }
 
 export default function PlayerProfileScreen({ navigation, route }: Props) {
+  const t = useT();
   const { name, friendshipId } = route.params;
   const initials = (name[0] ?? "?").toUpperCase();
 
@@ -117,30 +119,17 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
 
   const confirmDelete = () => {
     Alert.alert(
-      `Supprimer ${name} ?`,
-      "Vous ne serez plus amis. Tu pourras lui renvoyer une demande plus tard.",
+      t("social.removeConfirmTitle", { name }),
+      t("social.removeConfirmBody"),
       [
-        { text: "Annuler", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Supprimer",
+          text: t("common.delete"),
           style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Confirmer",
-              `Retirer définitivement ${name} de tes amis ?`,
-              [
-                { text: "Non", style: "cancel" },
-                {
-                  text: "Oui, supprimer",
-                  style: "destructive",
-                  onPress: async () => {
-                    if (!friendshipId) return;
-                    await removeFriend(friendshipId);
-                    navigation.goBack();
-                  },
-                },
-              ],
-            );
+          onPress: async () => {
+            if (!friendshipId) return;
+            await removeFriend(friendshipId);
+            navigation.goBack();
           },
         },
       ],
@@ -190,7 +179,7 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
                 {online && (
                   <View style={styles.onlineTag}>
                     <View style={styles.onlineDot} />
-                    <Text style={styles.onlineText}>EN LIGNE</Text>
+                    <Text style={styles.onlineText}>{t("social.online").toUpperCase()}</Text>
                   </View>
                 )}
               </View>
@@ -199,7 +188,7 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
                   <View style={[styles.xpBarFill, { width: `${Math.max(2, stats.progressRatio * 100)}%` }]} />
                 </View>
                 <Text style={styles.xpBarText}>
-                  {stats.xpIntoLevel} / {stats.xpForNextLevel} XP → niv. {stats.level + 1}
+                  {t("profile.xpLine", { into: stats.xpIntoLevel, total: stats.xpForNextLevel, next: stats.level + 1 })}
                 </Text>
               </View>
             </View>
@@ -209,22 +198,21 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
         {/* Stats — même layout que ProfileScreen */}
         <View style={styles.statsCard}>
           <View style={styles.statsGrid}>
-            <StatBlock label="Parties" value={String(stats.games)} />
-            <StatBlock label="Victoires" value={String(stats.wins)} highlight />
-            <StatBlock label="Ratio" value={stats.games ? `${stats.ratio}%` : "—"} />
+            <StatBlock label={t("common.games")} value={String(stats.games)} />
+            <StatBlock label={t("common.victories")} value={String(stats.wins)} highlight />
+            <StatBlock label={t("matchHistory.statsRatio")} value={stats.games ? `${stats.ratio}%` : "—"} />
           </View>
           <View style={styles.divider} />
           <View style={styles.statsGrid}>
-            <StatBlock label="Points gagnés" value={String(stats.pointsFor)} />
-            <StatBlock label="Points perdus" value={String(stats.pointsAgainst)} />
-            <StatBlock label="Tournois gagnés" value={String(stats.tournamentsWon)} highlight />
+            <StatBlock label={t("profile.pointsFor")} value={String(stats.pointsFor)} />
+            <StatBlock label={t("profile.pointsAgainst")} value={String(stats.pointsAgainst)} />
+            <StatBlock label={t("profile.tournamentsWon")} value={String(stats.tournamentsWon)} highlight />
           </View>
         </View>
 
-        {/* Ligues en commun */}
         {commonLeagues.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ligues en commun</Text>
+            <Text style={styles.sectionTitle}>{t("profile.leaguesIn")}</Text>
             <View style={{ gap: 6, marginTop: 10 }}>
               {commonLeagues.map((l) => (
                 <Pressable
@@ -236,7 +224,7 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.leagueName}>{l.name}</Text>
                     <Text style={styles.leagueSub}>
-                      {l.members.length} membre{l.members.length > 1 ? "s" : ""}
+                      {t("leagues.memberCount", { count: l.members.length })}
                     </Text>
                   </View>
                   <Text style={styles.arrow}>›</Text>
@@ -246,11 +234,10 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Matchs en commun — coéquipier */}
         {matchesWithFriend.teammate.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              En équipe ({matchesWithFriend.teammate.length})
+              {t("profile.matchesInCommon")} ({matchesWithFriend.teammate.length})
             </Text>
             <View style={{ gap: 6, marginTop: 10 }}>
               {matchesWithFriend.teammate.slice(0, 5).map((m) => (
@@ -260,11 +247,10 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Matchs en commun — adversaire */}
         {matchesWithFriend.opponent.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              Contre {name} ({matchesWithFriend.opponent.length})
+              vs {name} ({matchesWithFriend.opponent.length})
             </Text>
             <View style={{ gap: 6, marginTop: 10 }}>
               {matchesWithFriend.opponent.slice(0, 5).map((m) => (
@@ -274,18 +260,16 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Aucune interaction */}
         {commonLeagues.length === 0 && playerMatches.length === 0 && (
           <View style={[styles.section, { paddingTop: 24 }]}>
             <View style={styles.emptyBox}>
               <Text style={styles.emptyText}>
-                Aucune partie ni ligue en commun avec {name}
+                {t("profile.noMatches")}
               </Text>
             </View>
           </View>
         )}
 
-        {/* Action : envoyer un message direct */}
         {friendshipId && (() => {
           const otherId = friends.find((f) => f.id === friendshipId)?.otherId;
           if (!otherId) return null;
@@ -300,21 +284,17 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.dmBtnText}>💬 Envoyer un message</Text>
+                <Text style={styles.dmBtnText}>💬 {t("profile.send_message")}</Text>
               </Pressable>
             </View>
           );
         })()}
 
-        {/* Bouton suppression ami */}
         {friendshipId && (
           <View style={styles.dangerSection}>
             <Pressable onPress={confirmDelete} style={styles.dangerBtn}>
-              <Text style={styles.dangerText}>Supprimer cet ami</Text>
+              <Text style={styles.dangerText}>{t("profile.remove_friend")}</Text>
             </Pressable>
-            <Text style={styles.dangerHint}>
-              Supprime {name} de ta liste d'amis. Vous pourrez redevenir amis en envoyant une nouvelle demande.
-            </Text>
           </View>
         )}
       </ScrollView>

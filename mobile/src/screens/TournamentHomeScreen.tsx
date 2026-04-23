@@ -6,10 +6,12 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ArabesqueDivider, ZelligeBg } from "../components/Patterns";
 import { useTournamentStore } from "../store/tournamentStore";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "TournamentHome">;
 
 export default function TournamentHomeScreen({ navigation }: Props) {
+  const tr = useT();
   const mine = useTournamentStore((s) => s.mine);
   const hydrate = useTournamentStore((s) => s.hydrate);
   useEffect(() => { hydrate(); }, [hydrate]);
@@ -34,45 +36,43 @@ export default function TournamentHomeScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.hero}>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-          <Text style={styles.title}>Tournois</Text>
+          <Text style={styles.title}>{tr("tournaments.title")}</Text>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
         </View>
 
         <View style={styles.actions}>
           <BigAction
-            label="Créer un tournoi"
-            sub="En ligne · championnat · IRL"
+            label={tr("tournaments.create")}
+            sub={tr("tournaments.createSub")}
             onPress={() => navigation.navigate("CreateTournament")}
             primary
           />
           <BigAction
-            label="Rejoindre avec un code"
-            sub="Code à 6 caractères"
+            label={tr("tournaments.join")}
+            sub={tr("tournaments.joinSub")}
             onPress={() => navigation.navigate("JoinTournament")}
           />
         </View>
 
         <View style={styles.myList}>
-          <Text style={styles.sectionLabel}>MES TOURNOIS</Text>
+          <Text style={styles.sectionLabel}>{tr("tournaments.mine")}</Text>
           {mine.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyEmoji}>♕</Text>
-              <Text style={styles.emptyTitle}>Tu n'as pas encore de tournoi</Text>
-              <Text style={styles.emptySub}>
-                Crée ton premier tournoi ou rejoins-en un avec un code partagé par un ami.
-              </Text>
+              <Text style={styles.emptyTitle}>{tr("tournaments.mineEmpty")}</Text>
+              <Text style={styles.emptySub}>{tr("tournaments.mineEmptyBody")}</Text>
             </View>
           ) : (
-            mine.map((t) => (
+            mine.map((row) => (
               <Pressable
-                key={t.id}
+                key={row.id}
                 style={styles.tRow}
-                onPress={() => navigation.navigate("TournamentDetail", { id: t.id })}
+                onPress={() => navigation.navigate("TournamentDetail", { id: row.id })}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.tName}>{t.name}</Text>
+                  <Text style={styles.tName}>{row.name}</Text>
                   <Text style={styles.tMeta}>
-                    {labelFormat(t.format)} · {labelMode(t.mode)} · {t.players.length}/{t.maxPlayers} joueurs · code {t.code}
+                    {labelFormat(row.format)} · {labelMode(row.mode)} · {row.players.length}/{row.maxPlayers} {tr("tournaments.playersShort")} · {tr("tournaments.codeShort")} {row.code}
                   </Text>
                 </View>
                 <Text style={styles.chev}>›</Text>
