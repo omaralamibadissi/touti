@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -18,6 +18,10 @@ import {
   type PlayerStat,
   type PairStat,
 } from "../lib/leaderboard";
+import {
+  apiIndividualRanking,
+  apiPairRanking,
+} from "../net/matchesApi";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Leaderboard">;
 
@@ -39,23 +43,88 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
 
   const friends = useFriendsStore((s) => s.friends);
 
-  // Calculs ────────────────────────────────────────────────────────
-  const globalIndiv = useMemo(() => computeIndividualRanking(matches), [matches]);
-  const globalPairs = useMemo(() => computePairRanking(matches), [matches]);
-
-  const friendsRanking = useMemo(
+  // Calculs locaux (fallback hors-ligne) ───────────────────────────
+  const localGlobalIndiv = useMemo(() => computeIndividualRanking(matches), [matches]);
+  const localGlobalPairs = useMemo(() => computePairRanking(matches), [matches]);
+  const localFriendsRanking = useMemo(
     () => computeFriendsRanking(matches, friends.map((f) => f.name), myName),
     [matches, friends, myName],
   );
-
-  const leagueRanking = useMemo(
+  const localLeagueRanking = useMemo(
     () => (activeLeague ? computeLeagueRanking(matches, activeLeague) : null),
     [matches, activeLeague],
   );
 
+  // Fetch serveur pour le scope + sub actuels
+  const [serverIndiv, setServerIndiv] = useState<PlayerStat[] | null>(null);
+  const [serverPairs, setServerPairs] = useState<PairStat[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [serverErr, setServerErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async (isInitial: boolean) => {
+      if (isInitial) {
+        setLoading(true);
+        setServerErr(null);
+      }
+      try {
+        if (scope === "global") {
+          const [indiv, pairs] = await Promise.all([
+            apiIndividualRanking("global"),
+            apiPairRanking("global"),
+          ]);
+          if (cancelled) return;
+          setServerIndiv(indiv as PlayerStat[]);
+          setServerPairs(pairs.map((p) => ({ ...p, key: `${p.names[0]}|${p.names[1]}` })) as PairStat[]);
+        } else if (scope === "friends") {
+          const friendNames = [myName, ...friends.map((f) => f.name)];
+          const [indiv, pairs] = await Promise.all([
+            apiIndividualRanking("friends", { friends: friendNames }),
+            apiPairRanking("friends", { friends: friendNames }),
+          ]);
+          if (cancelled) return;
+          setServerIndiv(indiv as PlayerStat[]);
+          setServerPairs(pairs.map((p) => ({ ...p, key: `${p.names[0]}|${p.names[1]}` })) as PairStat[]);
+        } else if (scope === "league" && activeLeague) {
+          const [indiv, pairs] = await Promise.all([
+            apiIndividualRanking("league", { leagueId: activeLeague.id }),
+            apiPairRanking("league", { leagueId: activeLeague.id }),
+          ]);
+          if (cancelled) return;
+          setServerIndiv(indiv as PlayerStat[]);
+          setServerPairs(pairs.map((p) => ({ ...p, key: `${p.names[0]}|${p.names[1]}` })) as PairStat[]);
+        }
+      } catch (e: any) {
+        if (!cancelled && isInitial) setServerErr(e?.message ?? "serveur indispo");
+      } finally {
+        if (!cancelled && isInitial) setLoading(false);
+      }
+    };
+    fetchData(true);
+    // Refresh périodique toutes les 60s pour que le classement ne reste pas
+    // figé sur le fetch initial (parties qui arrivent pendant la session).
+    const iv = setInterval(() => fetchData(false), 60_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [scope, activeLeague?.id, friends.length, myName]);
+
+  // Affichage : serveur si dispo, sinon fallback local
+  const globalIndiv = serverIndiv ?? localGlobalIndiv;
+  const globalPairs = serverPairs ?? localGlobalPairs;
+  const friendsRanking = {
+    individual: serverIndiv ?? localFriendsRanking.individual,
+    pairs: serverPairs ?? localFriendsRanking.pairs,
+  };
+  const leagueRanking = activeLeague
+    ? {
+        individual: serverIndiv ?? (localLeagueRanking?.individual ?? []),
+        pairs: serverPairs ?? (localLeagueRanking?.pairs ?? []),
+      }
+    : null;
+
   const handleNamePress = (name: string) => {
     if (name === myName) {
-      navigation.navigate("Profile");
+      navigation.navigate("MainTabs", { screen: "Profile" });
     } else {
       navigation.navigate("PlayerProfile", { name });
     }
@@ -112,7 +181,7 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
               title="Pas d'amis ajoutés"
               sub="Va dans Social pour ajouter tes potes."
               cta="Aller dans Social"
-              onPress={() => navigation.navigate("Social")}
+              onPress={() => navigation.navigate("MainTabs", { screen: "Social" })}
             />
           ) : sub === "indiv" ? (
             <IndivList list={friendsRanking.individual} onPress={handleNamePress} myName={myName} />
@@ -209,10 +278,13 @@ function IndivList({
               {p.name === myName && <Text style={styles.youTag}>VOUS</Text>}
             </View>
             <Text style={styles.rowMeta}>
-              {p.games}p · {p.wins}V · {p.ratio}% · {p.pointsFor}pts
+              {p.games}p · {p.wins}V / {p.losses}D · {p.ratio}% · cumul {p.pointsFor}
             </Text>
           </View>
-          <Text style={styles.rowScore}>{p.wins}</Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.rowScore}>{p.classementPoints ?? (p.wins * 3 - p.losses)}</Text>
+            <Text style={styles.rowScoreSub}>pts</Text>
+          </View>
         </Pressable>
       ))}
     </View>
@@ -247,10 +319,13 @@ function PairsList({
               {p.names[0]} & {p.names[1]}
             </Text>
             <Text style={styles.rowMeta}>
-              {p.games}p · {p.wins}V / {p.losses}D · {p.ratio}%
+              {p.games}p · {p.wins}V / {p.losses}D · cumul {p.pointsFor}
             </Text>
           </View>
-          <Text style={styles.rowScore}>{p.wins}</Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.rowScore}>{p.classementPoints ?? (p.wins * 3 - p.losses)}</Text>
+            <Text style={styles.rowScoreSub}>pts</Text>
+          </View>
         </View>
       ))}
     </View>
@@ -375,7 +450,11 @@ const styles = StyleSheet.create({
   rowName: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: COLORS.cream },
   youTag: { fontSize: 9, color: COLORS.brass, letterSpacing: 1, fontFamily: FONT_UI_BOLD, fontWeight: "700" },
   rowMeta: { fontFamily: FONT_UI, fontSize: 10, color: "rgba(245,235,214,0.55)", marginTop: 2 },
-  rowScore: { fontFamily: FONT_DISPLAY, fontSize: 20, fontWeight: "700", color: COLORS.saffronSoft },
+  rowScore: { fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: "700", color: COLORS.saffronSoft, lineHeight: 24 },
+  rowScoreSub: {
+    fontFamily: FONT_UI_BOLD, fontSize: 9, letterSpacing: 1,
+    color: "rgba(245,235,214,0.55)", fontWeight: "700", marginTop: -1,
+  },
   pairAvatars: { flexDirection: "row" },
 
   emptyBox: {

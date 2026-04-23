@@ -1,102 +1,114 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Platform } from "react-native";
+// Écran Login / Inscription simple par pseudo + mot de passe.
+// Stocke un JWT en SecureStore, tous les appels API sont ensuite authentifiés.
+
+import React, { useState } from "react";
+import {
+  View, Text, StyleSheet, Pressable, TextInput,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
-import { ArabesqueDivider, StarBurst, ZelligeBg } from "../components/Patterns";
-import { useAuthStore, AuthProvider } from "../store/authStore";
-import {
-  fetchFacebookProfile,
-  fetchGoogleProfile,
-  requireConfigured,
-  signInApple,
-  useFacebookAuth,
-  useGoogleAuth,
-} from "../auth/providers";
+import { ArabesqueDivider, ZelligeBg, StarBurst } from "../components/Patterns";
+import { useAuthStore } from "../store/authStore";
+import { hapticChoice, hapticError, hapticSuccess } from "../lib/haptics";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../App";
+
+// ─── Logos officiels (SVG inline) ──────────────────────────────────
+
+function AppleLogo({ size = 20, color = "#fff" }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.75 1.18-.25 2.31-.94 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+      />
+    </Svg>
+  );
+}
+
+function GoogleLogo({ size = 20 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <Path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <Path
+        fill="#FBBC05"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+      />
+      <Path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      />
+    </Svg>
+  );
+}
+
+function FacebookLogo({ size = 20, color = "#fff" }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M24 12.073c0-6.627-5.373-12-12-12S0 5.446 0 12.073c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+      />
+    </Svg>
+  );
+}
+
+type Mode = "welcome" | "signin" | "signup";
 
 export default function SignInScreen() {
-  const signInWithProfile = useAuthStore((s) => s.signInWithProfile);
-  const [loading, setLoading] = useState<AuthProvider | null>(null);
-  const google = useGoogleAuth();
-  const facebook = useFacebookAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [mode, setMode] = useState<Mode>("welcome");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // Réaction aux réponses OAuth Google / Facebook
-  useEffect(() => {
-    (async () => {
-      const r = google.response;
-      if (r?.type !== "success") return;
-      try {
-        const token = r.authentication?.accessToken;
-        if (!token) throw new Error("Pas de token Google.");
-        const profile = await fetchGoogleProfile(token);
-        await signInWithProfile("google", profile);
-      } catch (e) {
-        Alert.alert("Erreur Google", (e as Error).message);
-      } finally {
-        setLoading(null);
-      }
-    })();
-  }, [google.response, signInWithProfile]);
+  const busy = useAuthStore((s) => s.busy);
+  const error = useAuthStore((s) => s.error);
+  const signUp = useAuthStore((s) => s.signUp);
+  const signIn = useAuthStore((s) => s.signIn);
+  const clearError = useAuthStore((s) => s.clearError);
 
-  useEffect(() => {
-    (async () => {
-      const r = facebook.response;
-      if (r?.type !== "success") return;
-      try {
-        const token = r.authentication?.accessToken;
-        if (!token) throw new Error("Pas de token Facebook.");
-        const profile = await fetchFacebookProfile(token);
-        await signInWithProfile("facebook", profile);
-      } catch (e) {
-        Alert.alert("Erreur Facebook", (e as Error).message);
-      } finally {
-        setLoading(null);
-      }
-    })();
-  }, [facebook.response, signInWithProfile]);
-
-  const handleApple = async () => {
-    setLoading("apple");
+  const onSignIn = async () => {
+    clearError();
+    hapticChoice();
     try {
-      const profile = await signInApple();
-      await signInWithProfile("apple", profile);
-    } catch (e) {
-      Alert.alert("Erreur Apple", (e as Error).message);
-    } finally {
-      setLoading(null);
+      await signIn({ username: username.trim(), password });
+      hapticSuccess();
+    } catch {
+      hapticError();
+    }
+  };
+  const onSignUp = async () => {
+    clearError();
+    hapticChoice();
+    try {
+      await signUp({
+        username: username.trim(),
+        password,
+        email: email.trim() || undefined,
+      });
+      hapticSuccess();
+    } catch {
+      hapticError();
     }
   };
 
-  const handleGoogle = async () => {
-    setLoading("google");
-    try {
-      requireConfigured("google");
-      const res = await google.promptAsync();
-      if (res.type !== "success") {
-        setLoading(null);
-        if (res.type === "error") Alert.alert("Erreur Google", "Connexion annulée ou refusée.");
-      }
-      // Le reste est géré par le useEffect sur google.response
-    } catch (e) {
-      Alert.alert("Erreur Google", (e as Error).message);
-      setLoading(null);
-    }
-  };
-
-  const handleFacebook = async () => {
-    setLoading("facebook");
-    try {
-      requireConfigured("facebook");
-      const res = await facebook.promptAsync();
-      if (res.type !== "success") {
-        setLoading(null);
-        if (res.type === "error") Alert.alert("Erreur Facebook", "Connexion annulée ou refusée.");
-      }
-    } catch (e) {
-      Alert.alert("Erreur Facebook", (e as Error).message);
-      setLoading(null);
-    }
-  };
+  const canSignIn = username.trim().length >= 3 && password.length >= 6;
+  const canSignUp =
+    canSignIn &&
+    /^[a-zA-Z0-9_-]+$/.test(username.trim()) &&
+    acceptedTerms;
 
   return (
     <View style={styles.root}>
@@ -108,137 +120,276 @@ export default function SignInScreen() {
       <View style={[StyleSheet.absoluteFill, { opacity: 0.08 }]} pointerEvents="none">
         <ZelligeBg color={COLORS.terracottaDark} accent={COLORS.saffronSoft} size={70} />
       </View>
-      <View style={styles.starWrap} pointerEvents="none">
-        <StarBurst size={420} color={COLORS.saffronSoft} strokeW={0.6} />
+      <View style={{ position: "absolute", top: -60, right: -80, opacity: 0.25 }} pointerEvents="none">
+        <StarBurst size={320} color={COLORS.saffronSoft} strokeW={0.7} />
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.hero}>
-          <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-          <Text style={styles.title}>TOUTI</Text>
-          <Text style={styles.subtitle}>LE JEU DE CARTES MAROCAIN</Text>
-          <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-        </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.hero}>
+            <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
+            <Text style={styles.title}>TOUTI</Text>
+            <Text style={styles.subtitle}>LE JEU DE CARTES MAROCAIN</Text>
+            <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
+          </View>
 
-        <Text style={styles.welcome}>Bienvenue</Text>
-        <Text style={styles.prompt}>Connecte-toi pour commencer</Text>
+          {mode === "welcome" && (
+            <View style={styles.block}>
+              <Text style={styles.intro}>
+                Pour jouer en ligne, créer des ligues et participer à des tournois,
+                il te faut un compte.
+              </Text>
 
-        <View style={styles.buttons}>
-          {Platform.OS === "ios" && (
-            <ProviderButton
-              label="Continuer avec Apple"
-              loading={loading === "apple"}
-              onPress={handleApple}
-              background="#000"
-              color="#fff"
-              icon={<AppleIcon />}
-            />
+              {/* OAuth providers */}
+              <OAuthButton
+                provider="apple"
+                label="Continuer avec Apple"
+                renderIcon={() => <AppleLogo color="#fff" />}
+                bg="#000"
+                fg="#fff"
+              />
+              <OAuthButton
+                provider="google"
+                label="Continuer avec Google"
+                renderIcon={() => <GoogleLogo />}
+                bg="#fff"
+                fg="#3c4043"
+              />
+              <OAuthButton
+                provider="facebook"
+                label="Continuer avec Facebook"
+                renderIcon={() => <FacebookLogo color="#fff" />}
+                bg="#1877F2"
+                fg="#fff"
+              />
+
+              <View style={styles.separator}>
+                <View style={styles.sepLine} />
+                <Text style={styles.sepText}>OU</Text>
+                <View style={styles.sepLine} />
+              </View>
+
+              <Pressable
+                onPress={() => { clearError(); setMode("signup"); }}
+                style={styles.primaryBtn}
+              >
+                <LinearGradient
+                  colors={[COLORS.saffron, COLORS.brassDeep]}
+                  start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.primaryText}>Créer un compte (pseudo)</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { clearError(); setMode("signin"); }}
+                style={[styles.primaryBtn, styles.secondaryBtn]}
+              >
+                <Text style={[styles.primaryText, { color: COLORS.cream }]}>J'ai déjà un compte</Text>
+              </Pressable>
+            </View>
           )}
-          <ProviderButton
-            label="Continuer avec Google"
-            loading={loading === "google"}
-            onPress={handleGoogle}
-            disabled={!google.request}
-            background="#fff"
-            color="#1F1F1F"
-            icon={<GoogleIcon />}
-          />
-          <ProviderButton
-            label="Continuer avec Facebook"
-            loading={loading === "facebook"}
-            onPress={handleFacebook}
-            disabled={!facebook.request}
-            background="#1877F2"
-            color="#fff"
-            icon={<FacebookIcon />}
-          />
-        </View>
 
-        <Text style={styles.tos}>
-          En continuant, tu acceptes les conditions d'utilisation
-        </Text>
-      </View>
+          {(mode === "signin" || mode === "signup") && (
+            <View style={styles.block}>
+              <Text style={styles.formTitle}>
+                {mode === "signup" ? "Créer un compte" : "Connexion"}
+              </Text>
+
+              <View>
+                <Text style={styles.label}>PSEUDO</Text>
+                <TextInput
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder="ton_pseudo"
+                  placeholderTextColor="rgba(245,235,214,0.4)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={24}
+                  style={styles.input}
+                />
+                {mode === "signup" && (
+                  <Text style={styles.hint}>
+                    3-24 caractères · lettres, chiffres, _ ou -
+                  </Text>
+                )}
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>MOT DE PASSE</Text>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••"
+                  placeholderTextColor="rgba(245,235,214,0.4)"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  style={styles.input}
+                />
+                {mode === "signup" && (
+                  <Text style={styles.hint}>6 caractères minimum</Text>
+                )}
+              </View>
+
+              {mode === "signup" && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.label}>EMAIL (OPTIONNEL)</Text>
+                  <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="toi@email.com"
+                    placeholderTextColor="rgba(245,235,214,0.4)"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    style={styles.input}
+                  />
+                  <Text style={styles.hint}>
+                    Utile plus tard pour récupérer ton compte
+                  </Text>
+                </View>
+              )}
+
+              {mode === "signup" && (
+                <Pressable
+                  onPress={() => setAcceptedTerms((v) => !v)}
+                  style={styles.termsRow}
+                >
+                  <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+                    {acceptedTerms && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.termsText}>
+                    J'ai lu et j'accepte les{" "}
+                    <Text
+                      style={styles.termsLink}
+                      onPress={() => navigation.navigate("Terms", { section: "terms" })}
+                    >
+                      CGU
+                    </Text>
+                    {" "}et la{" "}
+                    <Text
+                      style={styles.termsLink}
+                      onPress={() => navigation.navigate("Terms", { section: "privacy" })}
+                    >
+                      politique de confidentialité
+                    </Text>
+                    .
+                  </Text>
+                </Pressable>
+              )}
+
+              {error && (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
+              <Pressable
+                onPress={mode === "signup" ? onSignUp : onSignIn}
+                disabled={busy || !(mode === "signup" ? canSignUp : canSignIn)}
+                style={[
+                  styles.primaryBtn,
+                  { marginTop: 16 },
+                  (busy || !(mode === "signup" ? canSignUp : canSignIn)) && { opacity: 0.5 },
+                ]}
+              >
+                <LinearGradient
+                  colors={[COLORS.saffron, COLORS.brassDeep]}
+                  start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                {busy ? (
+                  <ActivityIndicator color={COLORS.terracottaDark} />
+                ) : (
+                  <Text style={styles.primaryText}>
+                    {mode === "signup" ? "Créer le compte" : "Se connecter"}
+                  </Text>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  clearError();
+                  setMode(mode === "signup" ? "signin" : "signup");
+                }}
+                style={{ marginTop: 14, alignItems: "center" }}
+              >
+                <Text style={styles.toggleText}>
+                  {mode === "signup"
+                    ? "J'ai déjà un compte · Me connecter"
+                    : "Pas encore de compte · Créer"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => { clearError(); setMode("welcome"); }}
+                style={{ marginTop: 8, alignItems: "center" }}
+              >
+                <Text style={[styles.toggleText, { fontSize: 11, opacity: 0.6 }]}>
+                  ← Retour
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
-function ProviderButton({
+// Bouton OAuth — pour l'instant l'UI est là, mais tap affiche une explication
+// honnête : la config provider (client IDs + bundle IDs + Apple Dev account)
+// doit être faite et il faut un build natif (Expo Go ne supporte pas).
+function OAuthButton({
+  provider,
   label,
-  loading,
-  onPress,
-  background,
-  color,
-  icon,
-  disabled,
+  renderIcon,
+  bg,
+  fg,
 }: {
+  provider: "apple" | "google" | "facebook";
   label: string;
-  loading: boolean;
-  onPress: () => void;
-  background: string;
-  color: string;
-  icon: React.ReactNode;
-  disabled?: boolean;
+  renderIcon: () => React.ReactNode;
+  bg: string;
+  fg: string;
 }) {
-  const isDisabled = disabled || loading;
+  const requirements: Record<string, string> = {
+    apple: "compte Apple Developer actif + app dans Xcode signée + build natif EAS",
+    google: "Google Cloud OAuth client + build natif EAS (ne fonctionne pas dans Expo Go)",
+    facebook: "Meta Developer app configurée + build natif EAS",
+  };
+  const onPress = () => {
+    Alert.alert(
+      `Connexion ${provider} · bientôt`,
+      `Le serveur est prêt à vérifier les tokens ${provider}.\n\nIl reste à faire : ${requirements[provider]}.\n\nPour l'instant, utilise pseudo + mot de passe.`,
+    );
+  };
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={isDisabled}
-      style={({ pressed }) => [
-        styles.btn,
-        { backgroundColor: background, opacity: pressed || isDisabled ? 0.85 : 1 },
-      ]}
-    >
-      <View style={styles.btnIcon}>{loading ? <ActivityIndicator color={color} size="small" /> : icon}</View>
-      <Text style={[styles.btnLabel, { color }]}>{label}</Text>
-      <View style={{ width: 24 }} />
+    <Pressable onPress={onPress} style={[styles.oauthBtn, { backgroundColor: bg }]}>
+      {renderIcon()}
+      <Text style={[styles.oauthLabel, { color: fg }]}>{label}</Text>
     </Pressable>
   );
 }
 
-function AppleIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Path
-        fill="#fff"
-        d="M17.05 20.28c-.98.95-2.05.88-3.08.41-1.09-.47-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.41C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09ZM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25Z"
-      />
-    </Svg>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Path
-        fill="#EA4335"
-        d="M12 10.2v3.85h5.35c-.22 1.41-1.66 4.14-5.35 4.14a6.02 6.02 0 010-12.04c1.9 0 3.18.81 3.9 1.5l2.67-2.56A9.68 9.68 0 0012 2a10 10 0 100 20c5.78 0 9.61-4.06 9.61-9.77 0-.66-.07-1.17-.16-1.68H12Z"
-      />
-    </Svg>
-  );
-}
-
-function FacebookIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Path
-        fill="#fff"
-        d="M22 12a10 10 0 10-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.5-3.9 3.8-3.9 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.9h-2.34v6.98A10 10 0 0022 12Z"
-      />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.terracottaDark },
-  starWrap: { position: "absolute", top: -80, left: "50%", marginLeft: -210, opacity: 0.1 },
+  root: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
+    paddingTop: 100,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
 
-  content: { flex: 1, paddingHorizontal: 28, paddingTop: 80, paddingBottom: 50, justifyContent: "space-between" },
-
-  hero: { alignItems: "center", gap: 8 },
+  hero: { alignItems: "center", gap: 6, marginBottom: 20 },
   title: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 72,
+    fontSize: 64,
     color: COLORS.saffronSoft,
     letterSpacing: 4,
     fontWeight: "700",
@@ -248,58 +399,183 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: FONT_UI_BOLD,
-    fontSize: 11,
-    color: COLORS.cream,
-    letterSpacing: 6,
+    fontSize: 10,
+    letterSpacing: 4,
+    color: COLORS.brass,
     fontWeight: "700",
-    fontStyle: "italic",
-    opacity: 0.85,
   },
 
-  welcome: {
-    fontFamily: FONT_UI_BOLD,
-    fontSize: 26,
-    fontWeight: "800",
-    color: COLORS.cream,
-    textAlign: "center",
-    marginTop: 30,
+  block: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+    borderRadius: 18,
+    padding: 20,
+    marginTop: 8,
   },
-  prompt: {
+  intro: {
     fontFamily: FONT_UI,
     fontSize: 14,
-    color: "rgba(245,235,214,0.75)",
+    color: COLORS.cream,
+    lineHeight: 20,
+    marginBottom: 16,
     textAlign: "center",
-    marginTop: 6,
-    letterSpacing: 0.5,
+  },
+  formTitle: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 22,
+    color: COLORS.saffronSoft,
+    fontWeight: "700",
+    marginBottom: 14,
+    textAlign: "center",
   },
 
-  buttons: { gap: 10 },
-  btn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  btnIcon: { width: 24, alignItems: "center" },
-  btnLabel: {
-    flex: 1,
-    textAlign: "center",
+  label: {
     fontFamily: FONT_UI_BOLD,
-    fontSize: 15,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: COLORS.brass,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 1,
+    borderColor: `${COLORS.brass}55`,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: FONT_UI,
+    fontSize: 16,
+    color: COLORS.cream,
+  },
+  hint: {
+    fontFamily: FONT_UI,
+    fontSize: 10,
+    color: "rgba(245,235,214,0.5)",
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+
+  primaryBtn: {
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    minHeight: 52,
+    marginTop: 10,
+  },
+  secondaryBtn: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}55`,
+  },
+  primaryText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.terracottaDark,
+    letterSpacing: 0.3,
+  },
+  toggleText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 12,
+    color: COLORS.saffronSoft,
+    letterSpacing: 1,
     fontWeight: "700",
   },
 
-  tos: {
+  errorBox: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(232,85,58,0.15)",
+    borderRadius: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: "#E8553A",
+  },
+  errorText: {
     fontFamily: FONT_UI,
-    fontSize: 11,
+    fontSize: 12,
+    color: "#E8553A",
+    fontWeight: "600",
+    lineHeight: 17,
+  },
+
+  oauthBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 10,
+    borderWidth: 0.5,
+    borderColor: "rgba(245,235,214,0.15)",
+  },
+  oauthIcon: {
+    fontSize: 18,
+    fontFamily: FONT_UI_BOLD,
+    fontWeight: "800",
+  },
+  oauthLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  separator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginVertical: 14,
+  },
+  sepLine: {
+    flex: 1,
+    height: 0.5,
+    backgroundColor: "rgba(245,235,214,0.2)",
+  },
+  sepText: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10,
+    letterSpacing: 2,
     color: "rgba(245,235,214,0.5)",
-    textAlign: "center",
-    letterSpacing: 0.5,
+    fontWeight: "700",
+  },
+
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: 14,
+    paddingHorizontal: 2,
+  },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 1.5, borderColor: `${COLORS.brass}88`,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center", justifyContent: "center",
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.saffron,
+    borderColor: COLORS.saffron,
+  },
+  checkmark: {
+    color: COLORS.terracottaDark,
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 14, fontWeight: "800",
+  },
+  termsText: {
+    flex: 1,
+    fontFamily: FONT_UI,
+    fontSize: 12,
+    color: "rgba(245,235,214,0.85)",
+    lineHeight: 17,
+  },
+  termsLink: {
+    color: COLORS.saffronSoft,
+    textDecorationLine: "underline",
+    fontWeight: "700",
   },
 });

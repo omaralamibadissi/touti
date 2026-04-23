@@ -9,13 +9,14 @@ export interface PlayerStat {
   games: number;
   wins: number;
   losses: number;
-  ratio: number;          // 0..100
-  pointsFor: number;      // total de points marqués dans ses parties
+  ratio: number;                // 0..100
+  pointsFor: number;            // total des scores marqués (brut, cumul)
   pointsAgainst: number;
+  classementPoints: number;     // 3 × victoires − 1 × défaites
 }
 
 export interface PairStat {
-  key: string;            // "A|B" tri alphabétique
+  key: string;
   names: [string, string];
   games: number;
   wins: number;
@@ -23,6 +24,7 @@ export interface PairStat {
   ratio: number;
   pointsFor: number;
   pointsAgainst: number;
+  classementPoints: number;
 }
 
 function isAppMatch(m: MatchEntry): boolean {
@@ -80,10 +82,16 @@ export function computeIndividualRanking(matches: MatchEntry[]): PlayerStat[] {
   const arr = Array.from(byName.values()).map((s) => ({
     ...s,
     ratio: s.games === 0 ? 0 : Math.round((s.wins / s.games) * 100),
+    classementPoints: s.wins * 3 - s.losses,
   }));
 
-  // Tri : wins desc, puis ratio desc, puis points desc
-  arr.sort((a, b) => b.wins - a.wins || b.ratio - a.ratio || b.pointsFor - a.pointsFor);
+  // Tri : classementPoints (3V - 1D) desc, puis cumul brut, puis ratio
+  arr.sort(
+    (a, b) =>
+      b.classementPoints - a.classementPoints ||
+      b.pointsFor - a.pointsFor ||
+      b.ratio - a.ratio,
+  );
   return arr;
 }
 
@@ -121,8 +129,14 @@ export function computePairRanking(matches: MatchEntry[]): PairStat[] {
   const arr = Array.from(byPair.values()).map((s) => ({
     ...s,
     ratio: s.games === 0 ? 0 : Math.round((s.wins / s.games) * 100),
+    classementPoints: s.wins * 3 - s.losses,
   }));
-  arr.sort((a, b) => b.wins - a.wins || b.ratio - a.ratio || b.pointsFor - a.pointsFor);
+  arr.sort(
+    (a, b) =>
+      b.classementPoints - a.classementPoints ||
+      b.pointsFor - a.pointsFor ||
+      b.ratio - a.ratio,
+  );
   return arr;
 }
 
@@ -163,8 +177,8 @@ export function computeFriendsRanking(
 
 // Helpers
 function baseStat(name: string): PlayerStat {
-  return { name, games: 0, wins: 0, losses: 0, ratio: 0, pointsFor: 0, pointsAgainst: 0 };
+  return { name, games: 0, wins: 0, losses: 0, ratio: 0, pointsFor: 0, pointsAgainst: 0, classementPoints: 0 };
 }
 function basePair(key: string, names: [string, string]): PairStat {
-  return { key, names, games: 0, wins: 0, losses: 0, ratio: 0, pointsFor: 0, pointsAgainst: 0 };
+  return { key, names, games: 0, wins: 0, losses: 0, ratio: 0, pointsFor: 0, pointsAgainst: 0, classementPoints: 0 };
 }

@@ -8,6 +8,8 @@ import {
   Easing,
   useWindowDimensions,
   ScrollView,
+  Alert,
+  PanResponder,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Ellipse } from "react-native-svg";
@@ -45,15 +47,18 @@ import {
   CARD_STRENGTH,
   Suit,
   SUIT_LABELS,
+  sanitize,
 } from "@touti/shared";
 import { useMatchHistoryStore } from "../store/matchHistoryStore";
-import { playSound } from "../sound/soundManager";
+import { playSound, isSoundEnabled, setSoundEnabled, stopAllSounds } from "../sound/soundManager";
 import { ChatLauncher, ChatBubble, QUICK_MESSAGES } from "../components/GameChat";
 import { useGameSource, GameMode } from "../store/gameSource";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { useNetGameStore } from "../store/netGameStore";
 import { useAuthStore } from "../store/authStore";
+import { apiReport, type ReportReason } from "../net/reportsApi";
+import { Coachmark, type CoachmarkStep } from "../components/Coachmark";
 
 // Ordre d'affichage demandé : oros, copas, espadas, bastos.
 // À l'intérieur d'une couleur : plus fort → plus faible (As, Triss, Rey, Caballo, Sota, 7, 6, 5, 4, 2).
@@ -78,6 +83,10 @@ type Props = NativeStackScreenProps<RootStackParamList, "Game">;
 
 export default function GameScreen({ route, navigation }: Props) {
   const mode: GameMode = (route.params?.mode as GameMode) ?? "local";
+  // Si la route demande explicitement le tutoriel (replay depuis Settings),
+  // on force les coachmarks pour cette session même si markCoachmarksDone()
+  // a déjà été appelé précédemment.
+  const forceTutorial = route.params?.tutorial === true;
   const src = useGameSource(mode, {
     localBid: bid,
     localChooseTrump: chooseTrump,
@@ -92,15 +101,45 @@ export default function GameScreen({ route, navigation }: Props) {
   const setState = src.setLocalState;
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [shakeMap, setShakeMap] = useState<Record<string, number>>({});
-  const [dealAnim, setDealAnim] = useState<{ round: number } | null>({ round: 1 });
+  // `dealAnim` masque la main et gèle les handlers IA pendant l'animation
+  // de distribution. En local on démarre l'anim au montage (round 1). En net,
+  // on n'initialise PAS l'anim : le serveur peut nous dropper à n'importe
+  // quelle phase (reconnexion, spectateur, join en cours de partie), et il
+  // ne faut pas masquer la main par défaut — le hook qui gère `state.phase`
+  // déclenchera `setDealAnim` uniquement quand on voit réellement démarrer
+  // une manche côté serveur.
+  const [dealAnim, setDealAnim] = useState<{ round: number } | null>(
+    mode === "local" ? { round: 1 } : null,
+  );
   const [bubbles, setBubbles] = useState<Record<Seat, { text: string; key: number } | null>>({
     0: null, 1: null, 2: null, 3: null,
   });
   const [showLastTrick, setShowLastTrick] = useState(false);
   const [showScoreSheet, setShowScoreSheet] = useState(false);
+  const [reportTarget, setReportTarget] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  // Modal de choix affiché après le "farewell" du tuto : continuer la partie
+  // ou quitter pour enchaîner sur le tuto des menus.
+  const [showTutoEndChoice, setShowTutoEndChoice] = useState(false);
+  const [soundOn, setSoundOn] = useState<boolean>(isSoundEnabled());
+  const isSpectator = useNetGameStore((s) => s.isSpectator);
   const { width: SW, height: SH } = useWindowDimensions();
 
-  // Historique auto des manches (pour le panneau de suivi)
+  // Coachmarks (1ère partie solo du compte) — tutoriel guidé événementiel,
+  // déclenché au fur et à mesure que la manche se déroule.
+  const coachmarksDone = useAuthStore((s) => s.coachmarksDone);
+  const markCoachmarksDone = useAuthStore((s) => s.markCoachmarksDone);
+  const trumpRef = useRef<View>(null);
+  const scoreRef = useRef<View>(null);
+  const handRef = useRef<View>(null);
+  const pauseRef = useRef<View>(null);
+  const lastTrickRef = useRef<View>(null);
+  const scoreSheetRef = useRef<View>(null);
+  const tutShownRef = useRef<Set<string>>(new Set());
+  const [tutActiveId, setTutActiveId] = useState<string | null>(null);
+
+  // Historique auto des manches (pour le panneau de suivi + replay)
+  type TrickSnap = { entries: import("@touti/shared").TrickEntry[]; winner: Seat };
   type RoundSnap = {
     round: number;
     scoreA: number;
@@ -110,14 +149,69 @@ export default function GameScreen({ route, navigation }: Props) {
     bidWinner: Seat | null;
     bidAmount: number | null;
     bidTeam: "A" | "B" | null;
+    trump: string | null;
+    tricks: TrickSnap[];          // tous les plis de la manche, dans l'ordre
   };
   const [roundHistory, setRoundHistory] = useState<RoundSnap[]>([]);
   const lastSnapRoundRef = useRef<number>(0);
+  // Plis joués pendant la manche en cours (accumulés via lastTrick à chaque fin de pli)
+  const [currentRoundTricks, setCurrentRoundTricks] = useState<TrickSnap[]>([]);
+  const lastTrickSeenRef = useRef<TrickSnap | null>(null);
+
+  // Accumule les plis au fur et à mesure qu'ils se terminent
+  useEffect(() => {
+    if (!state.lastTrick) return;
+    const lt = state.lastTrick;
+    // On ne push qu'une fois par pli unique
+    const same =
+      lastTrickSeenRef.current &&
+      lastTrickSeenRef.current.winner === lt.winner &&
+      lastTrickSeenRef.current.entries.length === lt.entries.length &&
+      lastTrickSeenRef.current.entries.every(
+        (e, i) => e.player === lt.entries[i].player &&
+                  e.card.suit === lt.entries[i].card.suit &&
+                  e.card.rank === lt.entries[i].card.rank,
+      );
+    if (same) return;
+    const snap: TrickSnap = { entries: [...lt.entries], winner: lt.winner };
+    lastTrickSeenRef.current = snap;
+    setCurrentRoundTricks((prev) => [...prev, snap]);
+  }, [state.lastTrick]);
+
+  // Reset des plis quand une nouvelle manche démarre
+  useEffect(() => {
+    if (state.phase === "bidding" && state.trickNumber === 1) {
+      setCurrentRoundTricks([]);
+      lastTrickSeenRef.current = null;
+    }
+  }, [state.roundNumber, state.phase, state.trickNumber]);
+
   useEffect(() => {
     // Snapshot à la fin de chaque manche (quand message est settlé)
     if (state.phase !== "round-end" || state.message == null) return;
     if (lastSnapRoundRef.current === state.roundNumber) return;
     lastSnapRoundRef.current = state.roundNumber;
+
+    // Inclut le DERNIER pli dans les tricks. Le dernier pli passe phase direct
+    // à "round-end" (sans passer par trick-end) donc l'effet d'accumulation
+    // n'a parfois pas encore committé son setState à ce moment.
+    const finalTricks: TrickSnap[] = [...currentRoundTricks];
+    const lt = state.lastTrick;
+    if (lt) {
+      const alreadyIn = finalTricks.some((t) =>
+        t.winner === lt.winner &&
+        t.entries.length === lt.entries.length &&
+        t.entries.every((e, i) =>
+          e.player === lt.entries[i].player &&
+          e.card.suit === lt.entries[i].card.suit &&
+          e.card.rank === lt.entries[i].card.rank,
+        ),
+      );
+      if (!alreadyIn) {
+        finalTricks.push({ entries: [...lt.entries], winner: lt.winner });
+      }
+    }
+
     setRoundHistory((prev) => {
       const prevTotalA = prev.length ? prev[prev.length - 1].scoreA : 0;
       const prevTotalB = prev.length ? prev[prev.length - 1].scoreB : 0;
@@ -132,10 +226,12 @@ export default function GameScreen({ route, navigation }: Props) {
         bidWinner: state.bidWinner,
         bidAmount: state.bidAmount,
         bidTeam,
+        trump: state.trump ?? null,
+        tricks: finalTricks,
       };
       return [...prev, snap];
     });
-  }, [state.phase, state.message, state.roundNumber]);
+  }, [state.phase, state.message, state.roundNumber, currentRoundTricks, state.lastTrick]);
 
   // Trigger animation de distribution à chaque nouvelle manche
   useEffect(() => {
@@ -144,14 +240,94 @@ export default function GameScreen({ route, navigation }: Props) {
     }
   }, [state.roundNumber, state.phase, state.trickNumber]);
 
-  // Helper : affiche une bulle pour le siège X, disparaît après 3s
-  const showBubble = (seat: Seat, text: string) => {
+  // Helper : affiche une bulle pour le siège X, disparaît après `ms` ms (3s par défaut)
+  const showBubble = (seat: Seat, text: string, ms: number = 3000) => {
     const key = Date.now();
     setBubbles((b) => ({ ...b, [seat]: { text, key } }));
     setTimeout(() => {
       setBubbles((b) => (b[seat]?.key === key ? { ...b, [seat]: null } : b));
-    }, 3000);
+    }, ms);
   };
+
+  // Bulles de dires pendant les enchères (et Ghna). Persistent jusqu'à la fin
+  // des enchères : si le même joueur parle à nouveau, sa bulle est mise à jour
+  // (70 → 90). Elles disparaissent quand la phase devient "playing".
+  const [bidBubbles, setBidBubbles] = useState<Record<Seat, string | null>>({
+    0: null, 1: null, 2: null, 3: null,
+  });
+
+  const bidHistoryLenRef = useRef(0);
+  useEffect(() => {
+    // Source : historique actif (phase=bidding) OU snapshot final (après fermeture)
+    const history = state.bidding?.history ?? state.lastBidHistory ?? [];
+    if (history.length <= bidHistoryLenRef.current) {
+      bidHistoryLenRef.current = history.length;
+      return;
+    }
+    for (let i = bidHistoryLenRef.current; i < history.length; i++) {
+      const h = history[i];
+      const label =
+        h.action.kind === "bid" ? `${h.action.amount}`
+        : h.action.kind === "pass" ? "passe"
+        : h.action.signal === "as" ? "un As"
+        : "un Compte";
+      setBidBubbles((b) => ({ ...b, [h.seat]: label }));
+    }
+    bidHistoryLenRef.current = history.length;
+  }, [state.bidding?.history, state.lastBidHistory]);
+
+  // Bulle pour annonce de Ghna — remplace celle d'enchère si déjà là
+  const ghnaLenRef = useRef(0);
+  useEffect(() => {
+    const list = state.ghnaAnnounced ?? [];
+    if (list.length <= ghnaLenRef.current) {
+      ghnaLenRef.current = list.length;
+      return;
+    }
+    for (let i = ghnaLenRef.current; i < list.length; i++) {
+      const a = list[i];
+      // Ghna 20 : on précise la couleur (3 cartes même couleur — utile de voir laquelle)
+      // Ghna 40 : pas besoin (c'est forcément Touti = atout)
+      const suitName = SUIT_LABELS[a.suit]?.dr ?? a.suit;
+      const label = a.value === 20 ? `Ghna · ${a.value} · ${suitName}` : `Ghna · ${a.value}`;
+      setBidBubbles((b) => ({ ...b, [a.seat]: label }));
+    }
+    ghnaLenRef.current = list.length;
+  }, [state.ghnaAnnounced]);
+
+  // Quand les enchères se terminent (phase passe de bidding/choosing-trump/ghna
+  // à playing/trick-end/round-end/game-end), on laisse les dernières bulles
+  // visibles 12s avant de les clear. Permet de bien voir le dernier dire de
+  // chacun après la fermeture des enchères.
+  const bidClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const isPostBidding =
+      state.phase === "playing" ||
+      state.phase === "trick-end" ||
+      state.phase === "round-end" ||
+      state.phase === "game-end";
+    if (!isPostBidding) return;
+    // Un timer déjà en cours → on le laisse tourner (pas de reset entre les
+    // sous-phases de jeu qui s'enchaînent rapidement)
+    if (bidClearTimerRef.current) return;
+    bidClearTimerRef.current = setTimeout(() => {
+      setBidBubbles({ 0: null, 1: null, 2: null, 3: null });
+      bidClearTimerRef.current = null;
+    }, 3_000);
+  }, [state.phase]);
+
+  // Reset refs quand une nouvelle manche démarre
+  useEffect(() => {
+    if (state.phase === "bidding" && state.trickNumber === 1) {
+      bidHistoryLenRef.current = 0;
+      ghnaLenRef.current = 0;
+      setBidBubbles({ 0: null, 1: null, 2: null, 3: null });
+      if (bidClearTimerRef.current) {
+        clearTimeout(bidClearTimerRef.current);
+        bidClearTimerRef.current = null;
+      }
+    }
+  }, [state.roundNumber, state.phase, state.trickNumber]);
 
   // Chat entrant (net mode) → bulle sur le siège de l'émetteur (remappé)
   const netChatLog = useNetGameStore((s) => s.chatLog);
@@ -175,12 +351,18 @@ export default function GameScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (state.phase === "trick-end") playSound("trickWin");
   }, [state.phase, state.trickNumber]);
-  // Son léger à chaque carte posée
-  const [lastTrickLen, setLastTrickLen] = useState(0);
+  // Son léger à chaque NOUVELLE carte posée. On track trickNumber + length
+  // pour dédupliquer entre manches (trick.length peut passer de 4 → 0 en fin
+  // de pli puis remonter, ou l'objet trick peut être remplacé avec même
+  // longueur après re-sync réseau sans qu'aucune vraie carte n'ait été posée).
+  const lastCardKeyRef = useRef<string>("");
   useEffect(() => {
-    if (state.trick.length > lastTrickLen) playSound("cardPlay");
-    setLastTrickLen(state.trick.length);
-  }, [state.trick.length]);
+    const key = `${state.roundNumber}:${state.trickNumber}:${state.trick.length}`;
+    if (state.trick.length > 0 && key !== lastCardKeyRef.current) {
+      playSound("cardPlay");
+    }
+    lastCardKeyRef.current = key;
+  }, [state.roundNumber, state.trickNumber, state.trick.length]);
   useEffect(() => {
     if (state.phase === "round-end" && state.message != null) playSound("roundEnd");
   }, [state.phase, state.message]);
@@ -189,6 +371,179 @@ export default function GameScreen({ route, navigation }: Props) {
       playSound(state.score.A > state.score.B ? "gameWin" : "gameLose");
     }
   }, [state.phase]);
+
+  // Nettoyage : coupe tous les sons au démontage du GameScreen (ex : deal
+  // toujours en cours, trickWin qui sonne juste avant quit, etc.)
+  useEffect(() => {
+    return () => { stopAllSounds().catch(() => {}); };
+  }, []);
+
+  // Tutoriel événementiel : un seul tooltip à la fois, déclenché par les
+  // transitions du jeu. Joue sur toute la 1ère manche (solo uniquement).
+  // Les "steps" sont évalués en priorité descendante : le premier dont la
+  // condition `when` est vraie ET qui n'a pas encore été vu devient actif.
+  const tutSteps: {
+    id: string;
+    when: () => boolean;
+    text: string;
+    targetRef: React.RefObject<View | null> | null;
+    placement?: "above" | "below" | "auto";
+  }[] = [
+    {
+      id: "welcome",
+      when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
+      text:
+        "Salut. Je t'accompagne sur cette 1ère manche. Tu as 10 cartes en main. Les 3 autres joueurs ont aussi 10 cartes (cachées). Ton partenaire est face à toi — vous êtes une équipe.",
+      targetRef: handRef,
+      placement: "above",
+    },
+    {
+      id: "score-hud",
+      when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
+      text:
+        "En haut, le score cumulé de la partie : « Nous » (toi + partenaire) vs « Eux ». Il se met à jour à la FIN de chaque manche, pas pendant. Premier à 600 points gagne.",
+      targetRef: scoreRef,
+      placement: "below",
+    },
+    {
+      id: "bid-intro",
+      when: () => !dealAnim && state.phase === "bidding" && state.bidding != null,
+      text:
+        "Phase des enchères (Chra). Chacun son tour, 3 options : MISER un multiple de 10 entre 70 et 230 · PASSER · ou SIGNALER (« un As » / « un Compte ») pour aider ton partenaire.",
+      targetRef: trumpRef,
+      placement: "below",
+    },
+    {
+      id: "bid-your-turn",
+      when: () =>
+        !dealAnim &&
+        state.phase === "bidding" &&
+        state.bidding?.currentSeat === 0,
+      text:
+        "À toi. Mise si tu penses que ton équipe peut capturer au moins ce score. Sinon passe (attention : si tu passes, tu es OUT pour ce tour d'enchères). Tant que tu n'as pas signalé ni passé, tu peux relancer au tour suivant.",
+      targetRef: handRef,
+      placement: "above",
+    },
+    {
+      id: "trump-set",
+      when: () => state.phase === "playing" && state.trump != null && state.trickNumber === 1 && state.trick.length === 0,
+      text:
+        "L'atout est choisi par le meilleur misseur. C'est la couleur maîtresse : toute carte d'atout bat les 3 autres couleurs.",
+      targetRef: trumpRef,
+      placement: "below",
+    },
+    {
+      id: "play-intro",
+      when: () =>
+        state.phase === "playing" &&
+        state.currentPlayer === 0 &&
+        state.trickNumber === 1 &&
+        state.roundNumber === 1,
+      text:
+        "À toi de jouer. Règle : tu DOIS suivre la couleur ouverte si tu l'as — et MONTER plus fort si tu peux. Sinon, tu DOIS couper avec un atout. Si un atout est déjà posé, tu dois SURCOUPER plus haut.",
+      targetRef: handRef,
+      placement: "above",
+    },
+    {
+      id: "cards-value",
+      when: () =>
+        state.phase === "trick-end" &&
+        state.trickNumber === 1,
+      text:
+        "Pli terminé. Les cartes qui rapportent : As=11pts, Triss (3)=10pts, Rey (12)=4pts, Caballo (11)=3pts, Sota (10)=2pts. Le reste vaut 0. L'atout le plus fort gagne, sinon la plus forte de la couleur ouverte.",
+      targetRef: scoreRef,
+      placement: "below",
+    },
+    {
+      id: "last-trick-btn",
+      when: () =>
+        state.phase === "playing" &&
+        state.roundNumber === 1 &&
+        state.trickNumber >= 2 &&
+        state.lastTrick != null,
+      text:
+        "Tu peux revoir le pli précédent à tout moment avec ce bouton ◁ — utile si tu as raté qui a joué quoi.",
+      targetRef: lastTrickRef,
+      placement: "above",
+    },
+    {
+      id: "ghna-info",
+      when: () =>
+        state.phase === "playing" &&
+        state.trickNumber >= 2 &&
+        state.trickNumber <= 4 &&
+        state.roundNumber === 1,
+      text:
+        "Ghna : si TON équipe a gagné les enchères ET que tu as le Rey + Caballo d'une même couleur en main, tu peux l'annoncer après un pli gagné par ton équipe. 40 pts si c'est l'atout, 20 sinon. Si l'autre équipe a misé, tu ne peux PAS annoncer. L'app te proposera automatiquement.",
+      targetRef: handRef,
+      placement: "above",
+    },
+    {
+      id: "round-done",
+      when: () => state.phase === "round-end" && state.roundNumber === 1,
+      text:
+        "Manche terminée. C'est MAINTENANT que le score cumulé en haut se met à jour. L'équipe qui avait misé doit atteindre sa mise : si oui → elle marque sa mise. Sinon → c'est l'équipe adverse qui la marque.",
+      targetRef: scoreRef,
+      placement: "below",
+    },
+    {
+      id: "score-sheet",
+      when: () => state.phase === "round-end" && state.roundNumber === 1,
+      text:
+        "Bouton ≡ : suivi de score détaillé manche par manche (qui a misé, combien, atout choisi, score cumulé). Pratique pour revoir le déroulé d'une partie longue.",
+      targetRef: scoreSheetRef,
+      placement: "above",
+    },
+    {
+      id: "pause-tools",
+      when: () => state.phase === "round-end" && state.roundNumber === 1,
+      text:
+        "Bouton ☰ en haut à gauche = menu pause. Tu y trouves : REPRENDRE (continuer la partie) · SON on/off · RÈGLES (toutes les règles détaillées) · QUITTER (= abandon, défaite 600-0 enregistrée). Dispo à tout moment.",
+      targetRef: pauseRef,
+      placement: "below",
+    },
+    {
+      id: "farewell",
+      when: () => state.phase === "round-end" && state.roundNumber === 1,
+      text:
+        "Voilà, tu connais les bases du jeu. Tu vas maintenant choisir la suite : continuer cette partie jusqu'à 600 pts, ou passer directement au tuto des menus.",
+      targetRef: null,
+    },
+  ];
+
+  // Sélectionne le prochain step à montrer dès que l'état le permet.
+  // Le tuto-jeu ne fire QUE si la route demande explicitement `tutorial:true`
+  // (depuis l'onboarding "Apprendre à jouer" ou le replay depuis Settings).
+  // Jamais automatiquement sur une partie solo lambda.
+  useEffect(() => {
+    if (!forceTutorial) return;
+    if (mode !== "local") return;
+    if (tutActiveId) return; // déjà un tooltip visible
+    const next = tutSteps.find(
+      (s) => !tutShownRef.current.has(s.id) && s.when(),
+    );
+    if (!next) return;
+    // petit délai pour laisser le layout se stabiliser après la transition
+    const t = setTimeout(() => setTutActiveId(next.id), 350);
+    return () => clearTimeout(t);
+  }, [state, dealAnim, tutActiveId, mode, forceTutorial]);
+
+  const tutActiveStep = tutActiveId
+    ? tutSteps.find((s) => s.id === tutActiveId) ?? null
+    : null;
+
+  const dismissTutStep = () => {
+    if (!tutActiveId) return;
+    tutShownRef.current.add(tutActiveId);
+    const wasLast = tutActiveId === "farewell";
+    setTutActiveId(null);
+    if (wasLast) {
+      markCoachmarksDone().catch(() => {});
+      // Le tuto de la manche est terminé : on propose à l'utilisateur de
+      // continuer la partie ou de filer direct au tuto des menus.
+      setShowTutoEndChoice(true);
+    }
+  };
 
   // Réactions IA random sur événements notables
   useEffect(() => {
@@ -212,11 +567,17 @@ export default function GameScreen({ route, navigation }: Props) {
     const id = state.roundNumber + "-" + state.score.A + state.score.B;
     setRecordedGameId(id);
     // playerNames basé sur les vrais noms (en net) ou pseudo + IA (en local)
-    const matchType = mode === "net" ? "private" : "solo-ai";
-    const names = [0, 1, 2, 3].map((s) => displayName(s as Seat).replace(" 🤖", ""));
+    // En net, on distingue "quick" (matchmaking random) vs "private" (code)
+    const netKind = useNetGameStore.getState().roomKind;
+    const matchType =
+      mode === "net"
+        ? (netKind === "quick" ? "quick" : "private")
+        : "solo-ai";
+    const names = [0, 1, 2, 3].map((s) => displayName(s as Seat).replace("", ""));
     addMatch({
       type: matchType,
       playerNames: names,
+      isBotPerSeat: computeIsBotPerSeat(),
       winnerTeam: state.score.A > state.score.B ? "A" : "B",
       scoreA: state.score.A,
       scoreB: state.score.B,
@@ -230,9 +591,11 @@ export default function GameScreen({ route, navigation }: Props) {
         bidWinner: r.bidWinner,
         bidAmount: r.bidAmount,
         bidTeam: r.bidTeam,
+        trump: r.trump ?? undefined,
+        tricks: r.tricks,
       })),
     });
-  }, [state.phase, state.score.A, state.score.B, state.roundNumber, addMatch, recordedGameId]);
+  }, [state.phase, state.score.A, state.score.B, state.roundNumber, addMatch, recordedGameId, roundHistory]);
 
   // Déverrouille la rotation libre sur cet écran (portrait ou landscape).
   // Quand on quitte l'écran, on re-verrouille en portrait.
@@ -252,37 +615,43 @@ export default function GameScreen({ route, navigation }: Props) {
     }
   }, [state, src.runLocalAi]);
 
-  // IA : enchères
+  // IA : enchères — attend que la distribution soit terminée et que le
+  // joueur humain puisse voir ses cartes avant que les bots ne commencent.
+  // Se met aussi en pause quand un tooltip tutoriel est affiché.
   useEffect(() => {
     if (!src.runLocalAi) return;
     if (state.phase !== "bidding") return;
     if (!state.bidding) return;
     if (state.bidding.currentSeat === 0) return;
+    if (dealAnim) return;
+    if (tutActiveId) return;
     const seat = state.bidding.currentSeat;
     const t = setTimeout(() => {
       setState((s) => (s.phase === "bidding" && s.bidding?.currentSeat === seat ? bid(s, seat, aiBid(s, seat)) : s));
     }, 650);
     return () => clearTimeout(t);
-  }, [state, src.runLocalAi]);
+  }, [state, src.runLocalAi, dealAnim, tutActiveId]);
 
   // IA : choix de l'atout
   useEffect(() => {
     if (!src.runLocalAi) return;
     if (state.phase !== "choosing-trump") return;
     if (state.bidWinner === 0) return;
+    if (tutActiveId) return;
     const seat = state.bidWinner;
     if (seat == null) return;
     const t = setTimeout(() => {
       setState((s) => (s.phase === "choosing-trump" && s.bidWinner === seat ? chooseTrump(s, seat, aiChooseTrump(s, seat)) : s));
     }, 700);
     return () => clearTimeout(t);
-  }, [state.phase, state.bidWinner, src.runLocalAi]);
+  }, [state.phase, state.bidWinner, src.runLocalAi, tutActiveId]);
 
   // IA : joue une carte
   useEffect(() => {
     if (!src.runLocalAi) return;
     if (state.phase !== "playing") return;
     if (state.currentPlayer === 0) return;
+    if (tutActiveId) return;
     const seat = state.currentPlayer;
     const t = setTimeout(() => {
       setState((s) => {
@@ -292,20 +661,21 @@ export default function GameScreen({ route, navigation }: Props) {
       });
     }, 650);
     return () => clearTimeout(t);
-  }, [state, src.runLocalAi]);
+  }, [state, src.runLocalAi, tutActiveId]);
 
   // IA : annonce Ghna si dispo
   useEffect(() => {
     if (!src.runLocalAi) return;
     if (!state.ghnaPending) return;
     if (state.ghnaPending.seat === 0) return;
+    if (tutActiveId) return;
     const { seat, options } = state.ghnaPending;
     const t = setTimeout(() => {
       const pick = options[0];
       setState((s) => (s.ghnaPending && s.ghnaPending.seat === seat ? announceGhna(s, seat, pick.suit) : s));
     }, 800);
     return () => clearTimeout(t);
-  }, [state.ghnaPending, src.runLocalAi]);
+  }, [state.ghnaPending, src.runLocalAi, tutActiveId]);
 
   // Auto-advance fin de pli / manche
   // En local : on setState directement. En net : on send un message au serveur
@@ -362,7 +732,20 @@ export default function GameScreen({ route, navigation }: Props) {
     }
   };
 
-  const resetGame = () => { src.resetGame(); setSelectedIdx(null); };
+  const resetGame = () => {
+    src.resetGame();
+    // Nettoie aussi l'état d'UI transitoire pour éviter qu'un vieux contenu
+    // (bulles de chat/enchères de la partie précédente, carte sélectionnée,
+    // shake map) reste visible pendant le début de la nouvelle partie.
+    setSelectedIdx(null);
+    setBubbles({ 0: null, 1: null, 2: null, 3: null });
+    setShakeMap({});
+    setShowLastTrick(false);
+    setShowScoreSheet(false);
+    setShowTutoEndChoice(false);
+    setRoundHistory([]);
+    setRecordedGameId(null);
+  };
 
   // Nom à afficher pour un siège
   // - net : nom réel reçu du serveur (humains + Bots)
@@ -371,15 +754,43 @@ export default function GameScreen({ route, navigation }: Props) {
   const displayName = (seat: Seat): string => {
     if (src.netPlayers) {
       const p = src.netPlayers.find((x) => x.seat === seat);
-      if (p) return p.name + (p.isAi ? " 🤖" : "");
+      if (p) return p.name + (p.isAi ? "" : "");
     }
     if (seat === 0 && myUsername) return myUsername;
     return PLAYERS[seat].name;
   };
+  // Vrai flag bot par siège — source de vérité : p.isAi côté serveur,
+  // PLAYERS[seat].human côté local. Utilisé pour enregistrer la partie
+  // de façon fiable (indépendant du pseudo, qui peut collisionner).
+  const isBotAt = (seat: Seat): boolean => {
+    if (src.netPlayers) {
+      const p = src.netPlayers.find((x) => x.seat === seat);
+      if (p) return !!p.isAi;
+      return false; // siège libre / déconnecté : pas un bot
+    }
+    return !PLAYERS[seat].human;
+  };
+  const computeIsBotPerSeat = (): boolean[] =>
+    ([0, 1, 2, 3] as Seat[]).map((s) => isBotAt(s));
   // Initiales = première lettre du nom affiché
   const displayInitials = (seat: Seat): string => {
-    const name = displayName(seat).replace(" 🤖", "").trim();
+    const name = displayName(seat).replace("", "").trim();
     return (name[0] ?? "?").toUpperCase();
+  };
+
+  // Remplace les noms par défaut de l'engine ("Vous", "IA 1/2/3") par les
+  // vrais pseudos dans les messages générés par le moteur de jeu.
+  const rewriteMessage = (msg: string | null): string | null => {
+    if (!msg) return msg;
+    let out = msg;
+    for (let s = 0 as Seat; s < 4; s = (s + 1) as Seat) {
+      const defaultName = PLAYERS[s].name;
+      const realName = displayName(s);
+      if (defaultName && realName && defaultName !== realName) {
+        out = out.split(defaultName).join(realName.replace("", ""));
+      }
+    }
+    return out;
   };
 
   // Géométrie table — adaptative portrait/landscape
@@ -425,7 +836,7 @@ export default function GameScreen({ route, navigation }: Props) {
                     <SuitGlyph suit={state.trump} size={18} />
                   </View>
                   <View>
-                    <Text style={styles.trumpEyebrow}>ATOUT · TOUTI</Text>
+                    <Text style={styles.trumpEyebrow}>ATOUT</Text>
                     <Text style={styles.trumpName}>
                       {SUIT_LABELS[state.trump].dr} ({SUIT_LABELS[state.trump].fr})
                     </Text>
@@ -433,7 +844,7 @@ export default function GameScreen({ route, navigation }: Props) {
                 </View>
               ) : (
                 <View style={styles.trumpPill}>
-                  <Text style={styles.trumpNone}>ATOUT — ENCHÈRES</Text>
+                  <Text style={styles.trumpNone}>ATOUT · À CHOISIR</Text>
                 </View>
               )}
             </View>
@@ -450,23 +861,23 @@ export default function GameScreen({ route, navigation }: Props) {
         ) : (
           <View style={styles.topPills}>
             {state.trump ? (
-              <View style={styles.trumpPill}>
+              <View ref={trumpRef} collapsable={false} style={styles.trumpPill}>
                 <View style={styles.trumpDisc}>
                   <SuitGlyph suit={state.trump} size={18} />
                 </View>
                 <View>
-                  <Text style={styles.trumpEyebrow}>ATOUT · TOUTI</Text>
+                  <Text style={styles.trumpEyebrow}>ATOUT</Text>
                   <Text style={styles.trumpName}>
                     {SUIT_LABELS[state.trump].dr} ({SUIT_LABELS[state.trump].fr})
                   </Text>
                 </View>
               </View>
             ) : (
-              <View style={styles.trumpPill}>
-                <Text style={styles.trumpNone}>ATOUT — ENCHÈRES</Text>
+              <View ref={trumpRef} collapsable={false} style={styles.trumpPill}>
+                <Text style={styles.trumpNone}>ATOUT · À CHOISIR</Text>
               </View>
             )}
-            <View style={styles.scorePill}>
+            <View ref={scoreRef} collapsable={false} style={styles.scorePill}>
               <ScoreSide label="Nous" score={state.score.A} color={COLORS.brass} />
               <View style={styles.scoreSep} />
               <ScoreSide label="Eux" score={state.score.B} color={COLORS.cream} />
@@ -475,9 +886,18 @@ export default function GameScreen({ route, navigation }: Props) {
         )}
       </View>
 
-      {/* Info manche + mise */}
+      {/* Info manche + mise
+          En portrait : entre le topBar et la table (top: 128)
+          En landscape : décalé en haut à droite sous le score, hors table */}
       {state.bidAmount != null && state.bidWinner != null && (
-        <View style={styles.roundInfo}>
+        <View
+          style={[
+            styles.roundInfo,
+            isLandscape
+              ? { top: 64, right: 14, left: undefined, alignItems: "flex-end" }
+              : { top: 128 },
+          ]}
+        >
           <Text style={styles.roundInfoText}>
             Manche {state.roundNumber} · Mise : {state.bidAmount} ({displayName(state.bidWinner)})
           </Text>
@@ -530,22 +950,42 @@ export default function GameScreen({ route, navigation }: Props) {
       </View>
 
       {/* Sièges — positionnés sur le diamètre de la table dans les deux orientations */}
-      <SeatBadge player={{ ...PLAYERS[2], name: displayName(2), initials: displayInitials(2) }} active={isActive(2)}
-        style={{ top: isLandscape ? 2 : tableTop - 18, left: 0, right: 0, alignItems: "center" }} />
-      <SeatBadge player={{ ...PLAYERS[0], name: displayName(0), initials: displayInitials(0) }} active={isActive(0)}
-        style={{ top: tableBottom - 18, left: 0, right: 0, alignItems: "center" }} />
-      <SeatBadge player={{ ...PLAYERS[3], name: displayName(3), initials: displayInitials(3) }} active={isActive(3)}
-        style={{
-          top: tableCenterY - 18,
-          left: Math.max(6, tableLeft - 110),
-          alignItems: "flex-start",
-        }} />
-      <SeatBadge player={{ ...PLAYERS[1], name: displayName(1), initials: displayInitials(1) }} active={isActive(1)}
-        style={{
-          top: tableCenterY - 18,
-          right: Math.max(6, SW - tableRight - 110),
-          alignItems: "flex-end",
-        }} />
+      {/* Long-press en mode net = ouvre la modal de signalement */}
+      {(() => {
+        const isDisconnected = (seat: Seat): boolean => {
+          if (!src.netPlayers) return false;
+          const p = src.netPlayers.find((x) => x.seat === seat);
+          if (!p || p.isAi) return false;
+          return !p.connected;
+        };
+        return (
+          <>
+            <SeatBadge player={{ ...PLAYERS[2], name: displayName(2), initials: displayInitials(2) }} active={isActive(2)}
+              style={{ top: isLandscape ? 2 : tableTop - 18, left: 0, right: 0, alignItems: "center" }}
+              disconnected={isDisconnected(2)}
+              onLongPress={mode === "net" ? () => setReportTarget(displayName(2)) : undefined} />
+            <SeatBadge player={{ ...PLAYERS[0], name: displayName(0), initials: displayInitials(0) }} active={isActive(0)}
+              style={{ top: tableBottom - 18, left: 0, right: 0, alignItems: "center" }}
+              disconnected={isDisconnected(0)} />
+            <SeatBadge player={{ ...PLAYERS[3], name: displayName(3), initials: displayInitials(3) }} active={isActive(3)}
+              style={{
+                top: tableCenterY - 18,
+                left: Math.max(6, tableLeft - 110),
+                alignItems: "flex-start",
+              }}
+              disconnected={isDisconnected(3)}
+              onLongPress={mode === "net" ? () => setReportTarget(displayName(3)) : undefined} />
+            <SeatBadge player={{ ...PLAYERS[1], name: displayName(1), initials: displayInitials(1) }} active={isActive(1)}
+              style={{
+                top: tableCenterY - 18,
+                right: Math.max(6, SW - tableRight - 110),
+                alignItems: "flex-end",
+              }}
+              disconnected={isDisconnected(1)}
+              onLongPress={mode === "net" ? () => setReportTarget(displayName(1)) : undefined} />
+          </>
+        );
+      })()}
 
       {/* Piles face-down chez les 3 autres joueurs (uniquement après la distribution) */}
       {!dealAnim && (
@@ -554,7 +994,7 @@ export default function GameScreen({ route, navigation }: Props) {
             count={state.hands[2].length}
             style={{
               position: "absolute",
-              top: isLandscape ? 38 : tableTop + 30,
+              top: isLandscape ? 32 : tableTop + 4,
               left: 0,
               right: 0,
               alignItems: "center",
@@ -582,13 +1022,14 @@ export default function GameScreen({ route, navigation }: Props) {
       )}
 
       {/* Message — toast qui reste 5s puis fade-out */}
-      <ToastMessage text={state.message} />
+      <ToastMessage text={rewriteMessage(state.message)} isLandscape={isLandscape} HAND_H={HAND_H} />
 
-      {/* Indicateur "à toi de jouer" */}
-      {myTurn && <TurnIndicator bottom={HAND_H + 20} />}
+      {/* (anciennement "À toi de jouer" — retiré : le pseudo du joueur courant
+          s'affiche déjà en jaune/saffron via SeatBadge active) */}
 
-      {/* Ma main — cachée pendant le deal, apparaît ensuite */}
-      {(() => {
+      {/* Ma main — cachée pendant le deal, apparaît ensuite.
+          Le spectateur n'a pas de main. */}
+      {!isSpectator && (() => {
         // Taille adaptative : plus petite en landscape pour libérer l'espace
         const handSize = isLandscape ? "sm" : "md";
         const CARD_W = isLandscape ? 44 : 62;
@@ -600,8 +1041,12 @@ export default function GameScreen({ route, navigation }: Props) {
         const step = Math.max(MIN_STEP, Math.min(MAX_STEP, rawStep));
         const marginLeft = -(CARD_W - step); // négatif = chevauchement
         return (
-          <View style={[styles.myHand, { bottom: 12, height: HAND_H - 16, opacity: dealAnim ? 0 : 1 }]}
-            pointerEvents={dealAnim ? "none" : "auto"}>
+          <View
+            ref={handRef}
+            collapsable={false}
+            style={[styles.myHand, { bottom: 12, height: HAND_H - 16, opacity: dealAnim ? 0 : 1 }]}
+            pointerEvents={dealAnim ? "none" : "auto"}
+          >
             {myHand.map((card, i) => {
               const mid = (n - 1) / 2;
               const rot = (i - mid) * (isLandscape ? 2 : 3);
@@ -635,8 +1080,10 @@ export default function GameScreen({ route, navigation }: Props) {
         );
       })()}
 
-      {/* Overlay : enchères humain (n'empiète pas sur la main) */}
-      {state.phase === "bidding" && state.bidding?.currentSeat === 0 && (() => {
+      {/* Overlay : enchères humain — attend que la distribution soit finie
+          (sinon la fenêtre apparaît avant que le joueur voie ses cartes).
+          Pas de fenêtre en mode spectateur. */}
+      {!isSpectator && state.phase === "bidding" && state.bidding?.currentSeat === 0 && !dealAnim && (() => {
         const b = state.bidding;
         const hist = b.history;
         const iBid = hist.some((h) => h.seat === 0 && h.action.kind === "bid");
@@ -662,7 +1109,7 @@ export default function GameScreen({ route, navigation }: Props) {
       })()}
 
       {/* Overlay : choix d'atout humain */}
-      {state.phase === "choosing-trump" && state.bidWinner === 0 && (
+      {!isSpectator && state.phase === "choosing-trump" && state.bidWinner === 0 && (
         <TrumpOverlay
           bottomOffset={HAND_H + 10}
           onChoose={(suit) => src.chooseTrump(0, suit)}
@@ -670,7 +1117,7 @@ export default function GameScreen({ route, navigation }: Props) {
       )}
 
       {/* Overlay : Ghna humain */}
-      {state.ghnaPending && state.ghnaPending.seat === 0 && (
+      {!isSpectator && state.ghnaPending && state.ghnaPending.seat === 0 && (
         <GhnaOverlay
           bottomOffset={HAND_H + 10}
           options={state.ghnaPending.options}
@@ -679,43 +1126,104 @@ export default function GameScreen({ route, navigation }: Props) {
         />
       )}
 
-      {/* Chat launcher (bouton flottant) */}
-      <ChatLauncher
-        bottom={HAND_H + 6}
-        onSend={(msg) => {
-          showBubble(0, msg);
-          if (mode === "net") useNetGameStore.getState().sendChat(msg);
-        }}
-      />
-
-      {/* Bouton "pli précédent" — visible seulement si un pli a déjà été joué */}
-      {state.lastTrick && (
-        <Pressable
-          onPress={() => setShowLastTrick(true)}
-          style={[styles.lastTrickBtn, { bottom: HAND_H + 6 }]}
-        >
-          <Text style={styles.lastTrickIcon}>👁</Text>
-        </Pressable>
-      )}
-
-      {/* Overlay du pli précédent */}
-      {showLastTrick && state.lastTrick && (
-        <LastTrickOverlay
-          trick={state.lastTrick.entries}
-          winner={state.lastTrick.winner}
-          onClose={() => setShowLastTrick(false)}
+      {/* Chat launcher (bouton flottant) — pas pour le spectateur */}
+      {!isSpectator && (
+        <ChatLauncher
+          bottom={HAND_H + 6}
+          onSend={(msg) => {
+            const clean = sanitize(msg);
+            showBubble(0, clean);
+            if (mode === "net") useNetGameStore.getState().sendChat(clean);
+          }}
         />
       )}
 
-      {/* Bouton "tableau de suivi" — toujours visible après la 1re manche */}
-      {roundHistory.length > 0 && (
-        <Pressable
-          onPress={() => setShowScoreSheet(true)}
-          style={[styles.scoreSheetBtn, { bottom: HAND_H + 6 }]}
-        >
-          <Text style={styles.scoreSheetIcon}>📊</Text>
-        </Pressable>
+      {/* Badge "Mode spectateur" */}
+      {isSpectator && (
+        <View style={styles.spectatorBadge}>
+          <Text style={styles.spectatorBadgeText}>◁ MODE SPECTATEUR</Text>
+        </View>
       )}
+
+      {/* Bouton pause — placé EN DESSOUS de la pille atout dans les deux modes */}
+      <View ref={pauseRef} collapsable={false} style={[styles.pauseBtnWrap, { top: isLandscape ? 70 : 130 }]}>
+        <Pressable
+          onPress={() => setPaused(true)}
+          style={styles.pauseBtn}
+          hitSlop={10}
+        >
+          <Text style={styles.pauseBtnIcon}>☰</Text>
+        </Pressable>
+      </View>
+
+      {/* Countdown de timeout (hors tournoi, quand un joueur a bug/traîne) */}
+      {mode === "net" && <TurnCountdownBadge />}
+
+      {/* Banner déco quand un joueur a perdu la connexion (pas forfait) */}
+      {mode === "net" && (() => {
+        const disconnected = (src.netPlayers ?? []).find(
+          (p) => !p.isAi && !p.connected && p.seat !== 0,
+        );
+        if (!disconnected) return null;
+        return (
+          <View style={styles.disconnectedBanner}>
+            <View style={styles.disconnectedBannerPill}>
+              <Text style={styles.disconnectedBannerText}>
+                ● {disconnected.name} s'est déconnecté — en attente
+              </Text>
+            </View>
+          </View>
+        );
+      })()}
+
+      {/* Bouton "pli précédent" — toujours visible dès l'entrée en partie.
+          Affiche un message « aucun pli » quand il n'y en a pas encore (tout
+          début de partie, ou nouvelle manche : se vide à chaque manche).
+          En portrait, empilé SOUS le bouton de score. En landscape, à gauche. */}
+      <Pressable
+        ref={lastTrickRef}
+        onPress={() => setShowLastTrick(true)}
+        style={[
+          styles.lastTrickBtn,
+          isLandscape
+            ? { bottom: HAND_H + 6, right: 64 }
+            : { bottom: HAND_H + 6, right: 14 },
+        ]}
+      >
+        <Text style={styles.lastTrickIcon}>◁</Text>
+      </Pressable>
+
+      {/* Overlay du pli précédent. `state.lastTrick` n'est considéré que si
+          on a déjà joué au moins un pli DANS LA MANCHE COURANTE (trickNumber
+          >= 2, ou encore en cours sur le 2e pli et plus). Sinon → empty state. */}
+      {showLastTrick && (() => {
+        const currentRoundTrick =
+          state.trickNumber >= 2 && state.lastTrick ? state.lastTrick : null;
+        return (
+          <LastTrickOverlay
+            trick={currentRoundTrick?.entries ?? null}
+            winner={currentRoundTrick?.winner ?? null}
+            onClose={() => setShowLastTrick(false)}
+            getName={displayName}
+          />
+        );
+      })()}
+
+      {/* Bouton "tableau de suivi" — toujours visible dès l'entrée en partie.
+          L'overlay affiche un état vide quand aucune manche n'est encore
+          terminée. En portrait, empilé AU-DESSUS du bouton "pli précédent". */}
+      <Pressable
+        ref={scoreSheetRef}
+        onPress={() => setShowScoreSheet(true)}
+        style={[
+          styles.scoreSheetBtn,
+          isLandscape
+            ? { bottom: HAND_H + 6 }
+            : { bottom: HAND_H + 60, right: 14 },
+        ]}
+      >
+        <Text style={styles.scoreSheetIcon}>≡</Text>
+      </Pressable>
 
       {/* Overlay tableau de suivi */}
       {showScoreSheet && (
@@ -729,31 +1237,154 @@ export default function GameScreen({ route, navigation }: Props) {
         />
       )}
 
-      {/* Bulles de message au-dessus de chaque joueur */}
-      {bubbles[2] && (
-        <ChatBubble
-          text={bubbles[2].text}
-          anchor={{ top: tableTop + 12, left: SW / 2 - 80 }}
+      {/* Modal signaler un joueur */}
+      {reportTarget && (
+        <ReportModal
+          targetName={reportTarget}
+          roomCode={useNetGameStore.getState().roomCode ?? undefined}
+          onClose={() => setReportTarget(null)}
         />
       )}
-      {bubbles[0] && (
-        <ChatBubble
-          text={bubbles[0].text}
-          anchor={{ top: tableBottom - 60, left: SW / 2 - 80 }}
+
+      {/* Menu pause */}
+      {paused && (
+        <PauseMenu
+          soundOn={soundOn}
+          onToggleSound={() => {
+            const next = !soundOn;
+            setSoundOn(next);
+            setSoundEnabled(next);
+          }}
+          onRules={() => { setPaused(false); navigation.navigate("Rules"); }}
+          onClose={() => setPaused(false)}
+          onQuit={() => {
+            setPaused(false);
+            // Coupe tous les sons (deal, trickWin, etc.) pour éviter qu'ils
+            // continuent après la navigation vers Home.
+            stopAllSounds().catch(() => {});
+            // Enregistrement direct dans l'historique (abandon) — sinon la
+            // navigation vers Home coupe avant que le useEffect "game-end"
+            // ne capte la fin de partie.
+            try {
+              const names = [0, 1, 2, 3].map((s) => displayName(s as Seat).replace("", ""));
+              const kind = useNetGameStore.getState().roomKind;
+              addMatch({
+                type: mode === "net" ? (kind === "quick" ? "quick" : "private") : "solo-ai",
+                playerNames: names,
+                isBotPerSeat: computeIsBotPerSeat(),
+                winnerTeam: "B",     // l'adversaire gagne (je suis en équipe A, siège 0)
+                scoreA: 0,
+                scoreB: 600,
+                roundsPlayed: state.roundNumber,
+                rounds: roundHistory.map((r) => ({
+                  round: r.round,
+                  scoreA: r.scoreA,
+                  scoreB: r.scoreB,
+                  deltaA: r.deltaA,
+                  deltaB: r.deltaB,
+                  bidWinner: r.bidWinner,
+                  bidAmount: r.bidAmount,
+                  bidTeam: r.bidTeam,
+                  trump: r.trump ?? undefined,
+                  tricks: r.tricks,
+                })),
+              });
+            } catch {}
+
+            if (mode === "net") {
+              // Envoie le forfait au serveur (pour tournois + autres joueurs)
+              // puis déconnecte.
+              try { useNetGameStore.getState().sendForfeit(); } catch {}
+              setTimeout(() => {
+                useNetGameStore.getState().disconnect().catch(() => {});
+              }, 150);
+            }
+            navigation.navigate("MainTabs");
+          }}
         />
       )}
-      {bubbles[3] && (
-        <ChatBubble
-          text={bubbles[3].text}
-          anchor={{ top: tableCenterY - 60, left: Math.max(16, tableLeft - 40) }}
+
+      {/* Modal de fin du tuto : Continuer / Passer au tuto des menus */}
+      {showTutoEndChoice && (
+        <TutoEndChoiceModal
+          onContinue={() => setShowTutoEndChoice(false)}
+          onGoToMenuTuto={() => {
+            setShowTutoEndChoice(false);
+            stopAllSounds().catch(() => {});
+            // Même logique que l'abandon : on enregistre la partie comme
+            // défaite et on retourne aux MainTabs. Le flag pendingMenuTutorial
+            // (posé au moment de l'onboarding "full") déclenche alors l'overlay
+            // de tuto des menus une fois sur MainTabs.
+            try {
+              // Même formatage de nom que les 2 autres sites d'enregistrement
+              // (pause quit + fin normale), pour que `playerNames` soit cohérent
+              // en base quelle que soit la voie d'abandon.
+              const names = [0, 1, 2, 3].map((s) => displayName(s as Seat).replace("", ""));
+              addMatch({
+                type: mode === "net" ? "private" : "solo-ai",
+                playerNames: names,
+                isBotPerSeat: computeIsBotPerSeat(),
+                winnerTeam: "B",
+                scoreA: 0,
+                scoreB: 600,
+                roundsPlayed: state.roundNumber,
+                rounds: roundHistory.map((r) => ({
+                  round: r.round,
+                  scoreA: r.scoreA,
+                  scoreB: r.scoreB,
+                  deltaA: r.deltaA,
+                  deltaB: r.deltaB,
+                  bidWinner: r.bidWinner,
+                  bidAmount: r.bidAmount,
+                  bidTeam: r.bidTeam,
+                  trump: r.trump ?? undefined,
+                  tricks: r.tricks,
+                })),
+              });
+            } catch {}
+            if (mode === "net") {
+              try { useNetGameStore.getState().sendForfeit(); } catch {}
+              setTimeout(() => {
+                useNetGameStore.getState().disconnect().catch(() => {});
+              }, 150);
+            }
+            navigation.navigate("MainTabs", { screen: "Home" });
+          }}
         />
       )}
-      {bubbles[1] && (
-        <ChatBubble
-          text={bubbles[1].text}
-          anchor={{ top: tableCenterY - 60, right: Math.max(16, SW - tableRight - 40) }}
-        />
-      )}
+
+      {/* Bulles au-dessus de chaque joueur : chat ou dire d'enchère/ghna */}
+      {(() => {
+        const textAt = (s: Seat) => bidBubbles[s] ?? bubbles[s]?.text ?? null;
+        return (
+          <>
+            {textAt(2) && (
+              <ChatBubble
+                text={textAt(2) as string}
+                anchor={{ top: tableTop + 12, left: SW / 2 - 80 }}
+              />
+            )}
+            {textAt(0) && (
+              <ChatBubble
+                text={textAt(0) as string}
+                anchor={{ top: tableBottom - 60, left: SW / 2 - 80 }}
+              />
+            )}
+            {textAt(3) && (
+              <ChatBubble
+                text={textAt(3) as string}
+                anchor={{ top: tableCenterY - 60, left: Math.max(16, tableLeft - 40) }}
+              />
+            )}
+            {textAt(1) && (
+              <ChatBubble
+                text={textAt(1) as string}
+                anchor={{ top: tableCenterY - 60, right: Math.max(16, SW - tableRight - 40) }}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {/* Animation distribution des cartes */}
       {dealAnim && (
@@ -777,7 +1408,7 @@ export default function GameScreen({ route, navigation }: Props) {
             if (mode === "net") {
               // Net : on quitte la room et on retourne à l'accueil
               await useNetGameStore.getState().disconnect();
-              navigation.navigate("Home");
+              navigation.navigate("MainTabs", { screen: "Home" });
             } else {
               resetGame();
             }
@@ -786,7 +1417,7 @@ export default function GameScreen({ route, navigation }: Props) {
             if (mode === "net") {
               await useNetGameStore.getState().disconnect();
             }
-            navigation.navigate("Home");
+            navigation.navigate("MainTabs", { screen: "Home" });
           }}
           onSeeDetail={async () => {
             // La dernière partie en tête de l'historique est celle qu'on vient de finir
@@ -798,8 +1429,27 @@ export default function GameScreen({ route, navigation }: Props) {
 
       {/* Historique d'enchères */}
       {state.phase === "bidding" && state.bidding && state.bidding.history.length > 0 && (
-        <BidHistory history={state.bidding.history} />
+        <BidHistory history={state.bidding.history} getName={displayName} />
       )}
+
+      {/* Tutoriel événementiel — seulement sur la 1ère partie solo.
+          Un seul tooltip à la fois, déclenché par les transitions du jeu. */}
+      <Coachmark
+        visible={tutActiveStep != null}
+        onDone={dismissTutStep}
+        steps={
+          tutActiveStep
+            ? [
+                {
+                  targetRef: tutActiveStep.targetRef,
+                  text: tutActiveStep.text,
+                  placement: tutActiveStep.placement,
+                  ctaLabel: tutActiveStep.id === "farewell" ? "Jouer" : "Compris",
+                },
+              ]
+            : []
+        }
+      />
     </View>
   );
 }
@@ -868,33 +1518,42 @@ function LastTrickOverlay({
   trick,
   winner,
   onClose,
+  getName,
 }: {
-  trick: import("@touti/shared").TrickEntry[];
-  winner: Seat;
+  trick: import("@touti/shared").TrickEntry[] | null;
+  winner: Seat | null;
   onClose: () => void;
+  getName: (seat: Seat) => string;
 }) {
+  const nameOf = (s: Seat) => getName(s).replace("", "");
+  const empty = !trick || trick.length === 0 || winner == null;
   return (
     <Pressable onPress={onClose} style={styles.lastTrickOverlay}>
       <View style={styles.lastTrickCard}>
         <Text style={styles.lastTrickEyebrow}>DERNIER PLI</Text>
-        <Text style={styles.lastTrickTitle}>
-          Remporté par {PLAYERS[winner].name}
-        </Text>
-
-        <View style={styles.lastTrickCards}>
-          {trick.map((t, i) => {
-            const isWinner = t.player === winner;
-            return (
-              <View key={i} style={styles.lastTrickItem}>
-                <Text style={[styles.lastTrickPlayer, isWinner && { color: COLORS.saffronSoft }]}>
-                  {PLAYERS[t.player].name}
-                  {isWinner && " 🏆"}
-                </Text>
-                <Card rank={t.card.rank} suit={t.card.suit} size="md" highlighted={isWinner} />
-              </View>
-            );
-          })}
-        </View>
+        {empty ? (
+          <Text style={styles.lastTrickTitle}>Aucun pli joué pour l'instant</Text>
+        ) : (
+          <>
+            <Text style={styles.lastTrickTitle}>
+              Remporté par {nameOf(winner)}
+            </Text>
+            <View style={styles.lastTrickCards}>
+              {trick.map((t, i) => {
+                const isWinner = t.player === winner;
+                return (
+                  <View key={i} style={styles.lastTrickItem}>
+                    <Text style={[styles.lastTrickPlayer, isWinner && { color: COLORS.saffronSoft }]}>
+                      {nameOf(t.player)}
+                      {isWinner && " ★"}
+                    </Text>
+                    <Card rank={t.card.rank} suit={t.card.suit} size="md" highlighted={isWinner} />
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         <Text style={styles.lastTrickClose}>Tape n'importe où pour fermer</Text>
       </View>
@@ -928,8 +1587,10 @@ function LiveScoreSheetOverlay({
   getName: (seat: Seat) => string;
 }) {
   return (
-    <Pressable onPress={onClose} style={styles.scoreSheetOverlay}>
-      <Pressable onPress={(e) => e.stopPropagation()} style={styles.scoreSheetCard}>
+    <View style={styles.scoreSheetOverlay}>
+      {/* Zone de tap-outside-to-close qui n'absorbe PAS les gestures du ScrollView */}
+      <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
+      <View style={styles.scoreSheetCard}>
         <Text style={styles.scoreSheetEyebrow}>TABLEAU DE SUIVI</Text>
         <Text style={styles.scoreSheetTitle}>Manche {currentRound}</Text>
 
@@ -947,7 +1608,12 @@ function LiveScoreSheetOverlay({
         </View>
 
         {/* Liste manche par manche */}
-        <ScrollView style={{ maxHeight: 340, marginTop: 4 }} contentContainerStyle={{ paddingBottom: 8 }}>
+        <ScrollView
+          style={{ maxHeight: 340, marginTop: 4 }}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
           <View style={styles.scoreSheetHeaderRow}>
             <Text style={[styles.scoreSheetHCol, { width: 32 }]}>M.</Text>
             <Text style={[styles.scoreSheetHCol, { flex: 1 }]}>Mise</Text>
@@ -1009,8 +1675,8 @@ function LiveScoreSheetOverlay({
         <Pressable onPress={onClose} style={styles.scoreSheetCloseBtn}>
           <Text style={styles.scoreSheetCloseText}>Fermer</Text>
         </Pressable>
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -1255,35 +1921,54 @@ function SeatBadge({
   player,
   active,
   style,
+  onLongPress,
+  disconnected,
 }: {
   player: (typeof PLAYERS)[number];
   active: boolean;
   style: any;
+  onLongPress?: () => void;
+  disconnected?: boolean;
 }) {
   const isPartner = player.id === 2;
+  const badge = (
+    <View
+      style={[
+        styles.seatBadge,
+        {
+          borderColor: disconnected
+            ? "rgba(232,85,58,0.5)"
+            : active
+            ? COLORS.saffron
+            : isPartner
+            ? `${COLORS.brass}99`
+            : `${COLORS.cream}33`,
+          backgroundColor: active ? COLORS.brassDeep : "rgba(0,0,0,0.55)",
+          opacity: disconnected ? 0.55 : 1,
+        },
+      ]}
+    >
+      <Avatar initials={player.initials} size={26} color={player.color} ring={false} />
+      <Text style={[styles.seatName, active && { color: "#FDF6E3" }]}>{player.name}</Text>
+      {disconnected && (
+        <View style={styles.disconnectedDot} />
+      )}
+    </View>
+  );
   return (
     <View pointerEvents="box-none" style={[{ position: "absolute", zIndex: 6 }, style]}>
-      <View
-        style={[
-          styles.seatBadge,
-          {
-            borderColor: active
-              ? COLORS.saffron
-              : isPartner
-              ? `${COLORS.brass}99`
-              : `${COLORS.cream}33`,
-            backgroundColor: active ? COLORS.brassDeep : "rgba(0,0,0,0.55)",
-          },
-        ]}
-      >
-        <Avatar initials={player.initials} size={26} color={player.color} ring={false} />
-        <Text style={[styles.seatName, active && { color: "#FDF6E3" }]}>{player.name}</Text>
-      </View>
+      {onLongPress ? (
+        <Pressable onLongPress={onLongPress} delayLongPress={500}>
+          {badge}
+        </Pressable>
+      ) : (
+        badge
+      )}
     </View>
   );
 }
 
-function ToastMessage({ text }: { text: string | null }) {
+function ToastMessage({ text, isLandscape, HAND_H }: { text: string | null; isLandscape: boolean; HAND_H: number }) {
   const [displayed, setDisplayed] = useState<string | null>(null);
   const opacity = useState(() => new Animated.Value(0))[0];
 
@@ -1296,20 +1981,30 @@ function ToastMessage({ text }: { text: string | null }) {
     const fadeTimer = setTimeout(() => {
       Animated.timing(opacity, {
         toValue: 0,
-        duration: 700,
+        duration: 600,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }).start(({ finished }) => {
         if (finished) setDisplayed(null);
       });
-    }, 5000);
+    }, 2500);
     return () => clearTimeout(fadeTimer);
   }, [text, opacity]);
 
   if (!displayed) return null;
 
+  // Position :
+  //   - portrait : au-dessus de la main (hors table)
+  //   - landscape : en haut à droite SOUS "Manche X · Mise X" (qui est à top:64)
+  const positionStyle = isLandscape
+    ? { top: 86, right: 14, left: undefined as any, marginLeft: undefined as any, width: undefined as any, maxWidth: 260 }
+    : { bottom: HAND_H + 18, top: undefined as any };
+
   return (
-    <Animated.View style={[styles.toastWrap, { opacity }]} pointerEvents="none">
+    <Animated.View
+      style={[styles.toastWrap, positionStyle, { opacity }]}
+      pointerEvents="none"
+    >
       <LinearGradient
         colors={[COLORS.saffron, COLORS.brassDeep]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -1366,9 +2061,44 @@ function BiddingOverlay({
   for (let b = min; b <= Math.min(MAX_BID, (highest ?? MIN_BID - BID_STEP) + 60); b += BID_STEP) {
     choices.push(b);
   }
+
+  // Déplaçable via le handle en haut pour que l'utilisateur voie les dires
+  // des autres joueurs (bulles ou bidHistory) qui seraient masqués
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const panOffsetRef = useRef({ x: 0, y: 0 });
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset(panOffsetRef.current);
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderRelease: (_, g) => {
+        panOffsetRef.current = {
+          x: panOffsetRef.current.x + g.dx,
+          y: panOffsetRef.current.y + g.dy,
+        };
+        pan.flattenOffset();
+      },
+    }),
+  ).current;
+
   return (
-    <View style={[styles.overlay, { bottom: bottomOffset }]}>
+    <Animated.View
+      style={[
+        styles.overlay,
+        { bottom: bottomOffset },
+        { transform: pan.getTranslateTransform() },
+      ]}
+    >
       <View style={styles.overlayCard}>
+        {/* Handle de drag */}
+        <View {...panResponder.panHandlers} style={styles.dragHandle}>
+          <View style={styles.dragHandleBar} />
+          <Text style={styles.dragHandleHint}>Glisse pour déplacer</Text>
+        </View>
         <Text style={styles.overlayEyebrow}>ENCHÈRES · CHRA</Text>
         <Text style={styles.overlayTitle}>À toi de parler</Text>
         <Text style={styles.overlaySub}>
@@ -1421,7 +2151,7 @@ function BiddingOverlay({
           <Text style={styles.passBtnText}>Passer</Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1503,6 +2233,21 @@ function GameEndOverlay({
   onSeeDetail: () => void;
 }) {
   const won = winningTeam === "A";
+  const rematchStatus = useNetGameStore((s) => s.rematchStatus);
+  const [iVoted, setIVoted] = useState(false);
+  const mySeat = useNetGameStore((s) => s.mySeat);
+
+  // Si j'ai déjà voté selon le serveur, maintenir le flag
+  useEffect(() => {
+    if (mySeat != null && rematchStatus?.voted.includes(mySeat)) setIVoted(true);
+  }, [rematchStatus, mySeat]);
+
+  const voteRematch = () => {
+    if (iVoted) return;
+    setIVoted(true);
+    useNetGameStore.getState().sendRematchVote(true);
+  };
+
   return (
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
@@ -1531,6 +2276,32 @@ function GameEndOverlay({
             />
             <Text style={styles.endBtnText}>Voir le détail</Text>
           </Pressable>
+
+          {/* Rematch : uniquement en net, tous les humains doivent voter oui */}
+          {mode === "net" && (
+            <Pressable
+              onPress={voteRematch}
+              disabled={iVoted}
+              style={[
+                styles.endBtn,
+                styles.endBtnSecondary,
+                iVoted && { opacity: 0.65 },
+              ]}
+            >
+              <Text style={[styles.endBtnText, { color: COLORS.saffronSoft }]}>
+                {iVoted ? "En attente des autres…" : "↻ Rejouer avec les mêmes"}
+              </Text>
+              {rematchStatus && rematchStatus.total > 0 && (
+                <Text style={{
+                  fontFamily: FONT_UI, fontSize: 10,
+                  color: "rgba(245,235,214,0.6)", marginTop: 2, letterSpacing: 0.5,
+                }}>
+                  {rematchStatus.voted.length} / {rematchStatus.total} d'accord
+                </Text>
+              )}
+            </Pressable>
+          )}
+
           <Pressable onPress={onRestart} style={[styles.endBtn, styles.endBtnSecondary]}>
             <Text style={[styles.endBtnText, { color: COLORS.cream }]}>
               {mode === "net" ? "Retour au lobby" : "Nouvelle partie"}
@@ -1545,7 +2316,13 @@ function GameEndOverlay({
   );
 }
 
-function BidHistory({ history }: { history: import("@touti/shared").BiddingState["history"] }) {
+function BidHistory({
+  history,
+  getName,
+}: {
+  history: import("@touti/shared").BiddingState["history"];
+  getName: (seat: Seat) => string;
+}) {
   const last = history.slice(-4);
   return (
     <View style={styles.bidHistWrap} pointerEvents="none">
@@ -1557,7 +2334,7 @@ function BidHistory({ history }: { history: import("@touti/shared").BiddingState
           : "un Compte";
         return (
           <Text key={i} style={styles.bidHistText}>
-            {PLAYERS[h.seat].name} : {label}
+            {getName(h.seat).replace("", "")} : {label}
           </Text>
         );
       })}
@@ -1651,9 +2428,10 @@ const styles = StyleSheet.create({
 
   roundInfo: {
     position: "absolute",
-    top: 128, left: 0, right: 0,
+    left: 0, right: 0,
     alignItems: "center",
     zIndex: 9,
+    paddingHorizontal: 8,
   },
   roundInfoText: {
     fontFamily: FONT_UI_BOLD,
@@ -1740,7 +2518,7 @@ const styles = StyleSheet.create({
 
   lastTrickBtn: {
     position: "absolute",
-    right: 14,
+    right: 64, // décalé à gauche du bouton "tableau de suivi" qui est à droite
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -1756,12 +2534,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  lastTrickIcon: { fontSize: 20 },
+  lastTrickIcon: { fontSize: 22, color: COLORS.cream, fontWeight: "700", lineHeight: 24 },
 
   // Bouton & overlay tableau de suivi
   scoreSheetBtn: {
     position: "absolute",
-    right: 64, // décalé à gauche du bouton "dernier pli"
+    right: 14, // placé à droite (le bouton "dernier pli" passe à gauche)
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -1777,7 +2555,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  scoreSheetIcon: { fontSize: 18 },
+  scoreSheetIcon: { fontSize: 22, color: COLORS.saffronSoft, fontWeight: "700", lineHeight: 24 },
   scoreSheetOverlay: {
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
@@ -1795,6 +2573,7 @@ const styles = StyleSheet.create({
     padding: 18,
     width: "100%",
     maxWidth: 400,
+    zIndex: 10, // au-dessus du backdrop Pressable pour ne pas lui céder les gestures
   },
   scoreSheetEyebrow: {
     fontFamily: FONT_UI_BOLD,
@@ -2114,4 +2893,401 @@ const styles = StyleSheet.create({
     color: "rgba(245,235,214,0.55)",
     letterSpacing: 0.5,
   },
+
+  pauseBtnWrap: {
+    position: "absolute",
+    left: 14,
+    width: 38, height: 38,
+    borderRadius: 19,
+    zIndex: 95,
+  },
+  pauseBtn: {
+    width: 38, height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}66`,
+    alignItems: "center", justifyContent: "center",
+  },
+
+  dragHandle: {
+    alignItems: "center",
+    paddingTop: 4, paddingBottom: 8,
+    marginBottom: 4,
+  },
+  dragHandleBar: {
+    width: 44, height: 4, borderRadius: 2,
+    backgroundColor: "rgba(245,235,214,0.25)",
+  },
+  dragHandleHint: {
+    fontFamily: FONT_UI, fontSize: 9,
+    color: "rgba(245,235,214,0.35)",
+    marginTop: 4, letterSpacing: 0.5,
+  },
+
+  disconnectedDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: "#E8553A",
+    marginLeft: 4,
+  },
+
+  disconnectedBanner: {
+    position: "absolute",
+    top: 118, left: 0, right: 0,
+    alignItems: "center",
+    zIndex: 50,
+    pointerEvents: "none",
+  },
+  disconnectedBannerPill: {
+    flexDirection: "row",
+    alignItems: "center", gap: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "rgba(200,70,45,0.85)",
+    borderWidth: 0.5, borderColor: "rgba(232,85,58,0.6)",
+  },
+  disconnectedBannerText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 11, fontWeight: "700",
+    color: COLORS.cream, letterSpacing: 0.3,
+  },
+
+  spectatorBadge: {
+    position: "absolute",
+    top: 14, right: 14,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    borderWidth: 0.5, borderColor: `${COLORS.brass}66`,
+    zIndex: 95,
+  },
+  spectatorBadgeText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 1.5,
+    color: COLORS.saffronSoft, fontWeight: "800",
+  },
+
+  countdownWrap: {
+    position: "absolute",
+    top: 118, left: 0, right: 0,
+    alignItems: "center",
+    zIndex: 50,
+    pointerEvents: "none",
+  },
+  countdownPill: {
+    flexDirection: "row",
+    alignItems: "center", gap: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}66`,
+  },
+  countdownIcon: { fontSize: 14 },
+  countdownText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 12, fontWeight: "700",
+    color: COLORS.cream, letterSpacing: 0.3,
+  },
+  countdownSecs: {
+    fontFamily: FONT_DISPLAY, fontSize: 14, fontWeight: "800",
+    color: COLORS.saffronSoft, marginLeft: 6,
+  },
+  pauseBtnIcon: {
+    fontSize: 18,
+    color: COLORS.cream,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 99,
+    padding: 24,
+  },
+  pauseCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: COLORS.tealDeep,
+    borderRadius: 18,
+    borderWidth: 0.5, borderColor: `${COLORS.brass}66`,
+    padding: 16,
+    gap: 4,
+  },
+  pauseTitle: {
+    fontFamily: FONT_UI_BOLD, fontSize: 16, fontWeight: "800",
+    color: COLORS.saffronSoft, textAlign: "center",
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+  pauseItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 12, paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  pauseItemIconWrap: {
+    width: 36, height: 36,
+    borderRadius: 18,
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}77`,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  pauseItemIcon: {
+    fontSize: 16,
+    color: COLORS.saffronSoft,
+    fontWeight: "700",
+    fontFamily: FONT_UI_BOLD,
+    lineHeight: 18,
+  },
+  pauseItemLabel: {
+    fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700",
+    color: COLORS.cream, letterSpacing: 0.3,
+    flex: 1,
+  },
+  pauseDivider: {
+    height: 0.5,
+    backgroundColor: `${COLORS.brass}33`,
+    marginVertical: 6,
+  },
+  pauseQuitItem: {
+    backgroundColor: "rgba(200,70,45,0.12)",
+  },
+
+  reportOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 99,
+    padding: 24,
+  },
+  reportCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: COLORS.tealDeep,
+    borderRadius: 16,
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}66`,
+    padding: 18,
+    gap: 12,
+  },
+  reportTitle: {
+    fontFamily: FONT_UI_BOLD, fontSize: 16, fontWeight: "800",
+    color: COLORS.cream, textAlign: "center",
+  },
+  reportSub: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(245,235,214,0.65)", textAlign: "center",
+  },
+  reportReasonBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}44`,
+    alignItems: "center",
+  },
+  reportReasonText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700",
+    color: COLORS.cream,
+  },
+  reportCancelBtn: {
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  reportCancelText: {
+    fontFamily: FONT_UI, fontSize: 12,
+    color: "rgba(245,235,214,0.55)",
+  },
 });
+
+function TurnCountdownBadge() {
+  const countdown = useNetGameStore((s) => s.turnCountdown);
+  const mySeatServer = useNetGameStore((s) => s.mySeat);
+  const players = useNetGameStore((s) => s.players);
+  if (!countdown) return null;
+  const { seat, secs } = countdown;
+  const isMe = mySeatServer != null && seat === mySeatServer;
+  const playerName = players.find((p) => p.seat === seat)?.name ?? `Siège ${seat + 1}`;
+  return (
+    <View style={styles.countdownWrap}>
+      <View style={[styles.countdownPill, isMe && { borderColor: "#E8553A", backgroundColor: "rgba(200,70,45,0.25)" }]}>
+        <Text style={styles.countdownIcon}>⏱</Text>
+        <Text style={styles.countdownText}>
+          {isMe ? "Joue ou tu abandonnes" : `${playerName} · ${secs}s`}
+        </Text>
+        {isMe && (
+          <Text style={styles.countdownSecs}>{secs}s</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PauseMenu({
+  soundOn,
+  onToggleSound,
+  onRules,
+  onClose,
+  onQuit,
+}: {
+  soundOn: boolean;
+  onToggleSound: () => void;
+  onRules: () => void;
+  onClose: () => void;
+  onQuit: () => void;
+}) {
+  const confirmQuit = () => {
+    Alert.alert(
+      "Quitter la partie ?",
+      "Si tu quittes en cours de partie, ta défaite est enregistrée comme un abandon (600 - 0 pour l'équipe adverse).",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Quitter", style: "destructive", onPress: onQuit },
+      ],
+    );
+  };
+
+  return (
+    <View style={styles.pauseOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View style={styles.pauseCard}>
+        <Text style={styles.pauseTitle}>Pause</Text>
+
+        <Pressable onPress={onClose} style={styles.pauseItem}>
+          <View style={styles.pauseItemIconWrap}>
+            <Text style={styles.pauseItemIcon}>▶</Text>
+          </View>
+          <Text style={styles.pauseItemLabel}>Reprendre</Text>
+        </Pressable>
+
+        <Pressable onPress={onToggleSound} style={styles.pauseItem}>
+          <View style={styles.pauseItemIconWrap}>
+            <Text style={styles.pauseItemIcon}>{soundOn ? "♪" : "⊘"}</Text>
+          </View>
+          <Text style={styles.pauseItemLabel}>Son · {soundOn ? "activé" : "coupé"}</Text>
+        </Pressable>
+
+        <Pressable onPress={onRules} style={styles.pauseItem}>
+          <View style={styles.pauseItemIconWrap}>
+            <Text style={styles.pauseItemIcon}>ⓘ</Text>
+          </View>
+          <Text style={styles.pauseItemLabel}>Règles</Text>
+        </Pressable>
+
+        <View style={styles.pauseDivider} />
+
+        <Pressable onPress={confirmQuit} style={[styles.pauseItem, styles.pauseQuitItem]}>
+          <View style={[styles.pauseItemIconWrap, { borderColor: "rgba(232,85,58,0.6)" }]}>
+            <Text style={[styles.pauseItemIcon, { color: "#E8553A" }]}>⏻</Text>
+          </View>
+          <Text style={[styles.pauseItemLabel, { color: "#E8553A" }]}>
+            Quitter — abandon
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// Modal affiché une fois le tuto de la manche terminé. L'utilisateur choisit
+// s'il continue la partie en cours ou passe directement au tuto des menus.
+function TutoEndChoiceModal({
+  onContinue,
+  onGoToMenuTuto,
+}: {
+  onContinue: () => void;
+  onGoToMenuTuto: () => void;
+}) {
+  return (
+    <View style={styles.pauseOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onContinue} />
+      <View style={styles.pauseCard}>
+        <Text style={styles.pauseTitle}>Fin du tuto</Text>
+        <Text
+          style={{
+            color: COLORS.cream,
+            fontSize: 14,
+            lineHeight: 20,
+            fontFamily: FONT_UI,
+            fontWeight: "500",
+            textAlign: "center",
+            marginBottom: 8,
+            paddingHorizontal: 4,
+          }}
+        >
+          Tu connais les bases. Que veux-tu faire maintenant ?
+        </Text>
+
+        <Pressable onPress={onContinue} style={styles.pauseItem}>
+          <View style={styles.pauseItemIconWrap}>
+            <Text style={styles.pauseItemIcon}>▶</Text>
+          </View>
+          <Text style={styles.pauseItemLabel}>Continuer la partie (jusqu'à 600)</Text>
+        </Pressable>
+
+        <Pressable onPress={onGoToMenuTuto} style={styles.pauseItem}>
+          <View style={styles.pauseItemIconWrap}>
+            <Text style={styles.pauseItemIcon}>☰</Text>
+          </View>
+          <Text style={styles.pauseItemLabel}>Passer au tuto des menus</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function ReportModal({
+  targetName,
+  roomCode,
+  onClose,
+}: {
+  targetName: string;
+  roomCode?: string;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (reason: ReportReason) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await apiReport({
+        reportedUsername: targetName,
+        reason,
+        context: "game",
+        roomCode,
+      });
+      onClose();
+      Alert.alert("Signalement envoyé", `Merci, ton signalement sur ${targetName} a été transmis.`);
+    } catch (e: any) {
+      setBusy(false);
+      Alert.alert("Erreur", e?.message ?? "Impossible d'envoyer le signalement.");
+    }
+  };
+
+  return (
+    <View style={styles.reportOverlay}>
+      <View style={styles.reportCard}>
+        <Text style={styles.reportTitle}>Signaler {targetName}</Text>
+        <Text style={styles.reportSub}>Choisis la raison du signalement</Text>
+        <Pressable onPress={() => submit("insulte")} style={styles.reportReasonBtn} disabled={busy}>
+          <Text style={styles.reportReasonText}>Insulte / langage abusif</Text>
+        </Pressable>
+        <Pressable onPress={() => submit("triche")} style={styles.reportReasonBtn} disabled={busy}>
+          <Text style={styles.reportReasonText}>Triche</Text>
+        </Pressable>
+        <Pressable onPress={() => submit("spam")} style={styles.reportReasonBtn} disabled={busy}>
+          <Text style={styles.reportReasonText}>Spam</Text>
+        </Pressable>
+        <Pressable onPress={() => submit("autre")} style={styles.reportReasonBtn} disabled={busy}>
+          <Text style={styles.reportReasonText}>Autre</Text>
+        </Pressable>
+        <Pressable onPress={onClose} style={styles.reportCancelBtn} disabled={busy}>
+          <Text style={styles.reportCancelText}>Annuler</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}

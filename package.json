@@ -23,9 +23,5 @@
   "devDependencies": {
     "concurrently": "^9.1.0",
     "typescript": "^5.4.5"
-  },
-  "dependencies": {
-    "expo-av": "~16.0.8",
-    "expo-haptics": "~15.0.8"
   }
 }

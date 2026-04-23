@@ -39,6 +39,11 @@ function tryRequire(key: SoundKey): any {
 const loaded: Partial<Record<SoundKey, Audio.Sound>> = {};
 let audioModeSet = false;
 let enabled = true;
+// Incrémenté à chaque stopAllSounds. Invalide toute instance de playSound
+// en cours qui attendait sur createAsync : si l'epoch a changé entre-temps,
+// on n'enclenche pas replayAsync (sinon le son reprend juste APRÈS l'arrêt
+// quand l'utilisateur a déjà quitté la partie).
+let epoch = 0;
 
 export function setSoundEnabled(v: boolean) { enabled = v; }
 export function isSoundEnabled() { return enabled; }
@@ -86,10 +91,27 @@ export async function playSound(key: SoundKey) {
   if (!enabled) return;
   // Haptic immédiat
   HAPTIC[key]?.();
-  // Son différé (lazy)
+  // Snapshot de l'epoch avant l'await — si stopAllSounds est appelé pendant
+  // que createAsync tourne, on verra la différence et on abandonnera.
+  const myEpoch = epoch;
   const s = await getSound(key);
   if (!s) return;
+  if (myEpoch !== epoch) return; // stop s'est produit entre-temps → on n'enchaîne pas
   try {
     await s.replayAsync();
   } catch {}
+}
+
+// Arrête tous les sons en cours (utile quand on quitte une partie en cours).
+// Invalide aussi les playSound en cours d'await, pour éviter qu'un son
+// se déclenche juste APRÈS l'abandon.
+export async function stopAllSounds() {
+  epoch++;
+  await Promise.allSettled(
+    (Object.keys(loaded) as SoundKey[]).map(async (key) => {
+      const s = loaded[key];
+      if (!s) return;
+      try { await s.stopAsync(); } catch {}
+    }),
+  );
 }

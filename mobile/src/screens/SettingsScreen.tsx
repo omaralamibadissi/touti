@@ -1,26 +1,95 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Share } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useAuthStore } from "../store/authStore";
+import { apiExportMe } from "../net/authApi";
+import { hapticTap, hapticChoice, hapticWarning, setHapticsEnabled } from "../lib/haptics";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
 export default function SettingsScreen({ navigation }: Props) {
   const [sfx, setSfx] = useState(true);
   const [music, setMusic] = useState(true);
-  const [vib, setVib] = useState(false);
+  const [vib, setVib] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const signOut = useAuthStore((s) => s.signOut);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
+  const resetOnboarding = useAuthStore((s) => s.resetOnboarding);
+  const username = useAuthStore((s) => s.user?.username) ?? "user";
 
   const handleSignOut = async () => {
-    // Pas besoin de navigation.reset — App.tsx bascule automatiquement
-    // vers SignIn dès que user devient null.
+    hapticChoice();
     await signOut();
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const data = await apiExportMe();
+      const json = JSON.stringify(data, null, 2);
+      const fileName = `touti-export-${username}-${Date.now()}.json`;
+      const uri = FileSystem.cacheDirectory + fileName;
+      await FileSystem.writeAsStringAsync(uri, json, { encoding: FileSystem.EncodingType.UTF8 });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/json",
+          dialogTitle: "Mes données Touti",
+          UTI: "public.json",
+        });
+      } else {
+        // Fallback : partage via Share API natif avec le JSON inliné
+        await Share.share({ message: json });
+      }
+    } catch (e: any) {
+      Alert.alert("Erreur", e?.message ?? "Impossible d'exporter les données");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDelete = () => {
+    hapticWarning();
+    Alert.alert(
+      "Supprimer mon compte ?",
+      "Action définitive. Tout ton historique, ligues et statistiques seront supprimés du serveur. Tu ne pourras pas récupérer ton compte.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => {
+            // Deuxième confirmation
+            Alert.alert(
+              "Es-tu vraiment sûr ?",
+              "Tape le nom de ton compte pour confirmer : " + username,
+              [
+                { text: "Annuler", style: "cancel" },
+                {
+                  text: "OUI, SUPPRIMER DÉFINITIVEMENT",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                    } catch (e: any) {
+                      Alert.alert("Erreur", e?.message ?? "Suppression impossible");
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -34,9 +103,6 @@ export default function SettingsScreen({ navigation }: Props) {
         <View style={{ height: 60 }} />
 
         <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
-          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>RÉGLAGES</Text>
             <Text style={styles.title}>Paramètres</Text>
@@ -48,20 +114,49 @@ export default function SettingsScreen({ navigation }: Props) {
             <Row label="Langue" value="Français" />
             <Row label="Dos des cartes" value="Zellige" swatchColor={COLORS.terracottaDark} />
             <Row label="Couleur de table" value="Bois" swatchColor="#6b4126" />
-            <Row label="Vitesse du jeu" value="Normale" last />
+            <Row label="Vitesse du jeu" value="Normale" />
+            <Row
+              label="Revoir le tutoriel"
+              chevron
+              last
+              onPress={() => {
+                hapticTap();
+                navigation.navigate("Onboarding");
+              }}
+            />
           </Group>
 
           <Group title="Son & Vibrations">
-            <Row label="Effets sonores" toggle toggled={sfx} onToggle={() => setSfx((v) => !v)} />
-            <Row label="Musique" toggle toggled={music} onToggle={() => setMusic((v) => !v)} />
-            <Row label="Vibrations" toggle toggled={vib} onToggle={() => setVib((v) => !v)} last />
+            <Row label="Effets sonores" toggle toggled={sfx} onToggle={() => { hapticTap(); setSfx((v) => !v); }} />
+            <Row label="Musique" toggle toggled={music} onToggle={() => { hapticTap(); setMusic((v) => !v); }} />
+            <Row
+              label="Vibrations"
+              toggle
+              toggled={vib}
+              onToggle={() => {
+                const next = !vib;
+                setVib(next);
+                setHapticsEnabled(next);
+                if (next) hapticTap();
+              }}
+              last
+            />
           </Group>
 
           <Group title="Compte">
             <Row label="Notifications" chevron />
-            <Row label="Confidentialité" chevron />
-            <Row label="Aide" chevron />
-            <Row label="Déconnexion" chevron danger last onPress={handleSignOut} />
+            <Row
+              label="Confidentialité & CGU"
+              chevron
+              onPress={() => navigation.navigate("Terms", { section: "privacy" })}
+            />
+            <Row
+              label={exporting ? "Export en cours…" : "Télécharger mes données"}
+              chevron={!exporting}
+              onPress={exporting ? undefined : handleExport}
+            />
+            <Row label="Déconnexion" chevron onPress={handleSignOut} />
+            <Row label="Supprimer mon compte" chevron danger last onPress={handleDelete} />
           </Group>
 
           <View style={styles.footer}>
@@ -70,7 +165,6 @@ export default function SettingsScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
-      <BottomTabBar />
     </View>
   );
 }

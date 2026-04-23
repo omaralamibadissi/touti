@@ -1,26 +1,53 @@
-// Liste d'amis simple, persistée localement.
-// Pour la v1 : un ami = juste un pseudo (pas de profil distant).
-// À terme : sera connecté à un service de présence côté serveur.
+// Amis serveur-backed avec demandes bidirectionnelles.
+// Cache local (AsyncStorage) pour affichage offline.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import {
+  apiListFriends, apiRequestFriend, apiAcceptFriend, apiRejectFriend, apiUnfriend,
+  type FriendshipApi,
+} from "../net/friendsApi";
 
-export interface Friend {
+export interface Friendship {
   id: string;
-  name: string;
+  requesterId: string;
+  requesterName: string;
+  receiverId: string;
+  receiverName: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: number;
+  respondedAt?: number;
+}
+
+// Compat : vue "ami simple" utilisée par les pickers (QuickMatch, etc.)
+export interface Friend {
+  id: string;        // friendship id
+  name: string;      // pseudo de l'autre
+  otherId: string;   // account id de l'autre (pour DM, profile lookups, etc.)
   addedAt: number;
+  online?: boolean;
 }
 
 interface FriendsState {
   hydrated: boolean;
+  myUsername: string;
   friends: Friend[];
-  hydrate: () => Promise<void>;
-  add: (name: string) => Promise<void>;
-  remove: (id: string) => Promise<void>;
+  incoming: Friendship[];
+  outgoing: Friendship[];
+  error: string | null;
+
+  setMyUsername: (u: string) => void;
+  hydrate: (myUsername: string) => Promise<void>;
+  refresh: () => Promise<void>;
+  request: (username: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  accept: (friendshipId: string) => Promise<void>;
+  reject: (friendshipId: string) => Promise<void>;
+  remove: (friendshipId: string) => Promise<void>;
+  clearError: () => void;
   clear: () => Promise<void>;
 }
 
-const STORAGE_KEY = "touti.friends.v1";
+const STORAGE_KEY = "touti.friends.v3";
 
 async function persist(friends: Friend[]) {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(friends));
@@ -28,38 +55,99 @@ async function persist(friends: Friend[]) {
 
 export const useFriendsStore = create<FriendsState>((set, get) => ({
   hydrated: false,
+  myUsername: "",
   friends: [],
+  incoming: [],
+  outgoing: [],
+  error: null,
 
-  hydrate: async () => {
+  setMyUsername: (u) => set({ myUsername: u }),
+
+  hydrate: async (myUsername) => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       const friends: Friend[] = raw ? JSON.parse(raw) : [];
-      set({ friends, hydrated: true });
+      set({ friends, myUsername, hydrated: true });
+      get().refresh().catch(() => {});
     } catch {
-      set({ hydrated: true });
+      set({ hydrated: true, myUsername });
     }
   },
 
-  add: async (name) => {
-    const trimmed = name.trim();
-    if (trimmed.length < 2) return;
-    if (get().friends.some((f) => f.name.toLowerCase() === trimmed.toLowerCase())) return;
-    const next = [
-      ...get().friends,
-      { id: String(Date.now()) + Math.random().toString(36).slice(2, 6), name: trimmed, addedAt: Date.now() },
-    ];
-    await persist(next);
-    set({ friends: next });
+  refresh: async () => {
+    try {
+      const list = await apiListFriends();
+      const myUsername = get().myUsername;
+      const mapped: Friend[] = list.friends.map((f) => {
+        const otherIsReceiver = f.requesterName === myUsername;
+        const otherName = otherIsReceiver ? f.receiverName : f.requesterName;
+        const otherId = otherIsReceiver ? f.receiverId : f.requesterId;
+        const otherOnline = otherIsReceiver ? !!f.receiverOnline : !!f.requesterOnline;
+        return {
+          id: f.id,
+          name: otherName,
+          otherId,
+          addedAt: f.respondedAt || f.createdAt,
+          online: otherOnline,
+        };
+      });
+
+      await persist(mapped);
+      set({
+        friends: mapped,
+        incoming: list.incoming as Friendship[],
+        outgoing: list.outgoing as Friendship[],
+      });
+    } catch {}
+  },
+
+  request: async (username) => {
+    const trimmed = username.trim();
+    if (trimmed.length < 3) {
+      return { ok: false, error: "Pseudo trop court" };
+    }
+    try {
+      await apiRequestFriend(trimmed);
+      await get().refresh();
+      return { ok: true };
+    } catch (e: any) {
+      const msg = e?.message ?? "Erreur";
+      set({ error: msg });
+      return { ok: false, error: msg };
+    }
+  },
+
+  accept: async (id) => {
+    try {
+      await apiAcceptFriend(id);
+      await get().refresh();
+    } catch (e: any) {
+      set({ error: e?.message ?? "Erreur" });
+    }
+  },
+
+  reject: async (id) => {
+    try {
+      await apiRejectFriend(id);
+      await get().refresh();
+    } catch (e: any) {
+      set({ error: e?.message ?? "Erreur" });
+    }
   },
 
   remove: async (id) => {
-    const next = get().friends.filter((f) => f.id !== id);
-    await persist(next);
-    set({ friends: next });
+    try {
+      await apiUnfriend(id);
+      await get().refresh();
+    } catch (e: any) {
+      set({ error: e?.message ?? "Erreur" });
+    }
   },
+
+  clearError: () => set({ error: null }),
 
   clear: async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
-    set({ friends: [] });
+    set({ friends: [], incoming: [], outgoing: [], error: null, myUsername: "" });
   },
 }));

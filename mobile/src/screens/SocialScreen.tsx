@@ -8,33 +8,47 @@ import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useFriendsStore } from "../store/friendsStore";
+import { useAuthStore } from "../store/authStore";
+import { hapticTap, hapticSuccess, hapticError } from "../lib/haptics";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Social">;
 
 export default function SocialScreen({ navigation }: Props) {
   const [newName, setNewName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
+  const myUsername = useAuthStore((s) => s.user?.username) ?? "Joueur";
   const friends = useFriendsStore((s) => s.friends);
+  const incoming = useFriendsStore((s) => s.incoming);
+  const outgoing = useFriendsStore((s) => s.outgoing);
   const hydrated = useFriendsStore((s) => s.hydrated);
   const hydrate = useFriendsStore((s) => s.hydrate);
-  const addFriend = useFriendsStore((s) => s.add);
-  const removeFriend = useFriendsStore((s) => s.remove);
+  const refresh = useFriendsStore((s) => s.refresh);
+  const requestFriend = useFriendsStore((s) => s.request);
+  const acceptFriend = useFriendsStore((s) => s.accept);
+  const rejectFriend = useFriendsStore((s) => s.reject);
 
   useEffect(() => {
-    if (!hydrated) hydrate();
-  }, [hydrated, hydrate]);
+    if (!hydrated) hydrate(myUsername);
+    else refresh();
+  }, [hydrated, hydrate, refresh, myUsername]);
 
-  const submitAdd = () => {
-    if (newName.trim().length < 2) return;
-    addFriend(newName);
-    setNewName("");
-  };
-
-  const confirmRemove = (id: string, name: string) => {
-    Alert.alert(`Retirer ${name} ?`, "", [
-      { text: "Annuler", style: "cancel" },
-      { text: "Retirer", style: "destructive", onPress: () => removeFriend(id) },
-    ]);
+  const submitAdd = async () => {
+    if (newName.trim().length < 3 || submitting) return;
+    setSubmitting(true);
+    const res = await requestFriend(newName);
+    setSubmitting(false);
+    if (res.ok) {
+      setNewName("");
+      hapticSuccess();
+      Alert.alert(
+        "Demande envoyée",
+        `Ta demande a été envoyée à ${newName.trim()}. Tu deviendras ami dès qu'il accepte.`,
+      );
+    } else {
+      hapticError();
+      Alert.alert("Impossible", res.error);
+    }
   };
 
   return (
@@ -57,22 +71,24 @@ export default function SocialScreen({ navigation }: Props) {
           <Text style={styles.title}>Mes amis</Text>
         </View>
 
-        <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 14 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 18 }}>
           {/* Ajout */}
           <View>
             <View style={styles.addBlock}>
               <TextInput
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="Pseudo d'un ami à ajouter…"
+                placeholder="Pseudo exact de l'ami à ajouter…"
                 placeholderTextColor="rgba(245,235,214,0.4)"
                 style={styles.addInput}
+                autoCapitalize="none"
+                autoCorrect={false}
                 onSubmitEditing={submitAdd}
               />
               <Pressable
                 onPress={submitAdd}
-                style={[styles.addBtn, newName.trim().length < 2 && { opacity: 0.4 }]}
-                disabled={newName.trim().length < 2}
+                style={[styles.addBtn, (newName.trim().length < 3 || submitting) && { opacity: 0.4 }]}
+                disabled={newName.trim().length < 3 || submitting}
               >
                 <LinearGradient
                   colors={[COLORS.saffron, COLORS.brassDeep]}
@@ -80,58 +96,102 @@ export default function SocialScreen({ navigation }: Props) {
                   end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.addBtnText}>+ Ajouter</Text>
+                <Text style={styles.addBtnText}>{submitting ? "…" : "Envoyer"}</Text>
               </Pressable>
             </View>
             <Text style={styles.hint}>
-              Au moins 2 caractères ({newName.trim().length} pour l'instant)
+              Le pseudo est sensible à la casse · Une demande sera envoyée à l'autre joueur qui devra l'accepter
             </Text>
           </View>
 
-          {friends.length === 0 ? (
-            <View style={styles.emptyBlock}>
-              <Text style={styles.emptyTitle}>Aucun ami pour l'instant</Text>
-              <Text style={styles.emptySub}>
-                Ajoute le pseudo d'un pote pour le voir apparaître ici. Pour jouer ensemble, partage le code de ta partie privée ou ajoute-le à une ligue.
-              </Text>
+          {/* Demandes reçues */}
+          {incoming.length > 0 && (
+            <View>
+              <Text style={styles.sectionLabel}>DEMANDES REÇUES · {incoming.length}</Text>
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {incoming.map((f) => (
+                  <View key={f.id} style={[styles.friendRow, { borderColor: `${COLORS.saffron}66` }]}>
+                    <Avatar initials={f.requesterName[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.saffron} online={!!(f as any).requesterOnline} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.friendName}>{f.requesterName}</Text>
+                      <Text style={styles.friendSub}>veut être ton ami</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => { hapticSuccess(); acceptFriend(f.id); }}
+                      style={styles.acceptBtn}
+                    >
+                      <Text style={styles.acceptText}>✓</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => { hapticTap(); rejectFriend(f.id); }}
+                      style={styles.rejectBtn}
+                    >
+                      <Text style={styles.rejectText}>×</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
             </View>
-          ) : (
+          )}
+
+          {/* Amis confirmés */}
+          {friends.length > 0 && (
             <View>
               <Text style={styles.sectionLabel}>TES AMIS · {friends.length}</Text>
-              <View style={{ gap: 8, marginTop: 6 }}>
+              <View style={{ gap: 8, marginTop: 8 }}>
                 {friends.map((f) => (
                   <Pressable
                     key={f.id}
-                    onPress={() => navigation.navigate("PlayerProfile", { name: f.name })}
+                    onPress={() => { hapticTap(); navigation.navigate("PlayerProfile", { name: f.name, friendshipId: f.id }); }}
                     style={styles.friendRow}
                   >
-                    <Avatar initials={f.name[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.teal} />
+                    <Avatar initials={f.name[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.teal} online={!!f.online} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.friendName}>{f.name}</Text>
                       <Text style={styles.friendSub}>
-                        Ajouté le {new Date(f.addedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                        {f.online
+                          ? "En ligne"
+                          : `Ami depuis le ${new Date(f.addedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
                       </Text>
                     </View>
-                    <Text style={styles.viewArrow}>→</Text>
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        confirmRemove(f.id, f.name);
-                      }}
-                      hitSlop={8}
-                      style={styles.removeBtn}
-                    >
-                      <Text style={styles.removeText}>×</Text>
-                    </Pressable>
+                    <Text style={styles.viewArrow}>›</Text>
                   </Pressable>
                 ))}
               </View>
               <Text style={styles.tapHint}>Tape un ami pour voir son profil</Text>
             </View>
           )}
+
+          {/* Demandes envoyées */}
+          {outgoing.length > 0 && (
+            <View>
+              <Text style={styles.sectionLabel}>EN ATTENTE · {outgoing.length}</Text>
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {outgoing.map((f) => (
+                  <View key={f.id} style={[styles.friendRow, { opacity: 0.65 }]}>
+                    <Avatar initials={f.receiverName[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.brass} online={!!(f as any).receiverOnline} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.friendName}>{f.receiverName}</Text>
+                      <Text style={styles.friendSub}>en attente de réponse</Text>
+                    </View>
+                    <Text style={{ fontSize: 18, color: "rgba(245,235,214,0.4)" }}>⏳</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {friends.length === 0 && incoming.length === 0 && outgoing.length === 0 && (
+            <View style={styles.emptyBlock}>
+              <Text style={styles.emptyEmoji}>✾</Text>
+              <Text style={styles.emptyTitle}>Pas encore d'amis</Text>
+              <Text style={styles.emptySub}>
+                Tape le pseudo exact d'un joueur pour lui envoyer une demande. Il doit avoir un compte et accepter pour que vous deveniez amis.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
-      <BottomTabBar />
     </View>
   );
 }
@@ -164,6 +224,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     overflow: "hidden",
+    minWidth: 90,
   },
   addBtnText: {
     fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "800",
@@ -172,17 +233,17 @@ const styles = StyleSheet.create({
   hint: {
     fontFamily: FONT_UI,
     fontSize: 10,
-    color: "rgba(245,235,214,0.5)",
+    color: "rgba(245,235,214,0.55)",
     fontStyle: "italic",
-    marginTop: 4,
+    marginTop: 6,
     paddingHorizontal: 4,
+    lineHeight: 14,
   },
 
   sectionLabel: {
     fontFamily: FONT_UI_BOLD,
     fontSize: 10, letterSpacing: 2,
     color: COLORS.brass, fontWeight: "700",
-    marginBottom: 4,
   },
 
   emptyBlock: {
@@ -190,7 +251,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.25)",
     borderRadius: 14,
     borderWidth: 0.5, borderColor: "rgba(245,235,214,0.1)",
-    alignItems: "center", gap: 8,
+    alignItems: "center", gap: 10,
+  },
+  emptyEmoji: {
+    fontSize: 36, color: COLORS.saffronSoft, fontFamily: FONT_DISPLAY,
   },
   emptyTitle: {
     fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700",
@@ -219,16 +283,10 @@ const styles = StyleSheet.create({
   },
   viewArrow: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 18,
+    fontSize: 22,
     color: "rgba(245,235,214,0.4)",
+    paddingHorizontal: 4,
   },
-  removeBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "rgba(200,70,45,0.2)",
-    alignItems: "center", justifyContent: "center",
-    marginLeft: 4,
-  },
-  removeText: { color: "#E8553A", fontSize: 18, fontWeight: "700", lineHeight: 20 },
   tapHint: {
     marginTop: 8,
     fontFamily: FONT_UI,
@@ -236,5 +294,26 @@ const styles = StyleSheet.create({
     color: "rgba(245,235,214,0.45)",
     fontStyle: "italic",
     textAlign: "center",
+  },
+
+  acceptBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: `${COLORS.saffron}33`,
+    borderWidth: 0.5, borderColor: COLORS.saffron,
+    alignItems: "center", justifyContent: "center",
+  },
+  acceptText: {
+    fontSize: 16, fontWeight: "700", color: COLORS.saffronSoft,
+    fontFamily: FONT_UI_BOLD,
+  },
+  rejectBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: "rgba(200,70,45,0.15)",
+    borderWidth: 0.5, borderColor: "rgba(232,85,58,0.5)",
+    alignItems: "center", justifyContent: "center",
+  },
+  rejectText: {
+    fontSize: 20, fontWeight: "700", color: "#E8553A",
+    lineHeight: 22, fontFamily: FONT_UI_BOLD,
   },
 });

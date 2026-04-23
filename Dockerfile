@@ -2,6 +2,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# better-sqlite3 a besoin de python/make/g++ pour compiler son binding natif
+RUN apk add --no-cache python3 make g++ sqlite-dev
+
 # Copier tous les manifests pour que npm workspaces puisse résoudre
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json ./shared/
@@ -27,12 +30,18 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# SQLite runtime library (pas besoin des dev headers ici)
+RUN apk add --no-cache sqlite-libs
+
 # On ne copie que ce qui sert à exécuter
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server/package.json ./server/package.json
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/shared ./shared
+
+# Dossier où le volume Fly est monté (DB persistante)
+RUN mkdir -p /data
 
 EXPOSE 2567
 CMD ["node", "server/dist/index.js"]

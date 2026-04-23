@@ -6,6 +6,8 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { useMatchHistoryStore, MatchEntry, MatchType } from "../store/matchHistoryStore";
+import { useAuthStore } from "../store/authStore";
+import { matchUserWon } from "../lib/leveling";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MatchHistory">;
 
@@ -13,11 +15,14 @@ export default function MatchHistoryScreen({ navigation }: Props) {
   const matches = useMatchHistoryStore((s) => s.matches);
   const hydrate = useMatchHistoryStore((s) => s.hydrate);
   const clear = useMatchHistoryStore((s) => s.clear);
+  const username = useAuthStore((s) => s.user?.username);
 
   useEffect(() => { hydrate(); }, [hydrate]);
 
   const totalPlayed = matches.length;
-  const won = matches.filter((m) => m.winnerTeam === "A").length; // suppose l'utilisateur est toujours en équipe A
+  // Détection basée sur le vrai siège de l'utilisateur dans chaque match
+  // (0/2 = équipe A, 1/3 = équipe B). Ne suppose plus que l'user est en A.
+  const won = matches.filter((m) => matchUserWon(m, username)).length;
   const ratio = totalPlayed > 0 ? Math.round((won / totalPlayed) * 100) : 0;
 
   const onClear = () => {
@@ -68,6 +73,7 @@ export default function MatchHistoryScreen({ navigation }: Props) {
 
         {matches.length === 0 ? (
           <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>✧</Text>
             <Text style={styles.emptyTitle}>Aucune partie jouée</Text>
             <Text style={styles.emptySub}>
               Les parties finies s'afficheront ici (Partie rapide, Tournoi, IRL…).
@@ -99,7 +105,8 @@ function StatBlock({ label, value, highlight }: { label: string; value: string; 
 }
 
 function MatchRow({ match, onPress }: { match: MatchEntry; onPress: () => void }) {
-  const won = match.winnerTeam === "A";
+  const username = useAuthStore((s) => s.user?.username);
+  const won = matchUserWon(match, username);
   const dateLabel = formatDate(match.finishedAt);
   const typeLabel = typeName(match.type);
   return (
@@ -185,7 +192,8 @@ const styles = StyleSheet.create({
   scoreNum: { fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: "700" },
   scoreDash: { fontFamily: FONT_DISPLAY, fontSize: 12, color: "rgba(245,235,214,0.35)", fontWeight: "500" },
 
-  empty: { alignItems: "center", padding: 40 },
+  empty: { alignItems: "center", padding: 40, gap: 10 },
+  emptyEmoji: { fontSize: 36, color: COLORS.saffronSoft, fontFamily: FONT_DISPLAY },
   emptyTitle: { fontFamily: FONT_UI_BOLD, fontSize: 15, color: COLORS.cream, fontWeight: "700" },
   emptySub: {
     fontFamily: FONT_UI,

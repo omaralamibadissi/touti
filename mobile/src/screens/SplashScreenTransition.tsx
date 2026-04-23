@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_DISPLAY, FONT_UI_BOLD } from "../theme";
 import { ArabesqueDivider, StarBurst, ZelligeBg } from "../components/Patterns";
+import { getCardComponent } from "../components/cardAssets";
 
 /**
  * Splash custom rendu en natif (SVG + texte) — aucun PNG, donc pas de
@@ -94,18 +95,81 @@ export default function SplashScreenTransition({ onDone }: Props) {
             transform: [{ scale: titleScale }],
           }}
         >
+          <SplashCards />
+        </Animated.View>
+
+        <Animated.View
+          style={{
+            alignItems: "center",
+            opacity: subOpacity,
+            marginTop: 24,
+          }}
+        >
           <ArabesqueDivider width={220} color={COLORS.saffronSoft} />
           <Text style={styles.title}>TOUTI</Text>
           <ArabesqueDivider width={220} color={COLORS.saffronSoft} />
-        </Animated.View>
-
-        <Animated.View style={{ opacity: subOpacity, marginTop: 18 }}>
-          <Text style={styles.tagline}>LE JEU DE CARTES MAROCAIN</Text>
         </Animated.View>
       </View>
     </Animated.View>
   );
 }
+
+// Rey + Caballo de oros fannés — identiques au logo d'app.
+// Les SVG n'incluent PAS le fond : on wrappe dans un View crème avec radius.
+function SplashMini({
+  rank,
+  width,
+  height,
+}: {
+  rank: 11 | 12;
+  width: number;
+  height: number;
+}) {
+  const CardSvg = getCardComponent("oros", rank);
+  return (
+    <View
+      style={{
+        width,
+        height,
+        borderRadius: width * 0.07,
+        backgroundColor: "#FBF6EA",
+        borderWidth: 1,
+        borderColor: "#151515",
+        overflow: "hidden",
+      }}
+    >
+      <CardSvg width={width} height={height} />
+    </View>
+  );
+}
+
+function SplashCards() {
+  return (
+    <View style={cardStyles.wrap}>
+      <View style={[cardStyles.card, { transform: [{ rotate: "-14deg" }, { translateX: -50 }] }]}>
+        <SplashMini rank={11} width={130} height={208} />
+      </View>
+      <View style={[cardStyles.card, { transform: [{ rotate: "14deg" }, { translateX: 50 }] }]}>
+        <SplashMini rank={12} width={130} height={208} />
+      </View>
+    </View>
+  );
+}
+
+const cardStyles = StyleSheet.create({
+  wrap: {
+    width: 300, height: 230,
+    alignItems: "center", justifyContent: "center",
+  },
+  card: {
+    position: "absolute",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+});
 
 const styles = StyleSheet.create({
   root: {

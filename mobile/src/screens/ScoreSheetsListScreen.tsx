@@ -27,9 +27,16 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
       names[2]?.trim() || "Joueur 3",
       names[3]?.trim() || "Joueur 4",
     ];
-    const s = await create(tuple);
-    setCreating(false);
-    navigation.navigate("ScoreTracker", { sheetId: s.id });
+    try {
+      const s = await create(tuple);
+      setCreating(false);
+      navigation.navigate("ScoreTracker", { sheetId: s.id });
+    } catch (e: any) {
+      Alert.alert(
+        "Impossible de créer la feuille",
+        "Connexion au serveur requise pour créer une nouvelle feuille de score.",
+      );
+    }
   };
 
   const inProgress = sheets.filter((s) => s.status === "in-progress");
@@ -152,6 +159,7 @@ export default function ScoreSheetsListScreen({ navigation }: Props) {
 
         {sheets.length === 0 && !creating && (
           <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>✎</Text>
             <Text style={styles.emptyTitle}>Aucune fiche pour l'instant</Text>
             <Text style={styles.emptySub}>Crée-en une pour commencer à noter les scores d'une partie IRL.</Text>
           </View>
@@ -323,7 +331,8 @@ const styles = StyleSheet.create({
   sheetScore: { fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: "700" },
   sheetDash: { fontFamily: FONT_DISPLAY, fontSize: 14, color: "rgba(245,235,214,0.35)", fontWeight: "500" },
 
-  empty: { alignItems: "center", marginTop: 50, padding: 20 },
+  empty: { alignItems: "center", marginTop: 50, padding: 20, gap: 10 },
+  emptyEmoji: { fontSize: 36, color: COLORS.saffronSoft, fontFamily: FONT_DISPLAY },
   emptyTitle: { fontFamily: FONT_UI_BOLD, fontSize: 15, color: COLORS.cream, fontWeight: "700" },
   emptySub: {
     fontFamily: FONT_UI,

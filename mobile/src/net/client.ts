@@ -18,16 +18,32 @@ export async function joinPrivateRoom(opts: PrivateRoomOpts): Promise<Room> {
   });
 }
 
+/** Rejoint une partie privée comme spectateur (lecture seule, sans siège). */
+export async function joinPrivateRoomAsSpectator(opts: PrivateRoomOpts): Promise<Room> {
+  return colyClient.joinOrCreate("touti_private", {
+    code: opts.code.toUpperCase(),
+    name: opts.name,
+    spectator: true,
+  });
+}
+
 /** Matchmaking public : rejoint la première room quick dispo, ou en crée une. */
 export async function joinQuickRoom(opts: { name: string }): Promise<Room> {
   return colyClient.joinOrCreate("touti_quick", { name: opts.name });
 }
 
 /** Partie rapide avec code d'invitation : amis rejoignent via code, auto-start à 4 humains. */
-export async function joinQuickCodeRoom(opts: { code: string; name: string }): Promise<Room> {
+export async function joinQuickCodeRoom(opts: {
+  code: string;
+  name: string;
+  leagueId?: string;
+  hybridOpenToPool?: boolean;
+}): Promise<Room> {
   return colyClient.joinOrCreate("touti_quick_code", {
     code: opts.code.toUpperCase(),
     name: opts.name,
+    leagueId: opts.leagueId,
+    hybridOpenToPool: opts.hybridOpenToPool,
   });
 }
 

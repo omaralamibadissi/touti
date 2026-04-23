@@ -101,6 +101,9 @@ export interface GameState {
   hands: [Card[], Card[], Card[], Card[]];
   trump: Suit | null;
   bidding: BiddingState | null;
+  /** Snapshot figé de l'historique juste avant fermeture des enchères. Permet à
+   * l'UI d'afficher le dernier dire de chaque joueur même après transition. */
+  lastBidHistory: BiddingState["history"] | null;
   bidWinner: Seat | null;
   bidAmount: number | null;
   trick: TrickEntry[];
@@ -163,6 +166,7 @@ export function createGame(): GameState {
     hands: [[], [], [], []],
     trump: null,
     bidding: null,
+    lastBidHistory: null,
     bidWinner: null,
     bidAmount: null,
     trick: [],
@@ -193,6 +197,7 @@ function startRound(state: GameState): GameState {
       passed: [],
       history: [],
     },
+    lastBidHistory: null,
     bidWinner: null,
     bidAmount: null,
     trick: [],
@@ -275,10 +280,17 @@ export function bid(state: GameState, seat: Seat, action: BidAction): GameState 
   return state;
 }
 
+// Un joueur est "hors course" s'il a passé OU s'il a signalé (après signal
+// il ne peut plus faire de mise chiffrée, c'est équivalent à être sorti).
+function isOut(history: { seat: Seat; action: BidAction }[], passed: Seat[], seat: Seat): boolean {
+  if (passed.includes(seat)) return true;
+  return history.some((h) => h.seat === seat && h.action.kind === "signal");
+}
+
 function nextBidder(b: BiddingState, from: Seat): Seat {
   let s = ((from + 1) % 4) as Seat;
   for (let i = 0; i < 4; i++) {
-    if (!b.passed.includes(s) && s !== from) return s;
+    if (!isOut(b.history, b.passed, s) && s !== from) return s;
     s = ((s + 1) % 4) as Seat;
   }
   return from;
@@ -298,14 +310,22 @@ export function maybeCloseBidding(state: GameState): GameState {
   if (state.phase !== "bidding" || !state.bidding) return state;
   const b = state.bidding;
 
-  // Les 4 joueurs ont passé ?
-  if (b.passed.length === 4 && !b.highest) {
-    // Redistribution avec rotation du distributeur (comme si une manche avait été jouée)
-    const nextDealer = ((state.dealerSeat + 1) % 4) as Seat;
-    return {
-      ...startRound({ ...state, dealerSeat: nextDealer }),
-      message: "Personne n'a misé, nouveau distributeur.",
-    };
+  // Cas "aucun a misé chiffré" : personne n'a une enchère, et tous les 4
+  // joueurs sont "hors course" (pass ou signal) → redistribution.
+  // On compte les sièges qui ont fini : pass + signal comptent comme sortis.
+  if (!b.highest) {
+    const finishedSeats = new Set<Seat>();
+    for (const h of b.history) {
+      if (h.action.kind === "pass") finishedSeats.add(h.seat);
+      if (h.action.kind === "signal") finishedSeats.add(h.seat);
+    }
+    if (finishedSeats.size === 4) {
+      const nextDealer = ((state.dealerSeat + 1) % 4) as Seat;
+      return {
+        ...startRound({ ...state, dealerSeat: nextDealer }),
+        message: "Personne n'a misé, nouveau distributeur.",
+      };
+    }
   }
 
   // Il y a une enchère → vérifie si le plus haut est le dernier encore en course.
@@ -328,6 +348,9 @@ export function maybeCloseBidding(state: GameState): GameState {
         bidAmount: b.highest.amount,
         currentPlayer: b.highest.seat,
         bidding: null,
+        // Conserve l'historique final pour que l'UI puisse afficher les
+        // bulles des derniers dires de chaque joueur.
+        lastBidHistory: b.history,
         message: `${PLAYERS[b.highest.seat].name} mise ${b.highest.amount}.`,
       };
     }
@@ -514,10 +537,29 @@ function findGhnaCandidates(
   if (winnerTeam !== bidderTeam) return null;
 
   const bid = state.bidAmount;
-  // Conditions de mise minimum
-  const allows40 = bid >= 90;
-  const allows20 = bid >= 80;
-  if (!allows20 && !allows40) return null;
+
+  // Plafond TOTAL de points de Ghna que l'équipe adjudicataire peut annoncer
+  // sur la manche, en fonction de sa mise :
+  //   < 80 → 0 pt
+  //   80-89 → 20 pts max (donc 1 Ghna 20, pas de 40)
+  //   90-99 → 40 pts max (1 Ghna 40, OU 2 Ghna 20)
+  //   100+  → 100 pts max (illimité en pratique : 3×20 + 1×40 = 100)
+  let cap = 0;
+  if (bid >= 100) cap = 100;
+  else if (bid >= 90) cap = 40;
+  else if (bid >= 80) cap = 20;
+
+  if (cap === 0) return null;
+
+  // Total de points déjà annoncés par l'équipe du bidder
+  const teamAnnouncedPoints = state.ghnaAnnounced
+    .filter((g) => teamOf(g.seat) === bidderTeam)
+    .reduce((sum, g) => sum + g.value, 0);
+  const remaining = cap - teamAnnouncedPoints;
+  if (remaining <= 0) return null;
+
+  const canAnnounce20 = remaining >= 20;
+  const canAnnounce40 = remaining >= 40;
 
   // Cherche chez le vainqueur ou son partenaire
   const candidates: Seat[] = [winner, partnerOf(winner)];
@@ -529,11 +571,11 @@ function findGhnaCandidates(
       const hasRey = h.some((c) => c.suit === suit && c.rank === 12);
       if (hasCaballo && hasRey) {
         const isTrump = suit === state.trump;
-        if (isTrump && allows40) options.push({ suit, value: 40 });
-        else if (!isTrump && allows20) options.push({ suit, value: 20 });
+        if (isTrump && canAnnounce40) options.push({ suit, value: 40 });
+        else if (!isTrump && canAnnounce20) options.push({ suit, value: 20 });
       }
     }
-    // Exclure les ghnas déjà annoncées
+    // Exclure les ghnas déjà annoncées (même seat + même suit)
     const filtered = options.filter(
       (o) => !state.ghnaAnnounced.some((g) => g.seat === seat && g.suit === o.suit),
     );
@@ -646,7 +688,7 @@ export function aiBid(state: GameState, seat: Seat): BidAction {
   // Si partenaire tient la plus haute, on passe.
   if (b.highest && partnerOf(seat) === b.highest.seat) return { kind: "pass" };
 
-  if (strength >= threshold && nextBid <= 120) {
+  if (strength >= threshold && nextBid <= MAX_BID) {
     return { kind: "bid", amount: nextBid };
   }
   return { kind: "pass" };

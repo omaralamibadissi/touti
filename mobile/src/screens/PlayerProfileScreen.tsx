@@ -1,9 +1,8 @@
-// Vue read-only du profil d'un autre joueur (un ami).
-// Reuse les mêmes calculs (stats, niveau, parties récentes) que ProfileScreen
-// mais filtré sur le nom passé en paramètre.
+// Profil d'un ami — même layout que ProfileScreen mais avec sections
+// spécifiques : ligues en commun, matchs en commun (coéquipier / adversaire).
 
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -11,15 +10,39 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg, StarBurst } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useMatchHistoryStore, type MatchEntry } from "../store/matchHistoryStore";
-import { totalXp, levelProgress, rankLabel } from "../lib/leveling";
+import { useFriendsStore } from "../store/friendsStore";
+import { useLeagueStore } from "../store/leagueStore";
+import { useTournamentStore } from "../store/tournamentStore";
+import { useAuthStore } from "../store/authStore";
+import { totalXp, levelProgress, rankLabel, matchUserTeam, matchUserWon } from "../lib/leveling";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PlayerProfile">;
 
+// Tournois gagnés par `playerName` (paire gagnante).
+function countTournamentsWon(
+  tournaments: { status: string; pairs?: { names: [string, string]; wins: number; points: number }[] }[],
+  playerName: string,
+): number {
+  let n = 0;
+  for (const t of tournaments) {
+    if (t.status !== "finished" || !t.pairs || t.pairs.length === 0) continue;
+    const winner = [...t.pairs].sort((a, b) => b.points - a.points || b.wins - a.wins)[0];
+    if (winner.names.includes(playerName)) n++;
+  }
+  return n;
+}
+
 export default function PlayerProfileScreen({ navigation, route }: Props) {
-  const { name } = route.params;
+  const { name, friendshipId } = route.params;
   const initials = (name[0] ?? "?").toUpperCase();
 
+  const myUsername = useAuthStore((s) => s.user?.username ?? "");
+  const removeFriend = useFriendsStore((s) => s.remove);
+  const friends = useFriendsStore((s) => s.friends);
+  const online = friends.find((f) => f.id === friendshipId)?.online ?? false;
   const allMatches = useMatchHistoryStore((s) => s.matches);
+  const leagues = useLeagueStore((s) => s.leagues);
+  const tournaments = useTournamentStore((s) => s.mine);
 
   // Parties impliquant ce joueur (humains uniquement, pas IRL)
   const playerMatches = useMemo(
@@ -29,14 +52,17 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
     [allMatches, name],
   );
 
+  // Stats calculées DU POINT DE VUE de l'ami (à partir de mon historique partagé)
   const stats = useMemo(() => {
     const games = playerMatches.length;
     let wins = 0;
     let pointsFor = 0;
     let pointsAgainst = 0;
     for (const m of playerMatches) {
-      const onA = m.playerNames[0] === name || m.playerNames[2] === name;
-      const won = (m.winnerTeam === "A" && onA) || (m.winnerTeam === "B" && !onA);
+      // Détection robuste de l'équipe via helper (case-insensitive + trim)
+      const team = matchUserTeam(m, name);
+      const onA = team === "A";
+      const won = matchUserWon(m, name);
       if (won) wins++;
       if (onA) {
         pointsFor += m.scoreA;
@@ -48,31 +74,85 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
     }
     const losses = games - wins;
     const ratio = games === 0 ? 0 : Math.round((wins / games) * 100);
+    const tournamentsWon = countTournamentsWon(tournaments, name);
     const xp = totalXp(playerMatches);
     const prog = levelProgress(xp);
     return {
-      games,
-      wins,
-      losses,
-      ratio,
-      pointsFor,
-      pointsAgainst,
+      games, wins, losses, ratio,
+      pointsFor, pointsAgainst, tournamentsWon,
       level: prog.level,
       xpIntoLevel: prog.xpIntoLevel,
       xpForNextLevel: prog.xpForNextLevel,
       progressRatio: prog.ratio,
       rank: rankLabel(prog.level),
     };
-  }, [playerMatches, name]);
+  }, [playerMatches, tournaments, name]);
 
-  // 3 dernières parties
-  const recent = useMemo(() => playerMatches.slice(0, 3), [playerMatches]);
+  // Ligues en commun : où moi + l'ami sommes membres
+  const commonLeagues = useMemo(() => {
+    if (!myUsername) return [];
+    return leagues.filter((l) => {
+      const names = l.members.map((m) => m.name);
+      return names.includes(myUsername) && names.includes(name);
+    });
+  }, [leagues, myUsername, name]);
+
+  // Matchs en commun : partitionés coéquipier (même équipe) / adversaire
+  const matchesWithFriend = useMemo(() => {
+    if (!myUsername) return { teammate: [], opponent: [] };
+    const teammate: MatchEntry[] = [];
+    const opponent: MatchEntry[] = [];
+    for (const m of playerMatches) {
+      if (!m.playerNames.includes(myUsername)) continue;
+      // équipe A = sièges 0,2 · équipe B = sièges 1,3
+      const myIdx = m.playerNames.indexOf(myUsername);
+      const theirIdx = m.playerNames.indexOf(name);
+      const myTeam = myIdx % 2 === 0 ? "A" : "B";
+      const theirTeam = theirIdx % 2 === 0 ? "A" : "B";
+      if (myTeam === theirTeam) teammate.push(m);
+      else opponent.push(m);
+    }
+    return { teammate, opponent };
+  }, [playerMatches, myUsername, name]);
+
+  const confirmDelete = () => {
+    Alert.alert(
+      `Supprimer ${name} ?`,
+      "Vous ne serez plus amis. Tu pourras lui renvoyer une demande plus tard.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Confirmer",
+              `Retirer définitivement ${name} de tes amis ?`,
+              [
+                { text: "Non", style: "cancel" },
+                {
+                  text: "Oui, supprimer",
+                  style: "destructive",
+                  onPress: async () => {
+                    if (!friendshipId) return;
+                    await removeFriend(friendshipId);
+                    navigation.goBack();
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.root}>
       <LinearGradient colors={[COLORS.tealDeep, "#051D20"]} style={StyleSheet.absoluteFill} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Bannière */}
         <View style={styles.banner}>
           <LinearGradient colors={[COLORS.terracotta, COLORS.terracottaDark]} style={StyleSheet.absoluteFill} />
           <View style={[StyleSheet.absoluteFill, { opacity: 0.15 }]} pointerEvents="none">
@@ -90,12 +170,11 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
 
           <View style={styles.idRow}>
             <View>
-              <Avatar initials={initials} size={84} color={COLORS.teal} />
+              <Avatar initials={initials} size={84} color={COLORS.teal} online={online} />
               <View style={styles.levelBadge}>
                 <LinearGradient
                   colors={[COLORS.saffron, COLORS.brassDeep]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
                 <Text style={styles.levelText}>{stats.level}</Text>
@@ -108,6 +187,12 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
                 <View style={styles.expertTag}>
                   <Text style={styles.expertText}>{stats.rank}</Text>
                 </View>
+                {online && (
+                  <View style={styles.onlineTag}>
+                    <View style={styles.onlineDot} />
+                    <Text style={styles.onlineText}>EN LIGNE</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.xpBarWrap}>
                 <View style={styles.xpBarBg}>
@@ -121,6 +206,7 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
           </View>
         </View>
 
+        {/* Stats — même layout que ProfileScreen */}
         <View style={styles.statsCard}>
           <View style={styles.statsGrid}>
             <StatBlock label="Parties" value={String(stats.games)} />
@@ -129,48 +215,143 @@ export default function PlayerProfileScreen({ navigation, route }: Props) {
           </View>
           <View style={styles.divider} />
           <View style={styles.statsGrid}>
-            <StatBlock label="Défaites" value={String(stats.losses)} />
-            <StatBlock label="Points marqués" value={String(stats.pointsFor)} />
-            <StatBlock label="Points encaissés" value={String(stats.pointsAgainst)} />
+            <StatBlock label="Points gagnés" value={String(stats.pointsFor)} />
+            <StatBlock label="Points perdus" value={String(stats.pointsAgainst)} />
+            <StatBlock label="Tournois gagnés" value={String(stats.tournamentsWon)} highlight />
           </View>
         </View>
 
-        {/* Parties récentes ensemble */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dernières parties</Text>
-          <View style={{ gap: 6, marginTop: 10 }}>
-            {recent.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>
-                  Aucune partie commune dans ton historique
-                </Text>
-              </View>
-            ) : (
-              recent.map((m) => {
-                const onA = m.playerNames[0] === name || m.playerNames[2] === name;
-                const won = (m.winnerTeam === "A" && onA) || (m.winnerTeam === "B" && !onA);
-                return (
-                  <View key={m.id} style={styles.gameRow}>
-                    <View style={[styles.wonBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.gameTitle}>
-                        {won ? "Victoire" : "Défaite"} · {new Date(m.finishedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                      </Text>
-                      <Text style={styles.gameSub}>
-                        {m.playerNames.filter((n) => n !== name).join(" · ")}
-                      </Text>
-                    </View>
-                    <Text style={[styles.gameScore, { color: won ? COLORS.saffronSoft : "rgba(245,235,214,0.7)" }]}>
-                      {m.scoreA}-{m.scoreB}
+        {/* Ligues en commun */}
+        {commonLeagues.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ligues en commun</Text>
+            <View style={{ gap: 6, marginTop: 10 }}>
+              {commonLeagues.map((l) => (
+                <Pressable
+                  key={l.id}
+                  onPress={() => navigation.navigate("LeagueDetail", { id: l.id })}
+                  style={styles.leagueRow}
+                >
+                  <View style={[styles.leagueDot, { backgroundColor: l.color ?? COLORS.brass }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.leagueName}>{l.name}</Text>
+                    <Text style={styles.leagueSub}>
+                      {l.members.length} membre{l.members.length > 1 ? "s" : ""}
                     </Text>
                   </View>
-                );
-              })
-            )}
+                  <Text style={styles.arrow}>›</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
+
+        {/* Matchs en commun — coéquipier */}
+        {matchesWithFriend.teammate.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              En équipe ({matchesWithFriend.teammate.length})
+            </Text>
+            <View style={{ gap: 6, marginTop: 10 }}>
+              {matchesWithFriend.teammate.slice(0, 5).map((m) => (
+                <MatchRow key={m.id} match={m} myUsername={myUsername} navigation={navigation} />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Matchs en commun — adversaire */}
+        {matchesWithFriend.opponent.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Contre {name} ({matchesWithFriend.opponent.length})
+            </Text>
+            <View style={{ gap: 6, marginTop: 10 }}>
+              {matchesWithFriend.opponent.slice(0, 5).map((m) => (
+                <MatchRow key={m.id} match={m} myUsername={myUsername} navigation={navigation} />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Aucune interaction */}
+        {commonLeagues.length === 0 && playerMatches.length === 0 && (
+          <View style={[styles.section, { paddingTop: 24 }]}>
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>
+                Aucune partie ni ligue en commun avec {name}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Action : envoyer un message direct */}
+        {friendshipId && (() => {
+          const otherId = friends.find((f) => f.id === friendshipId)?.otherId;
+          if (!otherId) return null;
+          return (
+            <View style={styles.dmSection}>
+              <Pressable
+                onPress={() => navigation.navigate("DirectMessage", { otherId, otherName: name })}
+                style={styles.dmBtn}
+              >
+                <LinearGradient
+                  colors={[COLORS.saffron, COLORS.brassDeep]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.dmBtnText}>💬 Envoyer un message</Text>
+              </Pressable>
+            </View>
+          );
+        })()}
+
+        {/* Bouton suppression ami */}
+        {friendshipId && (
+          <View style={styles.dangerSection}>
+            <Pressable onPress={confirmDelete} style={styles.dangerBtn}>
+              <Text style={styles.dangerText}>Supprimer cet ami</Text>
+            </Pressable>
+            <Text style={styles.dangerHint}>
+              Supprime {name} de ta liste d'amis. Vous pourrez redevenir amis en envoyant une nouvelle demande.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
+  );
+}
+
+function MatchRow({
+  match, myUsername, navigation,
+}: {
+  match: MatchEntry;
+  myUsername: string;
+  navigation: Props["navigation"];
+}) {
+  const myIdx = match.playerNames.indexOf(myUsername);
+  const onA = myIdx === 0 || myIdx === 2;
+  const won = (match.winnerTeam === "A" && onA) || (match.winnerTeam === "B" && !onA);
+  return (
+    <Pressable
+      onPress={() => navigation.navigate("MatchDetail", { id: match.id })}
+      style={styles.gameRow}
+    >
+      <View style={[styles.wonBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.gameTitle}>
+          {won ? "Victoire" : "Défaite"} ·{" "}
+          {new Date(match.finishedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+        </Text>
+        <Text style={styles.gameSub}>
+          {match.playerNames.filter((n) => n !== myUsername).join(" · ")}
+        </Text>
+      </View>
+      <Text style={[styles.gameScore, { color: won ? COLORS.saffronSoft : "rgba(245,235,214,0.7)" }]}>
+        {match.scoreA}-{match.scoreB}
+      </Text>
+      <Text style={styles.arrow}>›</Text>
+    </Pressable>
   );
 }
 
@@ -217,6 +398,21 @@ const styles = StyleSheet.create({
   },
   tagsRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   expertTag: { paddingHorizontal: 8, paddingVertical: 2, backgroundColor: COLORS.saffron, borderRadius: 4 },
+  onlineTag: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 7, paddingVertical: 3,
+    backgroundColor: "rgba(63,194,106,0.18)",
+    borderWidth: 0.5, borderColor: "rgba(63,194,106,0.55)",
+    borderRadius: 4,
+  },
+  onlineDot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: "#3FC26A",
+  },
+  onlineText: {
+    fontSize: 9, fontWeight: "800", color: "#3FC26A",
+    letterSpacing: 1, fontFamily: FONT_UI_BOLD,
+  },
   expertText: {
     fontSize: 9, fontWeight: "800", color: COLORS.terracottaDark,
     letterSpacing: 1, fontFamily: FONT_UI_BOLD,
@@ -249,6 +445,17 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 16, paddingTop: 18 },
   sectionTitle: { fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700", color: COLORS.cream },
 
+  leagueRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 12, paddingVertical: 12,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 0.5, borderColor: "rgba(245,235,214,0.15)",
+    borderRadius: 10,
+  },
+  leagueDot: { width: 10, height: 10, borderRadius: 5 },
+  leagueName: { fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700", color: COLORS.cream },
+  leagueSub: { fontFamily: FONT_UI, fontSize: 10, color: "rgba(245,235,214,0.55)", marginTop: 2 },
+
   gameRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingHorizontal: 12, paddingVertical: 10,
@@ -260,6 +467,11 @@ const styles = StyleSheet.create({
   gameTitle: { fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700", color: COLORS.cream, lineHeight: 14 },
   gameSub: { fontFamily: FONT_UI, fontSize: 10, color: "rgba(245,235,214,0.55)", marginTop: 3 },
   gameScore: { fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: "700" },
+  arrow: {
+    fontFamily: FONT_DISPLAY, fontSize: 20,
+    color: "rgba(245,235,214,0.4)",
+    marginLeft: 4,
+  },
 
   emptyBox: {
     padding: 18, backgroundColor: "rgba(0,0,0,0.3)",
@@ -269,5 +481,33 @@ const styles = StyleSheet.create({
   emptyText: {
     fontFamily: FONT_UI, fontSize: 12,
     color: "rgba(245,235,214,0.55)", fontStyle: "italic",
+  },
+
+  dmSection: { paddingHorizontal: 16, paddingTop: 20 },
+  dmBtn: {
+    paddingVertical: 14, paddingHorizontal: 20,
+    borderRadius: 14, alignItems: "center",
+    overflow: "hidden",
+  },
+  dmBtnText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "800",
+    color: COLORS.terracottaDark, letterSpacing: 0.3,
+  },
+  dangerSection: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
+  dangerBtn: {
+    paddingVertical: 12, paddingHorizontal: 18,
+    borderRadius: 12, alignItems: "center",
+    backgroundColor: "rgba(200,70,45,0.12)",
+    borderWidth: 0.5, borderColor: "rgba(232,85,58,0.5)",
+  },
+  dangerText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700",
+    color: "#E8553A", letterSpacing: 0.3,
+  },
+  dangerHint: {
+    fontFamily: FONT_UI, fontSize: 10,
+    color: "rgba(245,235,214,0.45)",
+    textAlign: "center", lineHeight: 14,
+    fontStyle: "italic",
   },
 });

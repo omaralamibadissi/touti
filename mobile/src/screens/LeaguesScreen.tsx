@@ -13,12 +13,21 @@ type Props = NativeStackScreenProps<RootStackParamList, "Leagues">;
 
 const LEAGUE_COLORS = [COLORS.teal, COLORS.brass, "#8B4A7F", COLORS.terracotta, "#2E7A8C"];
 
-export default function LeaguesScreen({ navigation }: Props) {
-  const [mode, setMode] = useState<"list" | "create" | "join">("list");
+export default function LeaguesScreen({ navigation, route }: Props) {
+  const incomingCode = route.params?.code?.toUpperCase();
+  const [mode, setMode] = useState<"list" | "create" | "join">(incomingCode ? "join" : "list");
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [chosenColor, setChosenColor] = useState(LEAGUE_COLORS[0]);
-  const [joinCode, setJoinCode] = useState("");
+  const [joinCode, setJoinCode] = useState(incomingCode ?? "");
+
+  // Si le code arrive plus tard (deep link après render), on pré-remplit
+  useEffect(() => {
+    if (incomingCode) {
+      setJoinCode(incomingCode);
+      setMode("join");
+    }
+  }, [incomingCode]);
 
   const myUsername = useAuthStore((s) => s.user?.username) ?? "Player";
 
@@ -96,6 +105,7 @@ export default function LeaguesScreen({ navigation }: Props) {
           <View style={{ gap: 12 }}>
             {leagues.length === 0 ? (
               <View style={styles.emptyBlock}>
+                <Text style={styles.emptyEmoji}>✦</Text>
                 <Text style={styles.emptyTitle}>Aucune ligue pour l'instant</Text>
                 <Text style={styles.emptySub}>
                   Crée ta propre ligue pour organiser des tournois privés avec tes potes réguliers,
@@ -326,7 +336,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 0.5,
     borderColor: "rgba(245,235,214,0.15)",
-    gap: 8,
+    gap: 10,
+  },
+  emptyEmoji: {
+    fontSize: 36, color: COLORS.saffronSoft, fontFamily: FONT_DISPLAY,
   },
   emptyTitle: {
     fontFamily: FONT_UI_BOLD,

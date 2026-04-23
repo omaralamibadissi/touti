@@ -1,9 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { apiRecordMatch, toApiMatch } from "../net/matchesApi";
 
-export type MatchType = "solo-ai" | "private" | "tournament" | "irl";
+export type MatchType = "solo-ai" | "private" | "quick" | "tournament" | "irl";
 
-// Snapshot d'une manche dans la partie (pour la vue détaillée)
+// Un pli joué (4 cartes + gagnant)
+export interface TrickDetail {
+  entries: { player: number; card: { suit: string; rank: number } }[];
+  winner: number;
+}
+
+// Snapshot d'une manche dans la partie (pour la vue détaillée + replay)
 export interface RoundDetail {
   round: number;
   scoreA: number;            // total cumulé après cette manche
@@ -14,6 +21,7 @@ export interface RoundDetail {
   bidAmount: number | null;
   bidTeam: "A" | "B" | null;
   trump?: string;            // suit choisi (oros/copas/espadas/bastos)
+  tricks?: TrickDetail[];    // replay carte-par-carte (10 plis)
 }
 
 export interface MatchEntry {
@@ -21,6 +29,12 @@ export interface MatchEntry {
   type: MatchType;
   finishedAt: number;           // timestamp ms
   playerNames: string[];        // 4 noms
+  // Vrai flag bot par siège (longueur 4). Renseigné depuis la partie courante
+  // (PLAYERS[seat].human pour les solos, p.isAi côté serveur pour les nets).
+  // Optionnel uniquement pour back-compat avec d'anciennes entrées stockées
+  // avant introduction du champ — ces anciennes entrées retombent sur une
+  // heuristique de nom. Toutes les nouvelles entrées DOIVENT le fournir.
+  isBotPerSeat?: boolean[];
   winnerTeam: "A" | "B";
   scoreA: number;
   scoreB: number;
@@ -64,9 +78,24 @@ export const useMatchHistoryStore = create<MatchHistoryState>((set, get) => ({
       id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
       finishedAt: Date.now(),
     };
-    const matches = [entry, ...get().matches].slice(0, 200); // cap à 200
+    // Cap à 200 parties en cache local. Les parties serveur restent
+    // accessibles via l'API de profil, donc pas de perte réelle — juste
+    // le cache offline qui est limité.
+    const prev = get().matches;
+    const merged = [entry, ...prev];
+    if (merged.length > 200) {
+      console.warn(`[matchHistory] cache local capé à 200, ${merged.length - 200} anciennes parties retirées du cache (toujours sur serveur)`);
+    }
+    const matches = merged.slice(0, 200);
     await persist(matches);
     set({ matches });
+
+    // Best-effort : on push au serveur pour les parties app (pas IRL).
+    // On n'attend pas la réponse — si hors-ligne, silencieux, c'est OK.
+    if (entry.type !== "irl") {
+      apiRecordMatch(toApiMatch(entry)).catch(() => {});
+    }
+
     return entry;
   },
 

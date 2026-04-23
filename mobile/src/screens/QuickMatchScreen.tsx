@@ -8,6 +8,8 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { StarBurst, ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useAuthStore } from "../store/authStore";
+import { buildQuickLink } from "../lib/deepLink";
+import { apiMatchmakingStats, apiHybridCandidate, type MatchmakingStats } from "../net/statsApi";
 import { useNetGameStore } from "../store/netGameStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuickMatch">;
@@ -27,14 +29,16 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
   const { room, connected, connecting, error, players, locked, roomCode } = store;
 
   const prefilledCode = route.params?.code;
+  const prefilledLeagueId = route.params?.leagueId;
   const [mode, setMode] = useState<Mode>(prefilledCode ? "lobby" : "menu");
   const [typedCode, setTypedCode] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [mmStats, setMmStats] = useState<MatchmakingStats | null>(null);
 
   // Si un code est passé en params, on rejoint direct ce salon
   useEffect(() => {
     if (prefilledCode && prefilledCode.length === 4) {
-      store.connectQuickCode(prefilledCode, myName).catch(() => {});
+      store.connectQuickCode(prefilledCode, myName, prefilledLeagueId).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -45,6 +49,20 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
     const start = Date.now();
     setElapsed(0);
     const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [mode]);
+
+  // Poll stats matchmaking toutes les 3s pendant la recherche pool
+  useEffect(() => {
+    if (mode !== "pool") {
+      setMmStats(null);
+      return;
+    }
+    const fetchStats = () => {
+      apiMatchmakingStats().then(setMmStats).catch(() => {});
+    };
+    fetchStats();
+    const t = setInterval(fetchStats, 3000);
     return () => clearInterval(t);
   }, [mode]);
 
@@ -74,6 +92,28 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
     await store.connectQuickCode(code, myName);
   };
 
+  // Création d'un salon "hybride" : les amis peuvent rejoindre par code,
+  // après 30s les sièges vides sont ouverts au pool matchmaking.
+  const createHybridRoom = async () => {
+    const code = randomCode();
+    setMode("lobby");
+    await store.connectQuickCode(code, myName, undefined, true);
+  };
+
+  // Flow pool modifié : cherche d'abord un salon hybride ouvert, sinon pool classique
+  const startPoolSmart = async () => {
+    setMode("pool");
+    try {
+      const candidate = await apiHybridCandidate();
+      if (candidate.hybrid && candidate.code) {
+        // Un salon hybride est ouvert → on le rejoint comme n'importe quel code
+        await store.connectQuickCode(candidate.code, myName);
+        return;
+      }
+    } catch {}
+    await store.connectQuickMatch(myName);
+  };
+
   const joinCodeRoom = async () => {
     if (typedCode.length !== 4) return;
     setMode("lobby");
@@ -89,8 +129,9 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
   const share = async () => {
     if (!roomCode) return;
     try {
+      const link = buildQuickLink(roomCode);
       await Share.share({
-        message: `🃏 Rejoins ma Partie rapide Touti !\nCode : ${roomCode}\n\nApp Touti → Partie rapide → Rejoindre avec code.`,
+        message: `🃏 Rejoins ma Partie rapide Touti !\nCode : ${roomCode}\n${link}`,
       });
     } catch {}
   };
@@ -138,6 +179,13 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
               <Text style={styles.bigBtnSub}>Code à partager · attend 4 humains</Text>
             </Pressable>
 
+            <Pressable onPress={createHybridRoom} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Avec amis + randoms</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
+                Code à partager · quand tous ready, sièges libres ouverts au pool
+              </Text>
+            </Pressable>
+
             <Pressable onPress={() => setMode("join")} style={[styles.bigBtn, styles.bigBtnSecondary]}>
               <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Rejoindre avec code</Text>
               <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>Entre le code d'un salon</Text>
@@ -145,10 +193,10 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable onPress={startPool} style={[styles.bigBtn, styles.bigBtnSecondary]}>
+            <Pressable onPress={startPoolSmart} style={[styles.bigBtn, styles.bigBtnSecondary]}>
               <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Chercher des joueurs aléatoires</Text>
               <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
-                Matchmaking public · le serveur te place avec 3 randoms
+                Matchmaking public · rejoint d'abord un salon hybride si dispo
               </Text>
             </Pressable>
           </View>
@@ -220,6 +268,12 @@ export default function QuickMatchScreen({ navigation, route }: Props) {
                           : `Salon · ${players.length}/4`}
                       </Text>
                       <Text style={styles.statusSub}>{timeLabel}</Text>
+                      {mode === "pool" && mmStats && (
+                        <Text style={styles.poolStats}>
+                          {mmStats.searching} joueur{mmStats.searching > 1 ? "s" : ""} en recherche
+                          {mmStats.avgWaitSec > 0 && ` · attente estimée ~${mmStats.avgWaitSec}s`}
+                        </Text>
+                      )}
                     </>
                   )}
                 </View>
@@ -451,6 +505,11 @@ const styles = StyleSheet.create({
   statusSub: {
     fontFamily: FONT_UI, fontSize: 13,
     color: "rgba(245,235,214,0.7)", marginTop: 4, letterSpacing: 2, fontStyle: "italic",
+  },
+  poolStats: {
+    fontFamily: FONT_UI_BOLD, fontSize: 11,
+    color: COLORS.brass, marginTop: 8, letterSpacing: 0.5,
+    textAlign: "center",
   },
 
   slotsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },

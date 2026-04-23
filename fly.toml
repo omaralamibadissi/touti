@@ -30,3 +30,9 @@ primary_region = "cdg"  # Paris — ~30 ms de latence depuis le Maroc
   memory = "256mb"
   cpu_kind = "shared"
   cpus = 1
+
+# Volume persistant pour la base SQLite.
+# À créer une fois via : fly volumes create touti_data --size 1 --region cdg
+[[mounts]]
+  source = "touti_data"
+  destination = "/data"

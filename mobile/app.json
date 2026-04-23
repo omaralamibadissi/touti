@@ -39,7 +39,13 @@
           "backgroundColor": "#4E1208"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#E6AA44"
+        }
+      ]
     ],
     "owner": "oab10",
     "runtimeVersion": {

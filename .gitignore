@@ -40,3 +40,20 @@ android/app/build/
 *.tgz
 coverage/
 .nyc_output/
+
+# SQLite — stocké localement (dev) ou sur volume Fly (prod), jamais commit
+server/data/
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Claude Code / outils de dev
+.claude/scheduled_tasks.lock
+
+# Artefacts divers à la racine (EAS crée parfois app.json à la racine ;
+# la vraie config est dans mobile/. Les SVGs Wikipedia de dépannage sont
+# remplacés par mobile/assets/symbols/).
+/app.json
+/Seme_*.svg

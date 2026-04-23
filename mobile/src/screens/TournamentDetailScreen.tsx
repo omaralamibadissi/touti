@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Share, Linking, Platform, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -6,8 +6,9 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
-import { useTournamentStore } from "../store/tournamentStore";
+import { useTournamentStore, type Tournament, type TournamentPair } from "../store/tournamentStore";
 import { useAuthStore } from "../store/authStore";
+import { buildTournamentLink } from "../lib/deepLink";
 
 type Props = NativeStackScreenProps<RootStackParamList, "TournamentDetail">;
 
@@ -17,7 +18,14 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   const remove = useTournamentStore((s) => s.remove);
   const startT = useTournamentStore((s) => s.start);
   const recordResult = useTournamentStore((s) => s.recordResult);
+  const refreshOne = useTournamentStore((s) => s.refreshOne);
+
+  // Refresh à chaque ouverture pour voir les résultats auto-enregistrés
+  useEffect(() => {
+    if (id) refreshOne(id).catch(() => {});
+  }, [id, refreshOne]);
   const myUsername = useAuthStore((s) => s.user?.username) ?? "Joueur";
+  const isAdmin = tournament && tournament.createdBy === myUsername;
 
   if (!tournament) {
     return (
@@ -28,10 +36,11 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
   }
 
   const formatLabel = `${labelFormat(tournament.format)} · ${labelMode(tournament.mode)}`;
+  const tournamentLink = buildTournamentLink(tournament.code);
   const shareText =
     tournament.format === "irl"
-      ? `🃏 ${tournament.name}\n${formatLabel}\n${tournament.tagline ?? ""}\n\n📅 ${tournament.date ?? ""} à ${tournament.time ?? ""}\n📍 ${tournament.location ?? ""}\n⏱ Durée : ${tournament.duration ?? ""}\n👥 ${tournament.maxPlayers} joueurs\n\nRejoins avec le code : ${tournament.code}`
-      : `🃏 ${tournament.name}\nTournoi Touti ${formatLabel} · ${tournament.maxPlayers} joueurs\n\nRejoins avec le code : ${tournament.code}`;
+      ? `🃏 ${tournament.name}\n${formatLabel}\n${tournament.tagline ?? ""}\n\n📅 ${tournament.date ?? ""} à ${tournament.time ?? ""}\n📍 ${tournament.location ?? ""}\n⏱ Durée : ${tournament.duration ?? ""}\n👥 ${tournament.maxPlayers} joueurs\n\nRejoins avec le code : ${tournament.code}\n${tournamentLink}`
+      : `🃏 ${tournament.name}\nTournoi Touti ${formatLabel} · ${tournament.maxPlayers} joueurs\n\nRejoins avec le code : ${tournament.code}\n${tournamentLink}`;
 
   const onShare = async () => {
     try {
@@ -165,30 +174,63 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                 />
                 <Text style={styles.bigCtaText}>Partager le tournoi</Text>
               </Pressable>
-              {tournament.players.length >= 4 && (
-                <Pressable
-                  onPress={async () => {
-                    await startT(tournament.id);
-                  }}
-                  style={[styles.bigCta, { marginTop: 8, backgroundColor: COLORS.saffron }]}
-                >
-                  <LinearGradient
-                    colors={["#3FC26A", "#2B8A4A"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <Text style={styles.bigCtaText}>▶ Lancer le tournoi</Text>
+
+              {isAdmin ? (
+                (() => {
+                  const needed = tournament.maxPlayers;
+                  const current = tournament.players.length;
+                  const canStart = current >= needed;
+                  return (
+                    <>
+                      <Pressable
+                        disabled={!canStart}
+                        onPress={async () => {
+                          if (!canStart) return;
+                          await startT(tournament.id);
+                        }}
+                        style={[styles.bigCta, { marginTop: 8, opacity: canStart ? 1 : 0.4 }]}
+                      >
+                        <LinearGradient
+                          colors={canStart ? ["#3FC26A", "#2B8A4A"] : ["#5a5a5a", "#3a3a3a"]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 0, y: 1 }}
+                          style={StyleSheet.absoluteFill}
+                        />
+                        <Text style={styles.bigCtaText}>▶ Lancer le tournoi</Text>
+                      </Pressable>
+                      {!canStart && (
+                        <Text style={{ fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", textAlign: "center", marginTop: 8, fontStyle: "italic" }}>
+                          {current} / {needed} joueurs inscrits — en attente des {needed - current} manquant{needed - current > 1 ? "s" : ""}.
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()
+              ) : (
+                <>
+                  <Pressable
+                    disabled
+                    style={[styles.bigCta, { marginTop: 8, opacity: 0.35 }]}
+                  >
+                    <LinearGradient
+                      colors={["#5a5a5a", "#3a3a3a"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <Text style={styles.bigCtaText}>▶ Lancer le tournoi</Text>
+                  </Pressable>
+                  <Text style={{ fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", textAlign: "center", marginTop: 8, fontStyle: "italic" }}>
+                    Seul l'admin ({tournament.createdBy}) peut le lancer.
+                  </Text>
+                </>
+              )}
+
+              {isAdmin && (
+                <Pressable onPress={onDelete} style={styles.dangerBtn}>
+                  <Text style={styles.dangerText}>Supprimer</Text>
                 </Pressable>
               )}
-              {tournament.players.length < 4 && (
-                <Text style={{ fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
-                  4 joueurs minimum (2 paires) pour lancer le tournoi
-                </Text>
-              )}
-              <Pressable onPress={onDelete} style={styles.dangerBtn}>
-                <Text style={styles.dangerText}>Supprimer</Text>
-              </Pressable>
             </>
           ) : null}
         </View>
@@ -197,10 +239,17 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
         {tournament.status === "started" || tournament.status === "finished" ? (
           <>
             {/* Classement des paires */}
-            <Text style={styles.section}>CLASSEMENT</Text>
+            <Text style={styles.section}>
+              CLASSEMENT · 3 pts / victoire · −1 / défaite
+            </Text>
             <View style={{ gap: 6, marginTop: 8 }}>
               {[...(tournament.pairs || [])]
-                .sort((a, b) => b.wins - a.wins || b.points - a.points)
+                .map((p) => ({ ...p, classementPoints: p.wins * 3 - p.losses }))
+                .sort((a, b) =>
+                  b.classementPoints - a.classementPoints ||
+                  b.points - a.points ||
+                  b.wins - a.wins,
+                )
                 .map((p, i) => (
                   <View key={p.id} style={styles.pairRankRow}>
                     <Text style={[styles.pairRank, i < 3 && { color: COLORS.saffronSoft }]}>
@@ -209,87 +258,130 @@ export default function TournamentDetailScreen({ route, navigation }: Props) {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pairNames}>{p.names[0]} & {p.names[1]}</Text>
                       <Text style={styles.pairMeta}>
-                        {p.wins}V / {p.losses}D · {p.points} pts
+                        {p.wins}V / {p.losses}D · cumul {p.points}
                       </Text>
                     </View>
-                    <Text style={styles.pairScore}>{p.wins}</Text>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={styles.pairScore}>{p.classementPoints}</Text>
+                      <Text style={styles.pairScoreSub}>pts</Text>
+                    </View>
                   </View>
                 ))}
             </View>
 
-            {/* Matchs */}
+            {/* Matchs — bracket visuel en classique, liste en championnat */}
             <Text style={styles.section}>MATCHS</Text>
-            <View style={{ gap: 6, marginTop: 8 }}>
-              {(tournament.matches || []).map((m) => {
-                const pA = tournament.pairs?.find((p) => p.id === m.pairAId);
-                const pB = tournament.pairs?.find((p) => p.id === m.pairBId);
-                if (!pA || !pB) return null;
-                const mePlays =
-                  pA.names.includes(myUsername) || pB.names.includes(myUsername);
-                return (
-                  <View
-                    key={m.id}
-                    style={[
-                      styles.matchRow,
-                      m.status === "finished" && { opacity: 0.7 },
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.matchRound}>ROUND {m.round}</Text>
-                      <Text style={styles.matchPair}>{pA.names.join(" & ")}</Text>
-                      <Text style={styles.matchVs}>vs</Text>
-                      <Text style={styles.matchPair}>{pB.names.join(" & ")}</Text>
-                      {m.status === "finished" && (
-                        <Text style={styles.matchResult}>
-                          {m.scoreA} - {m.scoreB} · {m.winnerPairId === m.pairAId ? pA.names.join(" & ") : pB.names.join(" & ")} gagne
-                        </Text>
+            {tournament.mode === "classique" ? (
+              <BracketView
+                tournament={tournament}
+                myUsername={myUsername}
+                canReport={!!isAdmin}
+                onPlay={(roomCode) =>
+                  navigation.navigate("QuickMatch", {
+                    code: roomCode,
+                    leagueId: tournament.leagueId,
+                  })
+                }
+                onReport={(matchId, pA, pB) => {
+                  Alert.prompt?.(
+                    "Saisir résultat",
+                    `${pA.names.join(" & ")} vs ${pB.names.join(" & ")}\nScore au format "600-540"`,
+                    async (text: string) => {
+                      const match = (text || "").match(/^\s*(\d+)\s*[-:_]\s*(\d+)\s*$/);
+                      if (!match) return;
+                      await recordResult(
+                        tournament.id,
+                        matchId,
+                        parseInt(match[1], 10),
+                        parseInt(match[2], 10),
+                      );
+                    },
+                  );
+                }}
+              />
+            ) : (
+              <View style={{ gap: 6, marginTop: 8 }}>
+                {(tournament.matches || []).map((m) => {
+                  const pA = tournament.pairs?.find((p) => p.id === m.pairAId);
+                  const pB = tournament.pairs?.find((p) => p.id === m.pairBId);
+                  if (!pA || !pB) return null;
+                  const mePlays =
+                    pA.names.includes(myUsername) || pB.names.includes(myUsername);
+                  return (
+                    <View
+                      key={m.id}
+                      style={[
+                        styles.matchRow,
+                        m.status === "finished" && { opacity: 0.7 },
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.matchRound}>ROUND {m.round}</Text>
+                        <Text style={styles.matchPair}>{pA.names.join(" & ")}</Text>
+                        <Text style={styles.matchVs}>vs</Text>
+                        <Text style={styles.matchPair}>{pB.names.join(" & ")}</Text>
+                        {m.status === "finished" && (
+                          <Text style={styles.matchResult}>
+                            {m.scoreA} - {m.scoreB} · {m.winnerPairId === m.pairAId ? pA.names.join(" & ") : pB.names.join(" & ")} gagne
+                          </Text>
+                        )}
+                      </View>
+                      {m.status === "pending" && (
+                        <View style={{ gap: 6 }}>
+                          {mePlays && (
+                            <Pressable
+                              onPress={() => {
+                                navigation.navigate("QuickMatch", {
+                                  code: m.roomCode,
+                                  leagueId: tournament.leagueId,
+                                });
+                              }}
+                              style={styles.matchPlayBtn}
+                            >
+                              <Text style={styles.matchPlayText}>Jouer · {m.roomCode}</Text>
+                            </Pressable>
+                          )}
+                          {isAdmin && (
+                            <Pressable
+                              onPress={() => {
+                                Alert.prompt?.(
+                                  "Saisir résultat",
+                                  `${pA.names.join(" & ")} vs ${pB.names.join(" & ")}\nScore au format "600-540"`,
+                                  async (text: string) => {
+                                    const match = (text || "").match(/^\s*(\d+)\s*[-:_]\s*(\d+)\s*$/);
+                                    if (!match) return;
+                                    await recordResult(
+                                      tournament.id,
+                                      m.id,
+                                      parseInt(match[1], 10),
+                                      parseInt(match[2], 10),
+                                    );
+                                  },
+                                );
+                              }}
+                              style={styles.matchReportBtn}
+                            >
+                              <Text style={styles.matchReportText}>Saisir résultat</Text>
+                            </Pressable>
+                          )}
+                        </View>
                       )}
                     </View>
-                    {m.status === "pending" && (
-                      <View style={{ gap: 6 }}>
-                        {mePlays && (
-                          <Pressable
-                            onPress={() => {
-                              navigation.navigate("QuickMatch", { code: m.roomCode });
-                            }}
-                            style={styles.matchPlayBtn}
-                          >
-                            <Text style={styles.matchPlayText}>Jouer · {m.roomCode}</Text>
-                          </Pressable>
-                        )}
-                        <Pressable
-                          onPress={() => {
-                            Alert.prompt?.(
-                              "Saisir résultat",
-                              `${pA.names.join(" & ")} vs ${pB.names.join(" & ")}\nScore au format "600-540"`,
-                              async (text: string) => {
-                                const match = (text || "").match(/^\s*(\d+)\s*[-:_]\s*(\d+)\s*$/);
-                                if (!match) return;
-                                await recordResult(
-                                  tournament.id,
-                                  m.id,
-                                  parseInt(match[1], 10),
-                                  parseInt(match[2], 10),
-                                );
-                              },
-                            );
-                          }}
-                          style={styles.matchReportBtn}
-                        >
-                          <Text style={styles.matchReportText}>Saisir résultat</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+                  );
+                })}
+              </View>
+            )}
 
             {tournament.status === "finished" && (
               <View style={styles.finishedBanner}>
                 <Text style={styles.finishedText}>🏆 TOURNOI TERMINÉ</Text>
                 <Text style={styles.finishedSub}>
-                  Vainqueur : {tournament.pairs?.sort((a, b) => b.wins - a.wins || b.points - a.points)[0]?.names.join(" & ")}
+                  Vainqueur : {[...(tournament.pairs || [])]
+                    .sort(
+                      (a, b) =>
+                        (b.wins * 3 - b.losses) - (a.wins * 3 - a.losses) ||
+                        b.points - a.points,
+                    )[0]?.names.join(" & ")}
                 </Text>
               </View>
             )}
@@ -487,7 +579,11 @@ const styles = StyleSheet.create({
   },
   pairNames: { fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700", color: COLORS.cream },
   pairMeta: { fontFamily: FONT_UI, fontSize: 10, color: "rgba(245,235,214,0.55)", marginTop: 2 },
-  pairScore: { fontFamily: FONT_DISPLAY, fontSize: 20, fontWeight: "700", color: COLORS.saffronSoft },
+  pairScore: { fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: "700", color: COLORS.saffronSoft, lineHeight: 24 },
+  pairScoreSub: {
+    fontFamily: FONT_UI_BOLD, fontSize: 9, letterSpacing: 1,
+    color: "rgba(245,235,214,0.55)", fontWeight: "700", marginTop: -1,
+  },
 
   matchRow: {
     flexDirection: "row", gap: 10, padding: 12,
@@ -537,4 +633,229 @@ const styles = StyleSheet.create({
     fontFamily: FONT_UI_BOLD, fontSize: 13, fontWeight: "700",
     color: COLORS.cream, marginTop: 4,
   },
+
+  // ─── Bracket classique ────────────────────────────────────────
+  bracketScroll: { marginTop: 8 },
+  bracketContent: { paddingRight: 20, paddingBottom: 8, gap: 0 },
+  bracketColumn: {
+    width: 180,
+    marginRight: 14,
+    gap: 12,
+  },
+  bracketRoundLabel: {
+    fontFamily: FONT_UI_BOLD,
+    fontSize: 10, letterSpacing: 2,
+    color: COLORS.brass, fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  bracketMatch: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: `${COLORS.brass}44`,
+    overflow: "hidden",
+  },
+  bracketSide: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  bracketSideDivider: {
+    height: 0.5,
+    backgroundColor: `${COLORS.brass}33`,
+  },
+  bracketPair: {
+    flex: 1,
+    fontFamily: FONT_UI_BOLD, fontSize: 11, fontWeight: "600",
+    color: COLORS.cream,
+  },
+  bracketPairWinner: {
+    color: COLORS.saffronSoft, fontWeight: "800",
+  },
+  bracketPairLoser: {
+    color: "rgba(245,235,214,0.45)", fontWeight: "500",
+  },
+  bracketScore: {
+    fontFamily: FONT_DISPLAY, fontSize: 13, fontWeight: "700",
+    color: COLORS.cream,
+    minWidth: 30, textAlign: "right",
+  },
+  bracketEmpty: {
+    padding: 8,
+    alignItems: "center",
+  },
+  bracketEmptyText: {
+    fontFamily: FONT_UI, fontSize: 10,
+    color: "rgba(245,235,214,0.4)",
+    fontStyle: "italic",
+  },
+  bracketActions: {
+    padding: 8,
+    gap: 6,
+    borderTopWidth: 0.5,
+    borderTopColor: `${COLORS.brass}33`,
+  },
+  bracketBtn: {
+    paddingVertical: 6, paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  bracketBtnPlay: {
+    backgroundColor: COLORS.saffron,
+  },
+  bracketBtnPlayText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10, fontWeight: "800",
+    color: COLORS.terracottaDark, letterSpacing: 0.5,
+  },
+  bracketBtnReport: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 0.5, borderColor: `${COLORS.brass}55`,
+  },
+  bracketBtnReportText: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10, fontWeight: "700",
+    color: COLORS.cream, letterSpacing: 0.3,
+  },
 });
+
+// ─── Bracket visuel pour tournoi classique (élimination directe) ──
+
+function roundLabel(round: number, totalRounds: number): string {
+  if (totalRounds <= 0) return `ROUND ${round}`;
+  const fromFinal = totalRounds - round; // 0 = finale, 1 = demi, 2 = quart…
+  if (fromFinal === 0) return "FINALE";
+  if (fromFinal === 1) return "DEMI";
+  if (fromFinal === 2) return "QUARTS";
+  if (fromFinal === 3) return "1/8";
+  return `ROUND ${round}`;
+}
+
+function BracketView({
+  tournament,
+  myUsername,
+  canReport,
+  onPlay,
+  onReport,
+}: {
+  tournament: Tournament;
+  myUsername: string;
+  canReport: boolean;
+  onPlay: (roomCode: string) => void;
+  onReport: (matchId: string, pA: TournamentPair, pB: TournamentPair) => void;
+}) {
+  const matches = tournament.matches || [];
+  const pairs = tournament.pairs || [];
+
+  if (matches.length === 0) {
+    return (
+      <View style={[styles.bracketEmpty, { marginTop: 12 }]}>
+        <Text style={styles.bracketEmptyText}>Aucun match programmé</Text>
+      </View>
+    );
+  }
+
+  // Group matches by round
+  const byRound = new Map<number, typeof matches>();
+  for (const m of matches) {
+    const list = byRound.get(m.round) || [];
+    list.push(m);
+    byRound.set(m.round, list);
+  }
+  const rounds = [...byRound.keys()].sort((a, b) => a - b);
+  const totalRounds = rounds.length;
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.bracketScroll}
+      contentContainerStyle={styles.bracketContent}
+    >
+      {rounds.map((round) => {
+        const roundMatches = byRound.get(round) || [];
+        return (
+          <View key={round} style={styles.bracketColumn}>
+            <Text style={styles.bracketRoundLabel}>
+              {roundLabel(round, totalRounds)}
+            </Text>
+            {roundMatches.map((m) => {
+              const pA = pairs.find((p) => p.id === m.pairAId);
+              const isBye = m.pairBId === "__BYE__";
+              const pB = isBye ? null : pairs.find((p) => p.id === m.pairBId);
+              if (!pA || (!isBye && !pB)) return null;
+              const winnerA = m.winnerPairId === m.pairAId;
+              const winnerB = !isBye && m.winnerPairId === m.pairBId;
+              const mePlays =
+                pA.names.includes(myUsername) ||
+                (pB?.names.includes(myUsername) ?? false);
+              return (
+                <View key={m.id} style={styles.bracketMatch}>
+                  {/* Paire A */}
+                  <View style={styles.bracketSide}>
+                    <Text
+                      style={[
+                        styles.bracketPair,
+                        m.status === "finished" && (winnerA ? styles.bracketPairWinner : styles.bracketPairLoser),
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {pA.names.join(" & ")}
+                    </Text>
+                    {m.status === "finished" && !isBye && (
+                      <Text style={styles.bracketScore}>{m.scoreA}</Text>
+                    )}
+                    {isBye && (
+                      <Text style={[styles.bracketScore, { color: COLORS.saffronSoft, fontSize: 10 }]}>
+                        BYE
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.bracketSideDivider} />
+                  {/* Paire B (ou BYE) */}
+                  <View style={styles.bracketSide}>
+                    <Text
+                      style={[
+                        styles.bracketPair,
+                        isBye && styles.bracketPairLoser,
+                        m.status === "finished" && !isBye && (winnerB ? styles.bracketPairWinner : styles.bracketPairLoser),
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {isBye ? "— bye —" : pB!.names.join(" & ")}
+                    </Text>
+                    {m.status === "finished" && !isBye && (
+                      <Text style={styles.bracketScore}>{m.scoreB}</Text>
+                    )}
+                  </View>
+                  {/* Actions pour les matchs pending */}
+                  {m.status === "pending" && !isBye && pB && (mePlays || canReport) && (
+                    <View style={styles.bracketActions}>
+                      {mePlays && (
+                        <Pressable
+                          onPress={() => onPlay(m.roomCode)}
+                          style={[styles.bracketBtn, styles.bracketBtnPlay]}
+                        >
+                          <Text style={styles.bracketBtnPlayText}>▶ JOUER · {m.roomCode}</Text>
+                        </Pressable>
+                      )}
+                      {canReport && (
+                        <Pressable
+                          onPress={() => onReport(m.id, pA, pB)}
+                          style={[styles.bracketBtn, styles.bracketBtnReport]}
+                        >
+                          <Text style={styles.bracketBtnReportText}>Saisir résultat</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}

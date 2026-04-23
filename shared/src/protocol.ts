@@ -1,5 +1,5 @@
 import type { Card, Suit } from "./types";
-import type { BidAction, GhnaAnnouncement } from "./engine/touti";
+import type { BidAction } from "./engine/touti";
 
 // ─── Messages client → serveur ────────────────────────────────────
 
@@ -14,11 +14,12 @@ export type ClientMessage =
 
 // ─── Messages serveur → client ────────────────────────────────────
 // (hors state sync automatique de Colyseus)
+//
+// Note : les événements de jeu (trickWon, ghnaAnnounced, roundEnd) ne sont
+// PAS envoyés comme messages custom — ils sont dérivés côté client à partir
+// du state sync Colyseus (phase + lastTrickWinner + ghnaAnnouncements).
 
 export type ServerMessage =
   | { type: "error"; reason: string }
   | { type: "chat"; from: string; text: string }
-  | { type: "hand"; cards: Card[] }              // main privée du joueur (jamais dans le state partagé)
-  | { type: "trickWon"; winnerSeat: number; points: number }
-  | { type: "ghnaAnnounced"; ann: GhnaAnnouncement }
-  | { type: "roundEnd"; winningTeam: 0 | 1; bid: number; delta: [number, number] };
+  | { type: "hand"; cards: Card[] };             // main privée du joueur (jamais dans le state partagé)

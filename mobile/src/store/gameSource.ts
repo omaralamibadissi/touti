@@ -63,7 +63,10 @@ export function useGameSource(
   // ─── Mode NET — reads depuis le store ────────────────────────
   const publicState = useNetGameStore((s) => s.publicState);
   const myHand = useNetGameStore((s) => s.myHand);
-  const mySeatServer = useNetGameStore((s) => s.mySeat);
+  const mySeatServerRaw = useNetGameStore((s) => s.mySeat);
+  const isSpectator = useNetGameStore((s) => s.isSpectator);
+  // En spectateur : on ne joue pas, pas de remap — seat 0 serveur reste en bas
+  const mySeatServer = isSpectator ? 0 : mySeatServerRaw;
   const netPlayers = useNetGameStore((s) => s.players);
   const netBid = useNetGameStore((s) => s.bid);
   const netChoose = useNetGameStore((s) => s.chooseTrump);
@@ -225,15 +228,27 @@ function remapSeat(serverSeat: number, mySeatServer: number): Seat {
 // Clone l'état public émis par le serveur en remappant tous les sièges
 // pour que mySeat=0 localement, et en injectant la main privée.
 function remapPublicState(
-  publicState: Omit<GameState, "hands">,
+  publicState: Omit<GameState, "hands"> & { handCounts: [number, number, number, number] },
   myHand: Card[],
   mySeatServer: number,
 ): GameState {
   const rs = (s: number | null | undefined): Seat | null =>
     s == null ? null : remapSeat(s, mySeatServer);
 
+  // Les mains des adversaires sont peuplées de cartes factices pour que
+  // `hands[seat].length` reflète le nombre réel de cartes qu'ils ont
+  // (seul `.length` est utilisé pour les piles face-down).
+  const PLACEHOLDER: Card = { suit: "oros", rank: 1 } as Card;
   const hands: [Card[], Card[], Card[], Card[]] = [[], [], [], []];
-  hands[0] = myHand; // mon siège = position locale 0
+  for (let serverSeat = 0 as Seat; serverSeat < 4; serverSeat++) {
+    const localSeat = remapSeat(serverSeat, mySeatServer);
+    if (localSeat === 0) {
+      hands[0] = myHand;
+    } else {
+      const n = publicState.handCounts?.[serverSeat] ?? 0;
+      hands[localSeat] = new Array(n).fill(PLACEHOLDER);
+    }
+  }
 
   // Bidding
   const bidding = publicState.bidding
@@ -279,6 +294,14 @@ function remapPublicState(
       }
     : null;
 
+  // Snapshot final des enchères (remappé sur les sièges locaux)
+  const lastBidHistory = (publicState as any).lastBidHistory
+    ? (publicState as any).lastBidHistory.map((h: any) => ({
+        seat: rs(h.seat) as Seat,
+        action: h.action,
+      }))
+    : null;
+
   return {
     phase: publicState.phase,
     roundNumber: publicState.roundNumber,
@@ -288,6 +311,7 @@ function remapPublicState(
     hands,
     trump: publicState.trump,
     bidding,
+    lastBidHistory,
     bidWinner: rs(publicState.bidWinner),
     bidAmount: publicState.bidAmount,
     trick,

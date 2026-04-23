@@ -47,6 +47,14 @@ export default function RulesScreen({ navigation }: Props) {
             Vous êtes <Bold>4 joueurs</Bold> en <Bold>2 équipes de 2</Bold> (partenaires en face).
             La première équipe à cumuler <Highlight>600 points</Highlight> remporte la partie.
           </Text>
+          <Text style={styles.p}>
+            Une partie est découpée en <Bold>manches</Bold>. À chaque manche, une équipe <Bold>promet</Bold>
+            (mise aux enchères) d'atteindre un score. Si elle réussit, elle marque sa promesse.
+            Sinon, l'équipe adverse la marque.
+          </Text>
+          <Text style={styles.hint}>
+            Une partie typique dure 3 à 17 manches. Plus les mises sont hautes, plus ça monte vite.
+          </Text>
         </Section>
 
         {/* Section : les cartes */}
@@ -82,7 +90,7 @@ export default function RulesScreen({ navigation }: Props) {
         </Section>
 
         {/* Section : distribution */}
-        <Section emoji="🤲" title="La distribution" sub="Chra · Mzaida">
+        <Section emoji="🤲" title="La distribution" sub="Chra">
           <Text style={styles.p}>
             Le distributeur donne <Bold>10 cartes</Bold> à chaque joueur, par paquets de <Bold>5</Bold>,
             en sens <Bold>anti-horaire</Bold>.
@@ -95,16 +103,29 @@ export default function RulesScreen({ navigation }: Props) {
         {/* Section : enchères */}
         <Section emoji="💬" title="Les enchères" sub="Proposer un objectif">
           <Text style={styles.p}>
-            Chacun à son tour, dans le sens anti-horaire, annonce un multiple de 10
-            entre <Highlight>70</Highlight> et <Highlight>230</Highlight>, ou <Bold>passe</Bold>.
-          </Text>
-          <Text style={styles.p}>
-            Le chiffre = objectif que ton équipe s'engage à atteindre si elle gagne les enchères.
+            Chacun à son tour, dans le sens anti-horaire, fait une des actions suivantes :
           </Text>
           <Rule
-            title="Signal au partenaire"
-            body="Au lieu d'enchérir, tu peux dire « un As » ou « un Compte » pour signaler ta force. Après avoir signalé, tu ne peux plus enchérir. Après avoir enchéri, tu ne peux plus signaler. Chaque signal (As / Compte) n'est utilisable qu'une fois par phase. Dès qu'un signal est fait et qu'il ne reste plus que le plus haut enchérisseur en course, les enchères se ferment automatiquement."
+            title="Enchérir"
+            body="Annonce un multiple de 10 entre 70 et 230. Ton chiffre doit être STRICTEMENT supérieur à la dernière mise. C'est l'objectif de points que ton équipe promet d'atteindre si elle gagne les enchères."
           />
+          <Rule
+            title="Passer"
+            body="Tu renonces à enchérir. Tu n'auras plus le droit de parler jusqu'à la fin de la phase."
+          />
+          <Rule
+            title="Signal au partenaire"
+            body={
+              "Au lieu d'enchérir, tu peux dire « un As » ou « un Compte » pour signaler ta force." +
+              " Après avoir signalé, tu ne peux plus enchérir. Après avoir enchéri, tu ne peux plus signaler." +
+              " Chaque signal (As / Compte) n'est utilisable qu'une fois par phase." +
+              " Dès qu'un signal est fait et qu'il ne reste plus que le plus haut enchérisseur en course, les enchères se ferment automatiquement."
+            }
+          />
+          <Text style={[styles.hint, { marginTop: 10 }]}>
+            Exemple — Ali 70 · Karim 80 · Omar passe · Salma 90 · Ali passe · Karim 100 · Salma passe
+            → Karim gagne avec 100 et choisit l'atout.
+          </Text>
           <Rule
             title="Tout le monde passe ?"
             body="Le distributeur tourne (comme si une manche avait été jouée) et on redistribue."
@@ -118,7 +139,11 @@ export default function RulesScreen({ navigation }: Props) {
         {/* Section : déroulement */}
         <Section emoji="🎴" title="Le jeu" sub="Les règles de pose">
           <Text style={styles.p}>
-            Le joueur qui ouvre le pli pose ce qu'il veut. Les autres doivent respecter ces obligations :
+            Chaque <Bold>pli</Bold> = les 4 joueurs posent une carte chacun. Le gagnant ramasse les 4 cartes
+            et ouvre le pli suivant.
+          </Text>
+          <Text style={styles.p}>
+            Le joueur qui <Bold>ouvre</Bold> pose n'importe quelle carte. Les 3 autres, à leur tour, doivent respecter ces obligations dans l'ordre :
           </Text>
           <Rule
             title="1. Fournir la couleur"
@@ -126,7 +151,7 @@ export default function RulesScreen({ navigation }: Props) {
           />
           <Rule
             title="2. Monter si tu peux"
-            body="Tu dois jouer une carte plus haute que la plus haute déjà posée, sauf si quelqu'un a déjà coupé avec l'atout."
+            body="Tu dois jouer une carte plus haute que la plus haute déjà posée, sauf si quelqu'un a déjà coupé avec un atout (auquel cas tu joues la couleur librement)."
           />
           <Rule
             title="3. Couper à l'atout"
@@ -136,8 +161,15 @@ export default function RulesScreen({ navigation }: Props) {
             title="4. Surcouper"
             body="Si un atout a déjà été posé et que tu as un atout plus fort, tu es obligé de le jouer."
           />
+          <Rule
+            title="5. Défausse"
+            body="Si tu n'as ni la couleur ni d'atout, tu joues ce que tu veux (tu « défausses »)."
+          />
           <Text style={[styles.hint, { marginTop: 10 }]}>
-            Le pli est remporté par l'atout le plus fort, ou à défaut par la plus haute carte de la couleur demandée.
+            Gagnant : l'<Bold>atout le plus fort</Bold>, ou à défaut la <Bold>plus haute carte de la couleur ouverte</Bold>.
+          </Text>
+          <Text style={[styles.hint, { marginTop: 8 }]}>
+            Exemple — atout Koubbas. Ali ouvre avec le 3 de Dheb (10 pts). Karim n'a pas Dheb → coupe au 10 de Koubbas. Omar joue Rey de Dheb (ne bat pas l'atout). Salma a des Koubbas + As → doit surcouper → As de Koubbas. Salma gagne et ramasse 27 pts.
           </Text>
         </Section>
 
@@ -151,8 +183,15 @@ export default function RulesScreen({ navigation }: Props) {
             <GhnaLine value={20} text="Dans une autre couleur" />
           </View>
           <Rule
-            title="Conditions"
-            body="Ton équipe doit avoir gagné les enchères. Mise minimum 80 pour Ghna 20, et 90 pour Ghna 40."
+            title="Plafond par équipe selon la mise"
+            body={
+              "Le total de points de Ghna que ton équipe peut annoncer dépend de la mise : " +
+              "70 → 0 pt, 80+ → 20 pts max, 90+ → 40 pts max (1×40 OU 2×20), 100+ → 100 pts (illimité en pratique)."
+            }
+          />
+          <Rule
+            title="Équipe gagnante des enchères"
+            body="Seuls les membres de l'équipe qui a gagné les enchères peuvent annoncer Ghna."
           />
           <Rule
             title="Timing"
@@ -187,6 +226,42 @@ export default function RulesScreen({ navigation }: Props) {
             La première équipe à <Highlight>atteindre ou dépasser 600 points</Highlight> remporte la partie.
             Le surplus est conservé (ex : 520 + 120 = 640 et c'est fini).
           </Text>
+        </Section>
+
+        {/* Section : Conseils débutant */}
+        <Section emoji="💡" title="Conseils pour débuter" sub="Stratégie de base">
+          <Rule
+            title="Regarde tes As et tes Triss"
+            body="Ces cartes rapportent le plus de points (11 et 10) et sont parmi les plus faciles à jouer gagnantes. Compte-les avant d'enchérir."
+          />
+          <Rule
+            title="Écoute les signaux du partenaire"
+            body="Si ton partenaire dit « un As » ou « un Compte », tu as une info précieuse. Ses cartes hautes peuvent compléter les tiennes."
+          />
+          <Rule
+            title="Ne bluffe pas trop haut"
+            body="90 c'est déjà une mise sérieuse. Vise 50-60% des points minimum de ta main + une estimation prudente du partenaire."
+          />
+          <Rule
+            title="Garde un atout en réserve"
+            body="Avoir encore un atout en fin de manche, surtout si les adversaires n'en ont plus, ça vaut de l'or."
+          />
+          <Rule
+            title="Compte les atouts joués"
+            body="Quand il ne reste plus d'atouts chez les adversaires, tes cartes hautes des autres couleurs peuvent passer sans être coupées."
+          />
+        </Section>
+
+        {/* Section : Lexique darija */}
+        <Section emoji="📖" title="Lexique darija" sub="Les termes à connaître">
+          <Rule title="Chra" body="Phase d'enchères." />
+          <Rule title="Mâle" body="Joueur qui parle en premier (à la droite du distributeur)." />
+          <Rule title="Tronfo" body="L'atout — la couleur maîtresse de la manche." />
+          <Rule title="Touti" body="Le nom du jeu." />
+          <Rule title="Triss" body="Le 3 — la 2e carte la plus forte après l'As (10 points)." />
+          <Rule title="Sota / Caballo / Rey" body="Valet (10) / Cavalier (11) / Roi (12)." />
+          <Rule title="Ghna" body="Annonce bonus (Caballo + Rey de même couleur dans ta main)." />
+          <Rule title="9a3a" body="Bonus de +10 pts pour le gagnant du dernier pli (10e)." />
         </Section>
 
         <View style={{ alignItems: "center", marginTop: 30 }}>

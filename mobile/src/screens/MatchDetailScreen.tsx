@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -6,13 +6,16 @@ import type { RootStackParamList } from "../../App";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
+import { Card as PlayingCard } from "../components/Card";
 import { useMatchHistoryStore, type RoundDetail } from "../store/matchHistoryStore";
+import type { Rank, Suit } from "@touti/shared";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MatchDetail">;
 
 export default function MatchDetailScreen({ navigation, route }: Props) {
   const { id } = route.params;
   const match = useMatchHistoryStore((s) => s.matches.find((m) => m.id === id));
+  const [expandedRound, setExpandedRound] = useState<number | null>(null);
 
   if (!match) {
     return (
@@ -101,39 +104,44 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
                 r.bidWinner != null && match.playerNames[r.bidWinner]
                   ? match.playerNames[r.bidWinner]
                   : "—";
+              const hasTricks = r.tricks && r.tricks.length > 0;
+              const isExpanded = expandedRound === r.round;
               return (
-                <View key={r.round} style={styles.roundRow}>
-                  <Text style={[styles.colNum, { width: 32 }]}>{r.round}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.colBidder}>
-                      {bidderName}
-                      {r.bidAmount ? ` · ${r.bidAmount}` : ""}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.colBidStatus,
-                        { color: success ? "#3FC26A" : "#E8553A" },
-                      ]}
-                    >
-                      {success ? "réussie" : "ratée"}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.colDelta,
-                      { width: 60, color: deltaColor(r.deltaA) },
-                    ]}
+                <View key={r.round}>
+                  <Pressable
+                    onPress={() => hasTricks && setExpandedRound(isExpanded ? null : r.round)}
+                    style={styles.roundRow}
                   >
-                    {fmtDelta(r.deltaA)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.colDelta,
-                      { width: 60, color: deltaColor(r.deltaB) },
-                    ]}
-                  >
-                    {fmtDelta(r.deltaB)}
-                  </Text>
+                    <Text style={[styles.colNum, { width: 32 }]}>{r.round}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.colBidder}>
+                        {bidderName}
+                        {r.bidAmount ? ` · ${r.bidAmount}` : ""}
+                        {hasTricks && (
+                          <Text style={{ color: "rgba(245,235,214,0.5)", fontSize: 10 }}>
+                            {"  "}{isExpanded ? "▾" : "▸"} replay
+                          </Text>
+                        )}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.colBidStatus,
+                          { color: success ? "#3FC26A" : "#E8553A" },
+                        ]}
+                      >
+                        {success ? "réussie" : "ratée"}
+                      </Text>
+                    </View>
+                    <Text style={[styles.colDelta, { width: 60, color: deltaColor(r.deltaA) }]}>
+                      {fmtDelta(r.deltaA)}
+                    </Text>
+                    <Text style={[styles.colDelta, { width: 60, color: deltaColor(r.deltaB) }]}>
+                      {fmtDelta(r.deltaB)}
+                    </Text>
+                  </Pressable>
+                  {isExpanded && hasTricks && (
+                    <TricksReplay tricks={r.tricks!} playerNames={match.playerNames} />
+                  )}
                 </View>
               );
             })}
@@ -172,6 +180,49 @@ export default function MatchDetailScreen({ navigation, route }: Props) {
           })}
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+function TricksReplay({
+  tricks,
+  playerNames,
+}: {
+  tricks: NonNullable<RoundDetail["tricks"]>;
+  playerNames: string[];
+}) {
+  return (
+    <View style={styles.tricksWrap}>
+      {tricks.map((t, i) => (
+        <View key={i} style={styles.trickBox}>
+          <View style={styles.trickHeader}>
+            <Text style={styles.trickLabel}>Pli {i + 1}</Text>
+            <Text style={styles.trickWinner}>
+              ★ {playerNames[t.winner] ?? `siège ${t.winner}`}
+            </Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", gap: 6, paddingVertical: 4 }}>
+              {t.entries.map((e, k) => {
+                const isWinner = e.player === t.winner;
+                return (
+                  <View key={k} style={{ alignItems: "center", gap: 3 }}>
+                    <Text style={[styles.trickPlayerName, isWinner && { color: COLORS.saffronSoft }]}>
+                      {playerNames[e.player]?.slice(0, 8) ?? "—"}
+                    </Text>
+                    <PlayingCard
+                      rank={e.card.rank as Rank}
+                      suit={e.card.suit as Suit}
+                      size="sm"
+                      highlighted={isWinner}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      ))}
     </View>
   );
 }
@@ -340,6 +391,36 @@ const styles = StyleSheet.create({
   colDelta: {
     fontFamily: FONT_DISPLAY, fontSize: 14, fontWeight: "700",
     textAlign: "right",
+  },
+
+  tricksWrap: {
+    padding: 10,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "rgba(245,235,214,0.07)",
+    gap: 8,
+  },
+  trickBox: {
+    padding: 8,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 8,
+    borderWidth: 0.5, borderColor: "rgba(245,235,214,0.08)",
+  },
+  trickHeader: {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginBottom: 6,
+  },
+  trickLabel: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 1,
+    color: COLORS.brass, fontWeight: "700",
+  },
+  trickWinner: {
+    fontFamily: FONT_UI_BOLD, fontSize: 10,
+    color: COLORS.saffronSoft, fontWeight: "700",
+  },
+  trickPlayerName: {
+    fontFamily: FONT_UI, fontSize: 9,
+    color: "rgba(245,235,214,0.65)",
   },
 
   emptyBox: {

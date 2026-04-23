@@ -52,10 +52,18 @@ export default function TournamentHomeScreen({ navigation }: Props) {
           />
         </View>
 
-        {mine.length > 0 && (
-          <View style={styles.myList}>
-            <Text style={styles.sectionLabel}>MES TOURNOIS</Text>
-            {mine.map((t) => (
+        <View style={styles.myList}>
+          <Text style={styles.sectionLabel}>MES TOURNOIS</Text>
+          {mine.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyEmoji}>♕</Text>
+              <Text style={styles.emptyTitle}>Tu n'as pas encore de tournoi</Text>
+              <Text style={styles.emptySub}>
+                Crée ton premier tournoi ou rejoins-en un avec un code partagé par un ami.
+              </Text>
+            </View>
+          ) : (
+            mine.map((t) => (
               <Pressable
                 key={t.id}
                 style={styles.tRow}
@@ -69,9 +77,9 @@ export default function TournamentHomeScreen({ navigation }: Props) {
                 </View>
                 <Text style={styles.chev}>›</Text>
               </Pressable>
-            ))}
-          </View>
-        )}
+            ))
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -188,4 +196,28 @@ const styles = StyleSheet.create({
   tName: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: COLORS.cream },
   tMeta: { fontFamily: FONT_UI, fontSize: 11, color: "rgba(245,235,214,0.6)", marginTop: 3 },
   chev: { fontSize: 22, color: "rgba(245,235,214,0.5)" },
+
+  emptyBox: {
+    alignItems: "center",
+    padding: 28, marginTop: 8,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: "rgba(245,235,214,0.1)",
+    gap: 10,
+  },
+  emptyEmoji: {
+    fontSize: 36,
+    color: COLORS.saffronSoft,
+    fontFamily: FONT_DISPLAY,
+  },
+  emptyTitle: {
+    fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700",
+    color: COLORS.cream, textAlign: "center",
+  },
+  emptySub: {
+    fontFamily: FONT_UI, fontSize: 12,
+    color: "rgba(245,235,214,0.6)",
+    textAlign: "center", lineHeight: 18,
+  },
 });

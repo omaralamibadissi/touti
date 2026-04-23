@@ -8,6 +8,7 @@ import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useNetGameStore } from "../store/netGameStore";
 import { useAuthStore } from "../store/authStore";
+import { buildPrivateLink } from "../lib/deepLink";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PrivateGame">;
 
@@ -19,9 +20,10 @@ function randomCode(): string {
   return out;
 }
 
-export default function PrivateGameScreen({ navigation }: Props) {
+export default function PrivateGameScreen({ navigation, route }: Props) {
   const [mode, setMode] = useState<"menu" | "lobby" | "joining">("menu");
   const [typedCode, setTypedCode] = useState("");
+  const incomingCode = route.params?.code?.toUpperCase();
 
   const myUsername = useAuthStore((s) => s.user?.username) ?? "Player";
 
@@ -29,16 +31,21 @@ export default function PrivateGameScreen({ navigation }: Props) {
   const { room, connected, connecting, error, players, locked, roomCode } = store;
 
   // Au montage : tente un reconnect silencieux si on avait une session
-  // persistée (app killée). Sinon laisse le menu "Créer / Rejoindre".
+  // persistée. Sinon, si un code est passé (deep link), on join direct.
   useEffect(() => {
     (async () => {
       if (!room) {
         const ok = await store.tryReconnect();
-        if (ok) setMode("lobby");
+        if (ok) { setMode("lobby"); return; }
+      }
+      if (incomingCode && !room) {
+        setTypedCode(incomingCode);
+        setMode("lobby");
+        await store.connectPrivate(incomingCode, myUsername);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [incomingCode]);
 
   // Reconnect automatique quand l'app revient au foreground
   useEffect(() => {
@@ -77,8 +84,9 @@ export default function PrivateGameScreen({ navigation }: Props) {
   const share = async () => {
     if (!roomCode) return;
     try {
+      const link = buildPrivateLink(roomCode);
       await Share.share({
-        message: `🃏 Rejoins ma partie Touti !\nCode : ${roomCode}\nOuvre l'app Touti.`,
+        message: `🃏 Rejoins ma partie Touti !\nCode : ${roomCode}\n${link}`,
       });
     } catch {}
   };
@@ -163,6 +171,21 @@ export default function PrivateGameScreen({ navigation }: Props) {
                 style={StyleSheet.absoluteFill}
               />
               <Text style={styles.bigBtnTitle}>Rejoindre</Text>
+            </Pressable>
+
+            <Pressable
+              disabled={typedCode.length !== 4}
+              onPress={async () => {
+                if (typedCode.length !== 4) return;
+                setMode("lobby");
+                await store.connectSpectator(typedCode, myUsername);
+              }}
+              style={[styles.bigBtn, styles.bigBtnSecondary, typedCode.length !== 4 && { opacity: 0.4 }]}
+            >
+              <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>👁 Regarder en spectateur</Text>
+              <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
+                Tu ne joues pas, tu regardes
+              </Text>
             </Pressable>
 
             <Pressable onPress={() => { setMode("menu"); setTypedCode(""); }} style={[styles.bigBtn, styles.bigBtnSecondary]}>

@@ -17,6 +17,7 @@ import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useAuthStore } from "../store/authStore";
 import { useMatchHistoryStore } from "../store/matchHistoryStore";
 import { totalXp, levelProgress } from "../lib/leveling";
+import { hapticTap } from "../lib/haptics";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -61,7 +62,7 @@ export default function HomeScreen({ navigation }: Props) {
       >
         {/* Header profil */}
         <View style={styles.header}>
-          <Pressable style={styles.profile} onPress={() => navigation.navigate("Profile")}>
+          <Pressable style={styles.profile} onPress={() => { hapticTap(); navigation.navigate("Profile"); }}>
             <Avatar initials={name.trim()[0]?.toUpperCase() || "?"} size={40} color={COLORS.teal} />
             <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>Salut{name.trim() ? `, ${name.trim()}` : ""}</Text>
@@ -92,70 +93,69 @@ export default function HomeScreen({ navigation }: Props) {
               sub="Contre 3 IA · hors-ligne"
               accent={COLORS.brass}
               icon="bolt"
-              onPress={() => navigation.navigate("Game", { mode: "local" })}
+              onPress={() => { hapticTap(); navigation.navigate("Game", { mode: "local" }); }}
             />
             <ModeTile
               fr="Partie rapide"
               sub="En ligne · code ou pool"
               accent={COLORS.brassDeep}
               icon="bolt"
-              onPress={() => navigation.navigate("QuickMatch")}
+              onPress={() => { hapticTap(); navigation.navigate("QuickMatch"); }}
             />
             <ModeTile
               fr="Partie perso"
               sub="Invite + bots si besoin"
               accent={COLORS.teal}
               icon="people"
-              onPress={() => navigation.navigate("PrivateGame")}
+              onPress={() => { hapticTap(); navigation.navigate("PrivateGame"); }}
             />
             <ModeTile
               fr="Tournoi"
               sub="Créer ou rejoindre"
               accent="#8B4A7F"
               icon="trophy"
-              onPress={() => navigation.navigate("TournamentHome")}
+              onPress={() => { hapticTap(); navigation.navigate("TournamentHome"); }}
             />
             <ModeTile
               fr="Mes ligues"
               sub="Cercle de potes"
               accent="#2E7A8C"
               icon="people"
-              onPress={() => navigation.navigate("Leagues")}
+              onPress={() => { hapticTap(); navigation.navigate("Leagues"); }}
             />
             <ModeTile
               fr="Score"
               sub="Compteur IRL · papier"
               accent={COLORS.terracotta}
               icon="notepad"
-              onPress={() => navigation.navigate("ScoreSheets")}
+              onPress={() => { hapticTap(); navigation.navigate("ScoreSheets"); }}
             />
             <ModeTile
               fr="Règles"
               sub="Apprendre le Touti"
               accent="#0F5A5E"
               icon="book"
-              onPress={() => navigation.navigate("Rules")}
+              onPress={() => { hapticTap(); navigation.navigate("Rules"); }}
             />
             <ModeTile
               fr="Historique"
               sub="Tes parties passées"
               accent="#8B5A12"
               icon="history"
-              onPress={() => navigation.navigate("MatchHistory")}
+              onPress={() => { hapticTap(); navigation.navigate("MatchHistory"); }}
             />
             <ModeTile
               fr="Classement"
               sub="Leaderboard global"
               accent={COLORS.brassDeep}
               icon="trophy"
-              onPress={() => navigation.navigate("Leaderboard")}
+              onPress={() => { hapticTap(); navigation.navigate("Leaderboard"); }}
             />
           </View>
         </View>
 
         <View style={{ height: BOTTOM_TAB_HEIGHT + 20 }} />
       </ScrollView>
-      <BottomTabBar />
     </View>
   );
 }

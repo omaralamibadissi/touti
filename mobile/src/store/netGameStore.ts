@@ -16,10 +16,13 @@ import type {
   Seat,
   Suit,
 } from "@touti/shared";
-import { joinPrivateRoom, joinQuickRoom, joinQuickCodeRoom, reconnect } from "../net/client";
+import { joinPrivateRoom, joinQuickRoom, joinQuickCodeRoom, joinPrivateRoomAsSpectator, reconnect } from "../net/client";
 
-// Vue publique broadcastée par le serveur = moteur sans les mains
-export type PublicGameState = Omit<EngineState, "hands">;
+// Vue publique broadcastée par le serveur = moteur sans les mains,
+// mais avec le nombre de cartes de chaque siège pour afficher les piles.
+export type PublicGameState = Omit<EngineState, "hands"> & {
+  handCounts: [number, number, number, number];
+};
 
 // Clé AsyncStorage pour persister le token
 const RECONNECT_KEY = "touti.reconnect.v1";
@@ -83,12 +86,14 @@ interface NetGameState {
   myHand: Card[];
 
   chatLog: { from: string; seat: number; text: string; ts: number }[];
-  lastTrickWon: { winnerSeat: number; points: number } | null;
-  lastRoundEnd: { winningTeam: 0 | 1; bid: number; delta: [number, number] } | null;
+  turnCountdown: { seat: number; secs: number } | null;
+  roomKind: "private" | "quick" | "quick-code" | null;
 
   connectPrivate: (code: string, name: string) => Promise<void>;
   connectQuickMatch: (name: string) => Promise<void>;
-  connectQuickCode: (code: string, name: string) => Promise<void>;
+  connectQuickCode: (code: string, name: string, leagueId?: string, hybridOpenToPool?: boolean) => Promise<void>;
+  connectSpectator: (code: string, name: string) => Promise<void>;
+  isSpectator: boolean;
   tryReconnect: () => Promise<boolean>;
   disconnect: () => Promise<void>;
   toggleReady: () => void;
@@ -103,6 +108,9 @@ interface NetGameState {
   nextTrick: () => void;
   nextRound: () => void;
   sendChat: (text: string) => void;
+  sendForfeit: () => void;
+  sendRematchVote: (yes: boolean) => void;
+  rematchStatus: { voted: number[]; total: number; started?: boolean } | null;
 
   clearError: () => void;
 }
@@ -124,8 +132,10 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
   myHand: [],
 
   chatLog: [],
-  lastTrickWon: null,
-  lastRoundEnd: null,
+  turnCountdown: null,
+  rematchStatus: null,
+  roomKind: null,
+  isSpectator: false,
 
   connectPrivate: async (code, name) => {
     const prev = get().room;
@@ -141,7 +151,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
         ),
       ]);
       wireRoom(room, set, get);
-      set({ room, connected: true, connecting: false, roomCode: code.toUpperCase() });
+      set({ room, connected: true, connecting: false, roomCode: code.toUpperCase(), roomKind: "private" });
     } catch (e: any) {
       await clearPersisted();
       set({
@@ -173,7 +183,7 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       ]);
       wireRoom(room, set, get);
       // Le code est reçu via onStateChange
-      set({ room, connected: true, connecting: false });
+      set({ room, connected: true, connecting: false, roomKind: "quick" });
     } catch (e: any) {
       await clearPersisted();
       set({
@@ -190,19 +200,19 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
     }
   },
 
-  connectQuickCode: async (code, name) => {
+  connectQuickCode: async (code, name, leagueId, hybridOpenToPool) => {
     const prev = get().room;
     if (prev) { try { await prev.leave(true); } catch {} }
     set({ error: null, connecting: true, connected: false });
     try {
       const room = await Promise.race([
-        joinQuickCodeRoom({ code, name }),
+        joinQuickCodeRoom({ code, name, leagueId, hybridOpenToPool }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
         ),
       ]);
       wireRoom(room, set, get);
-      set({ room, connected: true, connecting: false, roomCode: code.toUpperCase() });
+      set({ room, connected: true, connecting: false, roomCode: code.toUpperCase(), roomKind: "quick-code" });
     } catch (e: any) {
       await clearPersisted();
       set({
@@ -210,6 +220,34 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
         connected: false, connecting: false,
         room: null, roomCode: null, players: [], locked: false, mySeat: null,
         reconnectToken: null,
+      });
+    }
+  },
+
+  connectSpectator: async (code, name) => {
+    const prev = get().room;
+    if (prev) { try { await prev.leave(true); } catch {} }
+    set({ error: null, connecting: true, connected: false });
+    try {
+      const room = await Promise.race([
+        joinPrivateRoomAsSpectator({ code, name }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Serveur trop lent. Réessaye.")), 8000),
+        ),
+      ]);
+      wireRoom(room, set, get);
+      set({
+        room, connected: true, connecting: false,
+        roomCode: code.toUpperCase(),
+        roomKind: "private",
+        isSpectator: true,
+      });
+    } catch (e: any) {
+      set({
+        error: e?.message ?? "Impossible de rejoindre en spectateur",
+        connected: false, connecting: false,
+        room: null, roomCode: null,
+        isSpectator: false,
       });
     }
   },
@@ -265,8 +303,10 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
       publicState: null,
       myHand: [],
       chatLog: [],
-      lastTrickWon: null,
-      lastRoundEnd: null,
+      turnCountdown: null,
+      rematchStatus: null,
+      roomKind: null,
+      isSpectator: false,
       error: null,
     });
     clearPersisted().catch(() => {});
@@ -292,6 +332,8 @@ export const useNetGameStore = create<NetGameState>((set, get) => ({
   nextTrick: () => get().room?.send("nextTrick"),
   nextRound: () => get().room?.send("nextRound"),
   sendChat: (text) => get().room?.send("chat", { text }),
+  sendForfeit: () => get().room?.send("forfeit"),
+  sendRematchVote: (yes) => get().room?.send("rematchVote", { yes }),
 
   clearError: () => set({ error: null }),
 }));
@@ -362,6 +404,17 @@ function wireRoom(
         { from: payload.from, seat: payload.seat, text: payload.text, ts: Date.now() },
       ],
     });
+  });
+
+  // Décompte de timeout : serveur nous prévient quand le joueur actuel n'a pas
+  // joué depuis 20s. secs = nb de secondes restantes (0 = clear UI).
+  room.onMessage("turnCountdown", (payload: { seat: number; secs: number }) => {
+    set({ turnCountdown: payload.secs > 0 ? payload : null });
+  });
+
+  // Rematch : voted = sièges qui ont déjà dit oui, total = nb d'humains à convaincre
+  room.onMessage("rematchStatus", (payload: { voted: number[]; total: number; started?: boolean }) => {
+    set({ rematchStatus: payload });
   });
 
   room.onLeave((code) => {

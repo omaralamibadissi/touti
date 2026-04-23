@@ -1,12 +1,17 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ArabesqueDivider, ZelligeBg } from "../components/Patterns";
 import { useAuthStore } from "../store/authStore";
 
+// NB : aujourd'hui, le pseudo est toujours fixé à la création de compte
+// (signUp côté serveur). Cet écran n'est utile QUE pour un user OAuth qui
+// arriverait sans pseudo (flow pas encore implémenté). En attendant de
+// câbler un endpoint PATCH /auth/me/username, on fait signOut + message
+// explicite pour que l'utilisateur ne reste pas bloqué.
 export default function UsernameSetupScreen() {
-  const setUsername = useAuthStore((s) => s.setUsername);
+  const signOut = useAuthStore((s) => s.signOut);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const valid = name.trim().length >= 2 && name.trim().length <= 20;
@@ -15,7 +20,14 @@ export default function UsernameSetupScreen() {
     if (!valid || saving) return;
     setSaving(true);
     try {
-      await setUsername(name);
+      Alert.alert(
+        "Pseudo figé",
+        "Ton pseudo a été choisi à la création du compte et ne peut plus être changé depuis cet écran. Reconnecte-toi avec ton pseudo d'origine, ou crée un nouveau compte.",
+        [
+          { text: "OK", style: "cancel" },
+          { text: "Se déconnecter", style: "destructive", onPress: () => signOut() },
+        ],
+      );
     } finally {
       setSaving(false);
     }

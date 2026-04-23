@@ -8,6 +8,7 @@ import { ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { useLeagueStore } from "../store/leagueStore";
 import { useAuthStore } from "../store/authStore";
+import { buildLeagueLink } from "../lib/deepLink";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueDetail">;
 
@@ -17,6 +18,9 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
   const leave = useLeagueStore((s) => s.leave);
   const setActive = useLeagueStore((s) => s.setActive);
   const activeId = useLeagueStore((s) => s.activeLeagueId);
+  const promote = useLeagueStore((s) => s.promote);
+  const demote = useLeagueStore((s) => s.demote);
+  const kick = useLeagueStore((s) => s.kick);
   const myUsername = useAuthStore((s) => s.user?.username) ?? "Player";
 
   // NB : pas de redirect agressif — si la ligue disparaît (leave/remove),
@@ -38,30 +42,86 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
   const color = league.color || COLORS.teal;
   const isAdmin = league.members.find((m) => m.id === myUsername)?.role === "admin";
 
+  const openMemberActions = (member: { id: string; name: string; role: "admin" | "member" }) => {
+    if (!isAdmin || member.id === myUsername) return;
+    const options: any[] = [];
+    if (member.role === "member") {
+      options.push({
+        text: "Promouvoir admin",
+        onPress: async () => {
+          try { await promote(league.id, member.name); }
+          catch (e: any) { Alert.alert("Erreur", e?.message ?? "Impossible"); }
+        },
+      });
+    } else {
+      options.push({
+        text: "Rétrograder",
+        onPress: async () => {
+          try { await demote(league.id, member.name); }
+          catch (e: any) { Alert.alert("Erreur", e?.message ?? "Impossible"); }
+        },
+      });
+    }
+    options.push({
+      text: "Exclure de la ligue",
+      style: "destructive",
+      onPress: () => {
+        Alert.alert(
+          `Exclure ${member.name} ?`,
+          "Cette action est immédiate et non réversible.",
+          [
+            { text: "Annuler", style: "cancel" },
+            {
+              text: "Exclure",
+              style: "destructive",
+              onPress: async () => {
+                try { await kick(league.id, member.name); }
+                catch (e: any) { Alert.alert("Erreur", e?.message ?? "Impossible"); }
+              },
+            },
+          ],
+        );
+      },
+    });
+    options.push({ text: "Annuler", style: "cancel" });
+    Alert.alert(member.name, member.role === "admin" ? "Admin de la ligue" : "Membre", options);
+  };
+
   const share = async () => {
     try {
+      const link = buildLeagueLink(league.code);
       await Share.share({
-        message: `Rejoins ma ligue Touti "${league.name}" !\nCode : ${league.code}\n\nOuvre l'app Touti → Mes ligues → Rejoindre.`,
+        message: `Rejoins ma ligue Touti "${league.name}" !\nCode : ${league.code}\n${link}`,
       });
     } catch {}
   };
 
   const onLeave = () => {
-    Alert.alert(
-      "Quitter la ligue",
-      `Sûr de quitter "${league.name}" ? Tu perdras l'accès aux tournois privés de la ligue.`,
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Quitter",
-          style: "destructive",
-          onPress: async () => {
-            await leave(league.id);
+    const admins = league.members.filter((m) => m.role === "admin");
+    const onlyAdmin = isAdmin && admins.length === 1 && league.members.length > 1;
+    const willDelete = league.members.length === 1;
+
+    const body = willDelete
+      ? `Tu es le dernier membre. Quitter = supprimer la ligue définitivement.`
+      : onlyAdmin
+      ? `Tu es le dernier admin. En quittant, la ligue n'aura plus d'admin — promeus quelqu'un d'abord via le menu "⋯" sur son nom.`
+      : `Sûr de quitter "${league.name}" ? Tu perdras l'accès aux tournois privés de la ligue.`;
+
+    Alert.alert("Quitter la ligue", body, [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: willDelete ? "Quitter et supprimer" : "Quitter",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await leave(league.id, myUsername);
             navigation.goBack();
-          },
+          } catch (e: any) {
+            Alert.alert("Erreur", e?.message ?? "Impossible");
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const createTournament = () => {
@@ -115,29 +175,63 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
             MEMBRES · {league.members.length}
           </Text>
           <View style={{ gap: 8, marginTop: 10 }}>
-            {league.members.map((m) => (
-              <View key={m.id} style={styles.memberRow}>
-                <Avatar initials={m.name[0]?.toUpperCase() ?? "?"} size={34} color={color} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.memberName}>
-                    {m.name}
-                    {m.id === myUsername && <Text style={{ color: COLORS.saffronSoft }}>  (vous)</Text>}
-                  </Text>
-                  <Text style={styles.memberMeta}>
-                    {m.role === "admin" ? "Administrateur" : "Membre"}
-                    {" · "}
-                    depuis {new Date(m.joinedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                  </Text>
+            {league.members.map((m) => {
+              const canManage = isAdmin && m.id !== myUsername;
+              return (
+                <View key={m.id} style={styles.memberRow}>
+                  <Avatar initials={m.name[0]?.toUpperCase() ?? "?"} size={34} color={color} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.memberName}>
+                      {m.name}
+                      {m.id === myUsername && <Text style={{ color: COLORS.saffronSoft }}>  (vous)</Text>}
+                    </Text>
+                    <Text style={styles.memberMeta}>
+                      {m.role === "admin" ? "Administrateur" : "Membre"}
+                      {" · "}
+                      depuis {new Date(m.joinedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    </Text>
+                  </View>
+                  {canManage && (
+                    <Pressable
+                      onPress={() => openMemberActions(m)}
+                      style={styles.memberMenuBtn}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.memberMenuDots}>⋯</Text>
+                    </Pressable>
+                  )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </View>
+
+        {/* Action : chat de ligue */}
+        <Pressable
+          onPress={() => navigation.navigate("LeagueChat", { id: league.id })}
+          style={[styles.bigBtn, { marginTop: 24, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
+        >
+          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>💬 Chat de la ligue</Text>
+          <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
+            Discute avec les membres de "{league.name}"
+          </Text>
+        </Pressable>
+
+        {/* Action : fil d'activité */}
+        <Pressable
+          onPress={() => navigation.navigate("LeagueActivity", { id: league.id })}
+          style={[styles.bigBtn, { marginTop: 10, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
+        >
+          <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>📜 Fil d'activité</Text>
+          <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
+            Membres, tournois, matchs joués
+          </Text>
+        </Pressable>
 
         {/* Action : voir le classement de la ligue */}
         <Pressable
           onPress={() => navigation.navigate("Leaderboard", { scope: "league" })}
-          style={[styles.bigBtn, { marginTop: 24, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
+          style={[styles.bigBtn, { marginTop: 10, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
         >
           <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>Voir le classement</Text>
           <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
@@ -157,11 +251,22 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
           <Text style={styles.bigBtnSub}>Réservé aux membres de "{league.name}"</Text>
         </Pressable>
 
-        {/* Quitter */}
+        {/* Action admin : paramètres de la ligue */}
+        {isAdmin && (
+          <Pressable
+            onPress={() => navigation.navigate("LeagueSettings", { id: league.id })}
+            style={[styles.bigBtn, { marginTop: 10, backgroundColor: "rgba(0,0,0,0.35)", borderWidth: 0.5, borderColor: `${COLORS.brass}55` }]}
+          >
+            <Text style={[styles.bigBtnTitle, { color: COLORS.cream }]}>⚙ Paramètres</Text>
+            <Text style={[styles.bigBtnSub, { color: "rgba(245,235,214,0.6)" }]}>
+              Modifier nom, couleur, slogan · Supprimer la ligue
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Quitter (action perso — même admin peut quitter sans supprimer) */}
         <Pressable onPress={onLeave} style={[styles.leaveBtn, { marginTop: 16 }]}>
-          <Text style={styles.leaveBtnText}>
-            {isAdmin ? "Supprimer la ligue" : "Quitter la ligue"}
-          </Text>
+          <Text style={styles.leaveBtnText}>Quitter la ligue</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -282,6 +387,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "rgba(245,235,214,0.55)",
     marginTop: 2,
+  },
+  memberMenuBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  memberMenuDots: {
+    fontSize: 18, color: COLORS.cream, fontWeight: "700", lineHeight: 18,
   },
 
   bigBtn: {

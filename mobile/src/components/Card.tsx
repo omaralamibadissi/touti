@@ -5,6 +5,12 @@ import Svg, { Circle, Path, Rect, G, Ellipse, Defs, Pattern, Text as SvgText } f
 import type { Rank, Suit } from "@touti/shared";
 import { getCardComponent } from "./cardAssets";
 
+// Symboles de couleur custom — SVG fournis dans mobile/assets/symbols
+import OrosIcon from "../../assets/symbols/oros.svg";
+import CopasIcon from "../../assets/symbols/copas.svg";
+import EspadasIcon from "../../assets/symbols/espadas.svg";
+import BastosIcon from "../../assets/symbols/bastos.svg";
+
 // ─── Palette baraja (design/extracted/touti/project/cards.jsx) ────
 
 const BARAJA = {
@@ -34,72 +40,12 @@ const SIZES: Record<CardSize, { w: number; h: number; fs: number; pip: number }>
 
 // ─── Glyphes de couleur ───────────────────────────────────────────
 
-function Oro({ size = 24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 40 40">
-      <Circle cx={20} cy={20} r={16} fill={BARAJA.yellow} stroke={BARAJA.ink} strokeWidth={1.6} />
-      <Circle cx={20} cy={20} r={11} fill="none" stroke={BARAJA.ink} strokeWidth={1} />
-      <Path
-        d="M20 10 L22.5 17.5 L30 17.5 L24 22 L26.5 29.5 L20 25 L13.5 29.5 L16 22 L10 17.5 L17.5 17.5 Z"
-        fill={BARAJA.red}
-        stroke={BARAJA.ink}
-        strokeWidth={0.8}
-      />
-    </Svg>
-  );
-}
-
-function Copa({ size = 24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 40 40">
-      <Path
-        d="M9 10 Q20 7 31 10 L29 20 Q29 27 20 28 Q11 27 11 20 Z"
-        fill={BARAJA.red}
-        stroke={BARAJA.ink}
-        strokeWidth={1.5}
-      />
-      <Path d="M9 10 Q20 7 31 10 L31 12 Q20 9 9 12 Z" fill={BARAJA.yellow} stroke={BARAJA.ink} strokeWidth={1} />
-      <Path d="M12 18 Q20 19 28 18" stroke={BARAJA.yellow} strokeWidth={2} fill="none" />
-      <Rect x={17} y={28} width={6} height={3} fill={BARAJA.yellow} stroke={BARAJA.ink} strokeWidth={1} />
-      <Ellipse cx={20} cy={33} rx={8} ry={2.2} fill={BARAJA.yellow} stroke={BARAJA.ink} strokeWidth={1} />
-    </Svg>
-  );
-}
-
-function Espada({ size = 24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 40 40">
-      <Path d="M20 3 L22 28 L18 28 Z" fill={BARAJA.blue} stroke={BARAJA.ink} strokeWidth={1.2} />
-      <Path d="M20 3 L21 28 L19 28 Z" fill={BARAJA.blueDk} opacity={0.5} />
-      <Rect x={11} y={26} width={18} height={3.5} rx={0.5} fill={BARAJA.yellow} stroke={BARAJA.ink} strokeWidth={1} />
-      <Rect x={18.5} y={29.5} width={3} height={5} fill={BARAJA.red} stroke={BARAJA.ink} strokeWidth={0.8} />
-      <Circle cx={20} cy={36} r={2.2} fill={BARAJA.yellow} stroke={BARAJA.ink} strokeWidth={1} />
-    </Svg>
-  );
-}
-
-function Basto({ size = 24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 40 40">
-      <Path
-        d="M17 4 Q20 3 23 4 L24.5 34 Q20 36 15.5 34 Z"
-        fill={BARAJA.yellow}
-        stroke={BARAJA.ink}
-        strokeWidth={1.4}
-      />
-      <Ellipse cx={20} cy={10} rx={4} ry={1.8} fill={BARAJA.yellowDk} stroke={BARAJA.ink} strokeWidth={0.6} />
-      <Ellipse cx={20} cy={19} rx={4} ry={1.8} fill={BARAJA.yellowDk} stroke={BARAJA.ink} strokeWidth={0.6} />
-      <Ellipse cx={20} cy={28} rx={4.2} ry={1.8} fill={BARAJA.yellowDk} stroke={BARAJA.ink} strokeWidth={0.6} />
-      <Path d="M17 4 Q13 2 15 6 M23 4 Q27 2 25 6" stroke={BARAJA.green} strokeWidth={1.5} fill="none" />
-    </Svg>
-  );
-}
-
 export function SuitGlyph({ suit, size = 24 }: { suit: Suit; size?: number }) {
-  if (suit === "oros") return <Oro size={size} />;
-  if (suit === "copas") return <Copa size={size} />;
-  if (suit === "espadas") return <Espada size={size} />;
-  return <Basto size={size} />;
+  const props = { width: size, height: size };
+  if (suit === "oros") return <OrosIcon {...props} />;
+  if (suit === "copas") return <CopasIcon {...props} />;
+  if (suit === "espadas") return <EspadasIcon {...props} />;
+  return <BastosIcon {...props} />;
 }
 
 // ─── Figures royales (style monogramme moderne) ───────────────────

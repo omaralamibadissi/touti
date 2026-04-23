@@ -1,11 +1,12 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useNavigationState } from "@react-navigation/native";
 import Svg, { Path } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, FONT_UI_BOLD } from "../theme";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../App";
+import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
 
 type TabKey = "Home" | "Social" | "Profile" | "Settings";
 
@@ -57,10 +58,27 @@ function TabIcon({ tab, color }: { tab: TabKey; color: string }) {
   );
 }
 
-export function BottomTabBar() {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const route = useRoute();
-  const active = route.name as TabKey;
+// Peut être utilisé de 2 manières :
+//  - sans props : lit l'onglet actif via useNavigationState (fallback)
+//  - avec props Material Top Tab : le state passé par le Tab.Navigator est
+//    mis à jour instantanément au tap (avant que le swipe ne se termine),
+//    donc le logo / dot change immédiatement
+export function BottomTabBar(props: Partial<MaterialTopTabBarProps> = {}) {
+  const fallbackNav = useNavigation<NavigationProp<RootStackParamList>>();
+  const navigation = (props.navigation as any) ?? fallbackNav;
+
+  const fallbackActive = useNavigationState((state) => {
+    const current = state?.routes?.[state.index];
+    if (!current) return "Home" as TabKey;
+    const inner = (current.state as any)?.routes?.[(current.state as any).index];
+    const name = inner?.name ?? current.name;
+    return name as TabKey;
+  });
+  // Si on est dans le slot `tabBar` du Material Top Tabs, props.state est
+  // mis à jour avant le swipe → l'onglet actif se met à jour tout de suite.
+  const active: TabKey = props.state
+    ? (props.state.routes[props.state.index]?.name as TabKey)
+    : fallbackActive;
 
   return (
     <View style={styles.wrap}>

@@ -3,13 +3,28 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
-import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD, shade } from "../theme";
+import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { StarBurst, ZelligeBg } from "../components/Patterns";
 import { Avatar } from "../components/Avatar";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useAuthStore } from "../store/authStore";
 import { useMatchHistoryStore, type MatchEntry } from "../store/matchHistoryStore";
+import { useTournamentStore } from "../store/tournamentStore";
 import { totalXp, levelProgress, rankLabel } from "../lib/leveling";
+
+// Tournois gagnés : tournois finis où la paire gagnante contient le joueur.
+function countTournamentsWon(
+  tournaments: { status: string; pairs?: { names: [string, string]; wins: number; points: number }[] }[],
+  playerName: string,
+): number {
+  let n = 0;
+  for (const t of tournaments) {
+    if (t.status !== "finished" || !t.pairs || t.pairs.length === 0) continue;
+    const winner = [...t.pairs].sort((a, b) => b.points - a.points || b.wins - a.wins)[0];
+    if (winner.names.includes(playerName)) n++;
+  }
+  return n;
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
@@ -19,6 +34,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const initials = (username[0] ?? "?").toUpperCase();
 
   const history = useMatchHistoryStore((s) => s.matches) as MatchEntry[];
+  const tournaments = useTournamentStore((s) => s.mine);
 
   // Calculs statistiques dérivés de l'historique (écarte les parties IRL du scoring)
   const stats = useMemo(() => {
@@ -28,39 +44,30 @@ export default function ProfileScreen({ navigation }: Props) {
     const losses = games - wins;
     const ratio = games === 0 ? 0 : Math.round((wins / games) * 100);
 
-    let streak = 0;
-    for (const m of appMatches) {
-      if (m.winnerTeam === "A") streak++;
-      else break;
-    }
+    // Points gagnés = somme scoreA (mon camp) · Points perdus = somme scoreB (adversaires)
+    const pointsFor = appMatches.reduce((acc, m) => acc + m.scoreA, 0);
+    const pointsAgainst = appMatches.reduce((acc, m) => acc + m.scoreB, 0);
 
-    const totalPoints = appMatches.reduce((acc: number, m: MatchEntry) => acc + m.scoreA, 0);
-    const bazzat =
-      totalPoints >= 1000
-        ? (totalPoints / 1000).toFixed(1).replace(".", ",") + "k"
-        : String(totalPoints);
+    const tournamentsWon = countTournamentsWon(tournaments, username);
 
     const xp = totalXp(appMatches);
     const prog = levelProgress(xp);
-    const xpLabel =
-      xp >= 1000 ? (xp / 1000).toFixed(1).replace(".", ",") + "k" : String(xp);
 
     return {
       games,
       wins,
       losses,
       ratio,
-      streak,
-      bazzat,
-      xpLabel,
-      xp,
+      pointsFor,
+      pointsAgainst,
+      tournamentsWon,
       level: prog.level,
       xpIntoLevel: prog.xpIntoLevel,
       xpForNextLevel: prog.xpForNextLevel,
       progressRatio: prog.ratio,
       rank: rankLabel(prog.level),
     };
-  }, [history]);
+  }, [history, tournaments, username]);
 
   const recent = useMemo<MatchEntry[]>(
     () => history.filter((m: MatchEntry) => m.type !== "irl").slice(0, 3),
@@ -85,11 +92,6 @@ export default function ProfileScreen({ navigation }: Props) {
             <StarBurst size={280} color={COLORS.saffronSoft} strokeW={0.8} />
           </View>
 
-          <View style={styles.topBar}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-              <Text style={styles.backText}>←</Text>
-            </Pressable>
-          </View>
 
           <View style={styles.idRow}>
             <View>
@@ -125,7 +127,7 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Stats — descendu pour ne plus empiéter sur la bannière */}
+        {/* Stats */}
         <View style={styles.statsCard}>
           <View style={styles.statsGrid}>
             <StatBlock label="Parties" value={String(stats.games)} />
@@ -134,61 +136,10 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
           <View style={styles.divider} />
           <View style={styles.statsGrid}>
-            <StatBlock label="Série" value={String(stats.streak)} />
-            <StatBlock label="Bazzat" value={stats.bazzat} />
-            <StatBlock label="XP" value={stats.xpLabel} />
+            <StatBlock label="Points gagnés" value={String(stats.pointsFor)} />
+            <StatBlock label="Points perdus" value={String(stats.pointsAgainst)} />
+            <StatBlock label="Tournois gagnés" value={String(stats.tournamentsWon)} highlight />
           </View>
-        </View>
-
-        {/* Trophées — palette basée sur stats réelles */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Trophées</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
-            {[
-              { icon: "★", label: "Champion", unlocked: stats.wins >= 1, color: COLORS.saffron },
-              { icon: "◆", label: "5 bazzat", unlocked: stats.wins >= 5, color: COLORS.terracotta },
-              { icon: "✦", label: "Série 3", unlocked: stats.streak >= 3, color: "#8B4A7F" },
-              { icon: "♦", label: "Niveau 5", unlocked: stats.level >= 5, color: COLORS.brass },
-            ].map((a, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.trophy,
-                  {
-                    backgroundColor: a.unlocked ? `${a.color}22` : "rgba(0,0,0,0.3)",
-                    borderColor: `${a.color}66`,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.trophyIconWrap,
-                    { borderColor: a.color, opacity: a.unlocked ? 1 : 0.35, overflow: "hidden" },
-                  ]}
-                >
-                  {a.unlocked && (
-                    <LinearGradient
-                      colors={[a.color, shade(a.color, -20)]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFill}
-                    />
-                  )}
-                  <Text style={styles.trophyIcon}>{a.icon}</Text>
-                </View>
-                <Text
-                  style={[
-                    styles.trophyLabel,
-                    { color: a.unlocked ? COLORS.cream : "rgba(245,235,214,0.35)" },
-                  ]}
-                >
-                  {a.label}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
         </View>
 
         {/* Parties récentes — 3 dernières réelles */}
@@ -237,7 +188,6 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
-      <BottomTabBar />
     </View>
   );
 }

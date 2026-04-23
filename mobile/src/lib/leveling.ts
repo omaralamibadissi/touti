@@ -2,10 +2,13 @@
 // Leaderboard et d'éventuels écrans futurs utilisent la même source.
 //
 // Règles :
-//   - Victoire en partie : +100 XP
-//   - Défaite en partie   : +30 XP (lot de consolation)
-//   - Par manche jouée   : +5 XP
-//   - Bonus tournoi gagné : +250 XP
+//   - Victoire en partie privée / solo  : +100 XP
+//   - Défaite en partie privée / solo   : +30 XP (lot de consolation)
+//   - Victoire en partie rapide          : +15 XP (faible — encouragé pour la pratique mais ne fait pas level-up rapide)
+//   - Défaite en partie rapide           : +5 XP
+//   - Par manche jouée                   : +5 XP (ou +1 en quick)
+//   - Bonus tournoi gagné                : +250 XP
+//   - Partie contenant AU MOINS UN BOT   : 0 XP (toujours, quel que soit le type)
 //
 // Progression des niveaux (triangulaire) :
 //   xpToReachLevel(n) = 100 * n * (n-1) / 2
@@ -18,10 +21,58 @@ export const XP = {
   LOSS: 30,
   ROUND: 5,
   TOURNAMENT_WIN_BONUS: 250,
+  // Parties rapides (matchmaking random) : XP très réduit pour éviter le farming
+  QUICK_WIN: 15,
+  QUICK_LOSS: 5,
+  QUICK_ROUND: 1,
 } as const;
 
+// Détecte si une partie contient un bot. Utilise le vrai flag par siège
+// (`isBotPerSeat`) qui est renseigné au moment d'enregistrer la partie —
+// source de vérité : `PLAYERS[seat].human` côté engine local et `p.isAi`
+// côté serveur Colyseus. Fallback sur un pattern de nom uniquement pour
+// les anciennes entrées sauvegardées avant l'ajout du champ (back-compat).
+export function matchHasBots(m: MatchEntry): boolean {
+  if (m.isBotPerSeat && m.isBotPerSeat.length > 0) {
+    return m.isBotPerSeat.some(Boolean);
+  }
+  // Fallback legacy : heuristique sur les noms (ancien comportement).
+  return m.playerNames.some((n) => /^IA\s*\d$/i.test(n.trim()));
+}
+
+// Retourne l'équipe de l'utilisateur dans le match, ou null si pas joueur.
+// Les sièges 0 et 2 sont en équipe A, les sièges 1 et 3 en équipe B.
+export function matchUserTeam(
+  m: MatchEntry,
+  username: string | null | undefined,
+): "A" | "B" | null {
+  if (!username) return null;
+  const target = username.toLowerCase();
+  const idx = m.playerNames.findIndex((n) => n && n.toLowerCase() === target);
+  if (idx < 0) return null;
+  return idx % 2 === 0 ? "A" : "B";
+}
+
+// Vrai si l'utilisateur a gagné ce match. Source de vérité unique utilisée
+// par MatchHistoryScreen, PlayerProfileScreen, ProfileScreen, etc.
+export function matchUserWon(
+  m: MatchEntry,
+  username: string | null | undefined,
+): boolean {
+  const team = matchUserTeam(m, username);
+  if (team == null) return false;
+  return m.winnerTeam === team;
+}
+
 export function xpFromMatch(m: MatchEntry): number {
+  // Partie avec au moins un bot : 0 XP, toujours. Empêche le farming solo
+  // et ne récompense pas une partie rapide dont un humain a abandonné
+  // (remplacé par AI côté serveur).
+  if (matchHasBots(m)) return 0;
   const won = m.winnerTeam === "A";
+  if (m.type === "quick") {
+    return (won ? XP.QUICK_WIN : XP.QUICK_LOSS) + m.roundsPlayed * XP.QUICK_ROUND;
+  }
   let xp = won ? XP.WIN : XP.LOSS;
   xp += m.roundsPlayed * XP.ROUND;
   if (won && m.type === "tournament") xp += XP.TOURNAMENT_WIN_BONUS;
