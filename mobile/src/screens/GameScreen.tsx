@@ -59,6 +59,7 @@ import { useNetGameStore } from "../store/netGameStore";
 import { useAuthStore } from "../store/authStore";
 import { apiReport, type ReportReason } from "../net/reportsApi";
 import { Coachmark, type CoachmarkStep } from "../components/Coachmark";
+import { useT } from "../lib/i18n";
 
 // Ordre d'affichage demandé : oros, copas, espadas, bastos.
 // À l'intérieur d'une couleur : plus fort → plus faible (As, Triss, Rey, Caballo, Sota, 7, 6, 5, 4, 2).
@@ -82,6 +83,7 @@ const WOOD = {
 type Props = NativeStackScreenProps<RootStackParamList, "Game">;
 
 export default function GameScreen({ route, navigation }: Props) {
+  const t = useT();
   const mode: GameMode = (route.params?.mode as GameMode) ?? "local";
   // Si la route demande explicitement le tutoriel (replay depuis Settings),
   // on force les coachmarks pour cette session même si markCoachmarksDone()
@@ -392,24 +394,21 @@ export default function GameScreen({ route, navigation }: Props) {
     {
       id: "welcome",
       when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
-      text:
-        "Salut. Je t'accompagne sur cette 1ère manche. Tu as 10 cartes en main. Les 3 autres joueurs ont aussi 10 cartes (cachées). Ton partenaire est face à toi — vous êtes une équipe.",
+      text: t("tuto.welcome"),
       targetRef: handRef,
       placement: "above",
     },
     {
       id: "score-hud",
       when: () => !dealAnim && state.phase === "bidding" && state.roundNumber === 1,
-      text:
-        "En haut, le score cumulé de la partie : « Nous » (toi + partenaire) vs « Eux ». Il se met à jour à la FIN de chaque manche, pas pendant. Premier à 600 points gagne.",
+      text: t("tuto.scoreHud"),
       targetRef: scoreRef,
       placement: "below",
     },
     {
       id: "bid-intro",
       when: () => !dealAnim && state.phase === "bidding" && state.bidding != null,
-      text:
-        "Phase des enchères (Chra). Chacun son tour, 3 options : MISER un multiple de 10 entre 70 et 230 · PASSER · ou SIGNALER (« un As » / « un Compte ») pour aider ton partenaire.",
+      text: t("tuto.bidIntro"),
       targetRef: trumpRef,
       placement: "below",
     },
@@ -419,16 +418,14 @@ export default function GameScreen({ route, navigation }: Props) {
         !dealAnim &&
         state.phase === "bidding" &&
         state.bidding?.currentSeat === 0,
-      text:
-        "À toi. Mise si tu penses que ton équipe peut capturer au moins ce score. Sinon passe (attention : si tu passes, tu es OUT pour ce tour d'enchères). Tant que tu n'as pas signalé ni passé, tu peux relancer au tour suivant.",
+      text: t("tuto.bidYourTurn"),
       targetRef: handRef,
       placement: "above",
     },
     {
       id: "trump-set",
       when: () => state.phase === "playing" && state.trump != null && state.trickNumber === 1 && state.trick.length === 0,
-      text:
-        "L'atout est choisi par le meilleur misseur. C'est la couleur maîtresse : toute carte d'atout bat les 3 autres couleurs.",
+      text: t("tuto.trumpSet"),
       targetRef: trumpRef,
       placement: "below",
     },
@@ -439,8 +436,7 @@ export default function GameScreen({ route, navigation }: Props) {
         state.currentPlayer === 0 &&
         state.trickNumber === 1 &&
         state.roundNumber === 1,
-      text:
-        "À toi de jouer. Règle : tu DOIS suivre la couleur ouverte si tu l'as — et MONTER plus fort si tu peux. Sinon, tu DOIS couper avec un atout. Si un atout est déjà posé, tu dois SURCOUPER plus haut.",
+      text: t("tuto.playIntro"),
       targetRef: handRef,
       placement: "above",
     },
@@ -449,8 +445,7 @@ export default function GameScreen({ route, navigation }: Props) {
       when: () =>
         state.phase === "trick-end" &&
         state.trickNumber === 1,
-      text:
-        "Pli terminé. Les cartes qui rapportent : As=11pts, Triss (3)=10pts, Rey (12)=4pts, Caballo (11)=3pts, Sota (10)=2pts. Le reste vaut 0. L'atout le plus fort gagne, sinon la plus forte de la couleur ouverte.",
+      text: t("tuto.cardsValue"),
       targetRef: scoreRef,
       placement: "below",
     },
@@ -461,8 +456,7 @@ export default function GameScreen({ route, navigation }: Props) {
         state.roundNumber === 1 &&
         state.trickNumber >= 2 &&
         state.lastTrick != null,
-      text:
-        "Tu peux revoir le pli précédent à tout moment avec ce bouton ◁ — utile si tu as raté qui a joué quoi.",
+      text: t("tuto.lastTrickBtn"),
       targetRef: lastTrickRef,
       placement: "above",
     },
@@ -473,40 +467,35 @@ export default function GameScreen({ route, navigation }: Props) {
         state.trickNumber >= 2 &&
         state.trickNumber <= 4 &&
         state.roundNumber === 1,
-      text:
-        "Ghna : si TON équipe a gagné les enchères ET que tu as le Rey + Caballo d'une même couleur en main, tu peux l'annoncer après un pli gagné par ton équipe. 40 pts si c'est l'atout, 20 sinon. Si l'autre équipe a misé, tu ne peux PAS annoncer. L'app te proposera automatiquement.",
+      text: t("tuto.ghnaInfo"),
       targetRef: handRef,
       placement: "above",
     },
     {
       id: "round-done",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
-      text:
-        "Manche terminée. C'est MAINTENANT que le score cumulé en haut se met à jour. L'équipe qui avait misé doit atteindre sa mise : si oui → elle marque sa mise. Sinon → c'est l'équipe adverse qui la marque.",
+      text: t("tuto.roundDone"),
       targetRef: scoreRef,
       placement: "below",
     },
     {
       id: "score-sheet",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
-      text:
-        "Bouton ≡ : suivi de score détaillé manche par manche (qui a misé, combien, atout choisi, score cumulé). Pratique pour revoir le déroulé d'une partie longue.",
+      text: t("tuto.scoreSheet"),
       targetRef: scoreSheetRef,
       placement: "above",
     },
     {
       id: "pause-tools",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
-      text:
-        "Bouton ☰ en haut à gauche = menu pause. Tu y trouves : REPRENDRE (continuer la partie) · SON on/off · RÈGLES (toutes les règles détaillées) · QUITTER (= abandon, défaite 600-0 enregistrée). Dispo à tout moment.",
+      text: t("tuto.pauseTools"),
       targetRef: pauseRef,
       placement: "below",
     },
     {
       id: "farewell",
       when: () => state.phase === "round-end" && state.roundNumber === 1,
-      text:
-        "Voilà, tu connais les bases du jeu. Tu vas maintenant choisir la suite : continuer cette partie jusqu'à 600 pts, ou passer directement au tuto des menus.",
+      text: t("tuto.farewell"),
       targetRef: null,
     },
   ];
@@ -852,9 +841,9 @@ export default function GameScreen({ route, navigation }: Props) {
             {/* Score tout à droite */}
             <View style={[styles.landscapeSide, { right: 18 }]}>
               <View style={styles.scorePill}>
-                <ScoreSide label="Nous" score={state.score.A} color={COLORS.brass} />
+                <ScoreSide label={t("game.scoreUs")} score={state.score.A} color={COLORS.brass} />
                 <View style={styles.scoreSep} />
-                <ScoreSide label="Eux" score={state.score.B} color={COLORS.cream} />
+                <ScoreSide label={t("game.scoreThem")} score={state.score.B} color={COLORS.cream} />
               </View>
             </View>
           </>
@@ -878,9 +867,9 @@ export default function GameScreen({ route, navigation }: Props) {
               </View>
             )}
             <View ref={scoreRef} collapsable={false} style={styles.scorePill}>
-              <ScoreSide label="Nous" score={state.score.A} color={COLORS.brass} />
+              <ScoreSide label={t("game.scoreUs")} score={state.score.A} color={COLORS.brass} />
               <View style={styles.scoreSep} />
-              <ScoreSide label="Eux" score={state.score.B} color={COLORS.cream} />
+              <ScoreSide label={t("game.scoreThem")} score={state.score.B} color={COLORS.cream} />
             </View>
           </View>
         )}
@@ -1447,7 +1436,7 @@ export default function GameScreen({ route, navigation }: Props) {
                   targetRef: tutActiveStep.targetRef,
                   text: tutActiveStep.text,
                   placement: tutActiveStep.placement,
-                  ctaLabel: tutActiveStep.id === "farewell" ? "Jouer" : "Compris",
+                  ctaLabel: tutActiveStep.id === "farewell" ? t("tuto.ctaPlay") : t("tuto.ctaGot"),
                 },
               ]
             : []
@@ -1528,29 +1517,30 @@ function LastTrickOverlay({
   onClose: () => void;
   getName: (seat: Seat) => string;
 }) {
+  const t = useT();
   const nameOf = (s: Seat) => getName(s).replace("", "");
   const empty = !trick || trick.length === 0 || winner == null;
   return (
     <Pressable onPress={onClose} style={styles.lastTrickOverlay}>
       <View style={styles.lastTrickCard}>
-        <Text style={styles.lastTrickEyebrow}>DERNIER PLI</Text>
+        <Text style={styles.lastTrickEyebrow}>{t("game.lastTrickTitle")}</Text>
         {empty ? (
-          <Text style={styles.lastTrickTitle}>Aucun pli joué pour l'instant</Text>
+          <Text style={styles.lastTrickTitle}>{t("game.lastTrickEmpty")}</Text>
         ) : (
           <>
             <Text style={styles.lastTrickTitle}>
-              Remporté par {nameOf(winner)}
+              {t("game.lastTrickWonBy", { name: nameOf(winner) })}
             </Text>
             <View style={styles.lastTrickCards}>
-              {trick.map((t, i) => {
-                const isWinner = t.player === winner;
+              {trick.map((entry, i) => {
+                const isWinner = entry.player === winner;
                 return (
                   <View key={i} style={styles.lastTrickItem}>
                     <Text style={[styles.lastTrickPlayer, isWinner && { color: COLORS.saffronSoft }]}>
-                      {nameOf(t.player)}
+                      {nameOf(entry.player)}
                       {isWinner && " ★"}
                     </Text>
-                    <Card rank={t.card.rank} suit={t.card.suit} size="md" highlighted={isWinner} />
+                    <Card rank={entry.card.rank} suit={entry.card.suit} size="md" highlighted={isWinner} />
                   </View>
                 );
               })}
@@ -1558,7 +1548,7 @@ function LastTrickOverlay({
           </>
         )}
 
-        <Text style={styles.lastTrickClose}>Tape n'importe où pour fermer</Text>
+        <Text style={styles.lastTrickClose}>{t("game.lastTrickClose")}</Text>
       </View>
     </Pressable>
   );
@@ -1589,23 +1579,24 @@ function LiveScoreSheetOverlay({
   onClose: () => void;
   getName: (seat: Seat) => string;
 }) {
+  const t = useT();
   return (
     <View style={styles.scoreSheetOverlay}>
       {/* Zone de tap-outside-to-close qui n'absorbe PAS les gestures du ScrollView */}
       <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
       <View style={styles.scoreSheetCard}>
-        <Text style={styles.scoreSheetEyebrow}>TABLEAU DE SUIVI</Text>
-        <Text style={styles.scoreSheetTitle}>Manche {currentRound}</Text>
+        <Text style={styles.scoreSheetEyebrow}>{t("game.scoreSheetTitle")}</Text>
+        <Text style={styles.scoreSheetTitle}>{t("game.scoreSheetRound", { n: currentRound })}</Text>
 
         {/* Totaux des 2 équipes */}
         <View style={styles.scoreSheetTotals}>
           <View style={styles.scoreSheetTeam}>
-            <Text style={styles.scoreSheetTeamLabel}>NOUS</Text>
+            <Text style={styles.scoreSheetTeamLabel}>{t("game.scoreUs").toUpperCase()}</Text>
             <Text style={[styles.scoreSheetTeamValue, { color: COLORS.saffronSoft }]}>{scoreA}</Text>
           </View>
           <Text style={styles.scoreSheetVs}>·</Text>
           <View style={styles.scoreSheetTeam}>
-            <Text style={styles.scoreSheetTeamLabel}>EUX</Text>
+            <Text style={styles.scoreSheetTeamLabel}>{t("game.scoreThem").toUpperCase()}</Text>
             <Text style={styles.scoreSheetTeamValue}>{scoreB}</Text>
           </View>
         </View>
@@ -1618,14 +1609,14 @@ function LiveScoreSheetOverlay({
           showsVerticalScrollIndicator
         >
           <View style={styles.scoreSheetHeaderRow}>
-            <Text style={[styles.scoreSheetHCol, { width: 32 }]}>M.</Text>
-            <Text style={[styles.scoreSheetHCol, { flex: 1 }]}>Mise</Text>
-            <Text style={[styles.scoreSheetHCol, { width: 54, textAlign: "right" }]}>NOUS</Text>
-            <Text style={[styles.scoreSheetHCol, { width: 54, textAlign: "right" }]}>EUX</Text>
+            <Text style={[styles.scoreSheetHCol, { width: 32 }]}>#</Text>
+            <Text style={[styles.scoreSheetHCol, { flex: 1 }]}>{t("game.bid")}</Text>
+            <Text style={[styles.scoreSheetHCol, { width: 54, textAlign: "right" }]}>{t("game.scoreUs").toUpperCase()}</Text>
+            <Text style={[styles.scoreSheetHCol, { width: 54, textAlign: "right" }]}>{t("game.scoreThem").toUpperCase()}</Text>
           </View>
           {rounds.length === 0 ? (
             <Text style={styles.scoreSheetEmpty}>
-              Le tableau se remplira après la 1ère manche.
+              {t("game.scoreSheetEmpty")}
             </Text>
           ) : (
             rounds.map((r) => {
@@ -1644,7 +1635,7 @@ function LiveScoreSheetOverlay({
                         { color: success ? "#3FC26A" : "#E8553A" },
                       ]}
                     >
-                      {success ? "réussie" : "ratée"}
+                      {success ? t("scoreSheets.success") : t("scoreSheets.failure")}
                     </Text>
                   </View>
                   <Text
@@ -2039,7 +2030,7 @@ function TurnIndicator({ bottom }: { bottom: number }) {
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.turnDot} />
-      <Text style={styles.turnText}>À toi de jouer</Text>
+      <Text style={styles.turnText}>{useT()("game.yourTurn")}</Text>
     </Animated.View>
   );
 }
@@ -2059,6 +2050,7 @@ function BiddingOverlay({
   canSignalCompte: boolean;
   onAction: (a: import("@touti/shared").BidAction) => void;
 }) {
+  const t = useT();
   const min = highest ? highest + BID_STEP : MIN_BID;
   const choices: number[] = [];
   for (let b = min; b <= Math.min(MAX_BID, (highest ?? MIN_BID - BID_STEP) + 60); b += BID_STEP) {
@@ -2100,21 +2092,16 @@ function BiddingOverlay({
         {/* Handle de drag */}
         <View {...panResponder.panHandlers} style={styles.dragHandle}>
           <View style={styles.dragHandleBar} />
-          <Text style={styles.dragHandleHint}>Glisse pour déplacer</Text>
         </View>
-        <Text style={styles.overlayEyebrow}>ENCHÈRES · CHRA</Text>
-        <Text style={styles.overlayTitle}>À toi de parler</Text>
+        <Text style={styles.overlayEyebrow}>{t("game.bidding").toUpperCase()}</Text>
+        <Text style={styles.overlayTitle}>{t("game.yourBid")}</Text>
         <Text style={styles.overlaySub}>
-          {highest ? `Plus haute mise : ${highest}` : "Aucune mise pour l'instant"}
+          {highest ? `${highest} ${t("common.pointsShort")}` : "—"}
         </Text>
 
-        <Text style={styles.overlaySection}>Miser {!canBid && "(signal déjà fait)"}</Text>
+        <Text style={styles.overlaySection}>{t("game.bid")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-          {!canBid ? (
-            <Text style={styles.overlaySub}>Tu as signalé : plus d'enchère possible.</Text>
-          ) : choices.length === 0 ? (
-            <Text style={styles.overlaySub}>Plafond atteint</Text>
-          ) : (
+          {!canBid || choices.length === 0 ? null : (
             choices.map((c) => (
               <Pressable
                 key={c}
@@ -2132,26 +2119,26 @@ function BiddingOverlay({
           )}
         </ScrollView>
 
-        <Text style={styles.overlaySection}>Signal au partenaire</Text>
+        <Text style={styles.overlaySection}>{t("game.signal")}</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable
             disabled={!canSignalAs}
             onPress={() => onAction({ kind: "signal", signal: "as" })}
             style={[styles.ghostBtn, !canSignalAs && { opacity: 0.4 }]}
           >
-            <Text style={styles.ghostBtnText}>Un As</Text>
+            <Text style={styles.ghostBtnText}>{t("game.signalAs")}</Text>
           </Pressable>
           <Pressable
             disabled={!canSignalCompte}
             onPress={() => onAction({ kind: "signal", signal: "compte" })}
             style={[styles.ghostBtn, !canSignalCompte && { opacity: 0.4 }]}
           >
-            <Text style={styles.ghostBtnText}>Un Compte</Text>
+            <Text style={styles.ghostBtnText}>{t("game.signalCount")}</Text>
           </Pressable>
         </View>
 
         <Pressable onPress={() => onAction({ kind: "pass" })} style={styles.passBtn}>
-          <Text style={styles.passBtnText}>Passer</Text>
+          <Text style={styles.passBtnText}>{t("game.pass")}</Text>
         </Pressable>
       </View>
     </Animated.View>
@@ -2159,11 +2146,12 @@ function BiddingOverlay({
 }
 
 function TrumpOverlay({ bottomOffset, onChoose }: { bottomOffset: number; onChoose: (suit: Suit) => void }) {
+  const t = useT();
   return (
     <View style={[styles.overlay, { bottom: bottomOffset }]}>
       <View style={styles.overlayCard}>
-        <Text style={styles.overlayEyebrow}>ATOUT · TRONFO</Text>
-        <Text style={styles.overlayTitle}>Choisis la couleur d'atout</Text>
+        <Text style={styles.overlayEyebrow}>{t("game.trumpLabel")}</Text>
+        <Text style={styles.overlayTitle}>{t("game.chooseTrump")}</Text>
         <View style={styles.trumpChoices}>
           {ALL_SUITS.map((s) => (
             <Pressable key={s} onPress={() => onChoose(s)} style={styles.trumpChoice}>
@@ -2193,6 +2181,7 @@ function GhnaOverlay({
   onChoose: (suit: Suit) => void;
   onSkip: () => void;
 }) {
+  const t = useT();
   // Règle : c'est le buyer (toi, qui as gagné les enchères) qui décide
   // SEUL qui chante — toi ou ton partenaire. Les options sont groupées
   // pour rendre la décision claire.
@@ -2202,19 +2191,19 @@ function GhnaOverlay({
   return (
     <View style={[styles.overlay, { bottom: bottomOffset }]}>
       <View style={styles.overlayCard}>
-        <Text style={styles.overlayEyebrow}>GHNA</Text>
-        <Text style={styles.overlayTitle}>À toi de décider</Text>
+        <Text style={styles.overlayEyebrow}>{t("game.ghnaTitle")}</Text>
+        <Text style={styles.overlayTitle}>{t("game.ghnaDecide")}</Text>
         <Text style={styles.overlaySub}>
           {hasBoth
-            ? "Chante toi-même OU autorise ton partenaire"
+            ? t("game.ghnaBoth")
             : mine.length > 0
-              ? "Caballo + Rey de la même couleur"
-              : `Autoriser ${partnerName} à chanter sa Ghna`}
+              ? t("game.ghnaSelf")
+              : t("game.ghnaPartner", { name: partnerName })}
         </Text>
         <View style={{ gap: 8, marginTop: 10 }}>
           {mine.length > 0 && (
             <>
-              {hasBoth && <Text style={styles.ghnaGroupLabel}>MOI</Text>}
+              {hasBoth && <Text style={styles.ghnaGroupLabel}>{t("game.ghnaSectionMe")}</Text>}
               {mine.map((o) => (
                 <Pressable key={`self-${o.suit}`} onPress={() => onChoose(o.suit)} style={styles.ghnaChip}>
                   <LinearGradient
@@ -2248,7 +2237,7 @@ function GhnaOverlay({
             </>
           )}
           <Pressable onPress={onSkip} style={styles.passBtn}>
-            <Text style={styles.passBtnText}>Ne pas annoncer</Text>
+            <Text style={styles.passBtnText}>{t("game.ghnaPass")}</Text>
           </Pressable>
         </View>
       </View>
@@ -2289,21 +2278,24 @@ function GameEndOverlay({
     useNetGameStore.getState().sendRematchVote(true);
   };
 
+  const t = useT();
   return (
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
-        <Text style={styles.overlayEyebrow}>FIN DE PARTIE</Text>
+        <Text style={styles.overlayEyebrow}>
+          {won ? t("game.gameEndWon").toUpperCase() : t("game.gameEndLost").toUpperCase()}
+        </Text>
         <Text style={[styles.overlayTitle, { fontSize: 28 }]}>
-          {won ? "NOUS avons gagné !" : "EUX ont gagné."}
+          {t("game.gameEndScore", { us: scoreA, them: scoreB })}
         </Text>
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, marginTop: 8 }}>
           <View style={{ alignItems: "center" }}>
-            <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: COLORS.brass }}>NOUS</Text>
+            <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: COLORS.brass }}>{t("game.scoreUs").toUpperCase()}</Text>
             <Text style={{ fontFamily: FONT_DISPLAY, fontSize: 34, color: COLORS.saffronSoft, fontWeight: "700" }}>{scoreA}</Text>
           </View>
           <Text style={{ fontFamily: FONT_DISPLAY, fontSize: 20, color: COLORS.brass, alignSelf: "center" }}>·</Text>
           <View style={{ alignItems: "center" }}>
-            <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: "rgba(245,235,214,0.6)" }}>EUX</Text>
+            <Text style={{ fontFamily: FONT_UI_BOLD, fontSize: 10, letterSpacing: 2, color: "rgba(245,235,214,0.6)" }}>{t("game.scoreThem").toUpperCase()}</Text>
             <Text style={{ fontFamily: FONT_DISPLAY, fontSize: 34, color: COLORS.cream, fontWeight: "700" }}>{scoreB}</Text>
           </View>
         </View>
@@ -2315,7 +2307,7 @@ function GameEndOverlay({
               start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.endBtnText}>Voir le détail</Text>
+            <Text style={styles.endBtnText}>{t("game.gameEndDetail")}</Text>
           </Pressable>
 
           {/* Rematch : uniquement en net, tous les humains doivent voter oui */}
@@ -2330,26 +2322,23 @@ function GameEndOverlay({
               ]}
             >
               <Text style={[styles.endBtnText, { color: COLORS.saffronSoft }]}>
-                {iVoted ? "En attente des autres…" : "↻ Rejouer avec les mêmes"}
+                {iVoted
+                  ? t("game.gameEndRematchWaiting", {
+                      voted: rematchStatus?.voted.length ?? 0,
+                      total: rematchStatus?.total ?? 0,
+                    })
+                  : `↻ ${t("game.gameEndRematch")}`}
               </Text>
-              {rematchStatus && rematchStatus.total > 0 && (
-                <Text style={{
-                  fontFamily: FONT_UI, fontSize: 10,
-                  color: "rgba(245,235,214,0.6)", marginTop: 2, letterSpacing: 0.5,
-                }}>
-                  {rematchStatus.voted.length} / {rematchStatus.total} d'accord
-                </Text>
-              )}
             </Pressable>
           )}
 
           <Pressable onPress={onRestart} style={[styles.endBtn, styles.endBtnSecondary]}>
             <Text style={[styles.endBtnText, { color: COLORS.cream }]}>
-              {mode === "net" ? "Retour au lobby" : "Nouvelle partie"}
+              {t("game.gameEndRestart")}
             </Text>
           </Pressable>
           <Pressable onPress={onHome} style={[styles.endBtn, styles.endBtnSecondary]}>
-            <Text style={[styles.endBtnText, { color: COLORS.cream }]}>Retour à l'accueil</Text>
+            <Text style={[styles.endBtnText, { color: COLORS.cream }]}>{t("game.gameEndHome")}</Text>
           </Pressable>
         </View>
       </View>
@@ -3199,13 +3188,14 @@ function PauseMenu({
   onClose: () => void;
   onQuit: () => void;
 }) {
+  const t = useT();
   const confirmQuit = () => {
     Alert.alert(
-      "Quitter la partie ?",
-      "Si tu quittes en cours de partie, ta défaite est enregistrée comme un abandon (600 - 0 pour l'équipe adverse).",
+      t("game.quitConfirmTitle"),
+      t("game.quitConfirmBody"),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Quitter", style: "destructive", onPress: onQuit },
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("game.quitConfirmBtn"), style: "destructive", onPress: onQuit },
       ],
     );
   };
@@ -3214,27 +3204,27 @@ function PauseMenu({
     <View style={styles.pauseOverlay}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       <View style={styles.pauseCard}>
-        <Text style={styles.pauseTitle}>Pause</Text>
+        <Text style={styles.pauseTitle}>{t("game.pauseTitle")}</Text>
 
         <Pressable onPress={onClose} style={styles.pauseItem}>
           <View style={styles.pauseItemIconWrap}>
             <Text style={styles.pauseItemIcon}>▶</Text>
           </View>
-          <Text style={styles.pauseItemLabel}>Reprendre</Text>
+          <Text style={styles.pauseItemLabel}>{t("game.pauseResume")}</Text>
         </Pressable>
 
         <Pressable onPress={onToggleSound} style={styles.pauseItem}>
           <View style={styles.pauseItemIconWrap}>
             <Text style={styles.pauseItemIcon}>{soundOn ? "♪" : "⊘"}</Text>
           </View>
-          <Text style={styles.pauseItemLabel}>Son · {soundOn ? "activé" : "coupé"}</Text>
+          <Text style={styles.pauseItemLabel}>{soundOn ? t("game.pauseSoundOn") : t("game.pauseSoundOff")}</Text>
         </Pressable>
 
         <Pressable onPress={onRules} style={styles.pauseItem}>
           <View style={styles.pauseItemIconWrap}>
             <Text style={styles.pauseItemIcon}>ⓘ</Text>
           </View>
-          <Text style={styles.pauseItemLabel}>Règles</Text>
+          <Text style={styles.pauseItemLabel}>{t("game.pauseRules")}</Text>
         </Pressable>
 
         <View style={styles.pauseDivider} />
@@ -3244,7 +3234,7 @@ function PauseMenu({
             <Text style={[styles.pauseItemIcon, { color: "#E8553A" }]}>⏻</Text>
           </View>
           <Text style={[styles.pauseItemLabel, { color: "#E8553A" }]}>
-            Quitter — abandon
+            {t("game.pauseQuit")}
           </Text>
         </Pressable>
       </View>
@@ -3261,11 +3251,12 @@ function TutoEndChoiceModal({
   onContinue: () => void;
   onGoToMenuTuto: () => void;
 }) {
+  const t = useT();
   return (
     <View style={styles.pauseOverlay}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onContinue} />
       <View style={styles.pauseCard}>
-        <Text style={styles.pauseTitle}>Fin du tuto</Text>
+        <Text style={styles.pauseTitle}>{t("game.tutoEndTitle")}</Text>
         <Text
           style={{
             color: COLORS.cream,
@@ -3278,21 +3269,21 @@ function TutoEndChoiceModal({
             paddingHorizontal: 4,
           }}
         >
-          Tu connais les bases. Que veux-tu faire maintenant ?
+          {t("game.tutoEndBody")}
         </Text>
 
         <Pressable onPress={onContinue} style={styles.pauseItem}>
           <View style={styles.pauseItemIconWrap}>
             <Text style={styles.pauseItemIcon}>▶</Text>
           </View>
-          <Text style={styles.pauseItemLabel}>Continuer la partie (jusqu'à 600)</Text>
+          <Text style={styles.pauseItemLabel}>{t("game.tutoEndContinue")}</Text>
         </Pressable>
 
         <Pressable onPress={onGoToMenuTuto} style={styles.pauseItem}>
           <View style={styles.pauseItemIconWrap}>
             <Text style={styles.pauseItemIcon}>☰</Text>
           </View>
-          <Text style={styles.pauseItemLabel}>Passer au tuto des menus</Text>
+          <Text style={styles.pauseItemLabel}>{t("game.tutoEndGoMenu")}</Text>
         </Pressable>
       </View>
     </View>

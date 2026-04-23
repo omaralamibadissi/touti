@@ -17,45 +17,24 @@ import {
 } from "../theme";
 import { hapticTap, hapticChoice } from "../lib/haptics";
 
-const STEPS: { title: string; text: string }[] = [
-  {
-    title: "Le menu principal",
-    text:
-      "L'app est organisée en 4 onglets en bas : Accueil (jeu), Social (amis), Profil (tes stats), Réglages. Tu peux aussi swiper latéralement pour changer d'onglet.",
-  },
-  {
-    title: "Accueil · modes de jeu",
-    text:
-      "Sur l'accueil tu trouves toutes les façons de jouer : Solo contre 3 bots, Partie rapide en ligne, Partie privée avec un code, Tournois, Ligues, Score IRL (compteur papier), Règles, Historique et Classement.",
-  },
-  {
-    title: "Social · tes amis",
-    text:
-      "Onglet Social : ajoute des amis par pseudo, accepte/refuse les demandes, lance une partie privée avec eux. Tu peux aussi leur envoyer des messages directs.",
-  },
-  {
-    title: "Profil · ton niveau",
-    text:
-      "Onglet Profil : ton niveau, tes parties jouées, ton ratio victoires/défaites, tes coéquipiers favoris. Tape pour voir les détails de chaque match passé.",
-  },
-  {
-    title: "Réglages · tout personnaliser",
-    text:
-      "Onglet Réglages : son/musique/vibrations, notifications, export de tes données, déconnexion. Tu peux aussi relancer ce tutoriel à tout moment.",
-  },
-  {
-    title: "En jeu · bouton ☰",
-    text:
-      "Pendant une partie, le bouton ☰ en haut à gauche t'ouvre le menu pause : règles complètes, fiche de score, son, quitter. Accessible à tout moment.",
-  },
-  {
-    title: "C'est parti !",
-    text:
-      "Voilà, tu connais l'app. Tu peux commencer une vraie partie quand tu veux. Amuse-toi, et rappel : premier à 600 points gagne.",
-  },
-];
+import { useT } from "../lib/i18n";
+
+function useSteps(): { title: string; text: string }[] {
+  const t = useT();
+  return [
+    { title: t("menuTuto.step1Title"), text: t("menuTuto.step1Body") },
+    { title: t("menuTuto.step2Title"), text: t("menuTuto.step2Body") },
+    { title: t("menuTuto.step3Title"), text: t("menuTuto.step3Body") },
+    { title: t("menuTuto.step4Title"), text: t("menuTuto.step4Body") },
+    { title: t("menuTuto.step5Title"), text: t("menuTuto.step5Body") },
+    { title: t("menuTuto.step6Title"), text: t("menuTuto.step6Body") },
+    { title: t("menuTuto.step7Title"), text: t("menuTuto.step7Body") },
+  ];
+}
 
 export function MenuTutorialOverlay() {
+  const t = useT();
+  const STEPS = useSteps();
   const active = useAuthStore((s) => s.menuTutorialActive);
   const setMenuTutorialActive = useAuthStore((s) => s.setMenuTutorialActive);
   const setPendingMenuTutorial = useAuthStore((s) => s.setPendingMenuTutorial);
@@ -109,13 +88,13 @@ export function MenuTutorialOverlay() {
           <View style={styles.footer}>
             {!isLast && (
               <Pressable onPress={onSkip} hitSlop={8} style={styles.skipBtn}>
-                <Text style={styles.skipText}>Passer</Text>
+                <Text style={styles.skipText}>{t("menuTuto.skip")}</Text>
               </Pressable>
             )}
             <View style={{ flex: 1 }} />
             <Pressable onPress={onNext} style={styles.ctaBtn} hitSlop={8}>
               <Text style={styles.ctaText}>
-                {isLast ? "Terminer" : "Suivant"}
+                {isLast ? t("menuTuto.finish") : t("menuTuto.next")}
               </Text>
             </Pressable>
           </View>

@@ -58,6 +58,7 @@ import MatchDetailScreen from "./src/screens/MatchDetailScreen";
 import TermsScreen from "./src/screens/TermsScreen";
 import { MenuTutorialOverlay } from "./src/components/MenuTutorialOverlay";
 import { playMenuMusic, stopMenuMusic } from "./src/sound/soundManager";
+import { useLocaleStore } from "./src/lib/i18n";
 import { COLORS } from "./src/theme";
 import { useAuthStore } from "./src/store/authStore";
 import { useNetGameStore } from "./src/store/netGameStore";
@@ -266,8 +267,9 @@ export default function App() {
     return () => clearInterval(timer);
   }, [user?.username]);
 
-  // Hydrate les stores locaux une fois au démarrage
+  // Hydrate les stores locaux une fois au démarrage (y compris la langue)
   useEffect(() => {
+    useLocaleStore.getState().hydrate().catch(() => {});
     useNetGameStore.getState().tryReconnect().catch(() => {});
     useMatchHistoryStore.getState().hydrate().catch(() => {});
   }, []);

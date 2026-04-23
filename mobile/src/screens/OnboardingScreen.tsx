@@ -16,6 +16,7 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD, FONT_UI_EXTRA } from "../t
 import { ArabesqueDivider, ZelligeBg } from "../components/Patterns";
 import { useAuthStore } from "../store/authStore";
 import { hapticTap, hapticChoice } from "../lib/haptics";
+import { useT } from "../lib/i18n";
 import { SuitGlyph } from "../components/Card";
 import { getCardComponent } from "../components/cardAssets";
 
@@ -79,42 +80,45 @@ type InfoSlide = {
 };
 
 // Slides informatives — format court, contenu aligné sur docs/rules.md.
+// Les chaînes viennent des traductions (fr/en/ar) via `t()`.
 const SUIT_SIZE = 110;
-const INFO_SLIDES: InfoSlide[] = [
-  {
-    eyebrow: "LE BUT",
-    title: "600 points",
-    hero: <SuitGlyph suit="oros" size={SUIT_SIZE} />,
-    body:
-      "Une vraie partie de Touti, on joue jusqu'à 600 points cumulés sur plusieurs manches. Une manche = 10 plis.",
-  },
-  {
-    eyebrow: "UN TOUR",
-    title: "Mise · atout · jeu",
-    hero: <SuitGlyph suit="copas" size={SUIT_SIZE} />,
-    body:
-      "Chacun mise 70 à 230 par pas de 10, passe, ou signale. Le plus haut misseur choisit l'atout. Puis les 10 plis s'enchaînent.",
-  },
-  {
-    eyebrow: "LE GHNA",
-    title: "Bonus en jouant",
-    hero: <SuitGlyph suit="espadas" size={SUIT_SIZE} />,
-    body:
-      "Si tu as le Rey + Caballo d'une même couleur en main, annonce Ghna après un pli gagné : 40 pts si c'est l'atout, 20 sinon.",
-  },
-  {
-    eyebrow: "LE TUTORIEL",
-    title: "Une seule manche",
-    hero: <SuitGlyph suit="bastos" size={SUIT_SIZE} />,
-    body:
-      "Pour le tuto, on ne joue qu'UNE manche pour que tu te fasses la main. Dans une vraie partie c'est premier à 600 pts qui gagne.",
-  },
-];
+function buildInfoSlides(
+  t: (k: string, p?: Record<string, any>) => string,
+): InfoSlide[] {
+  return [
+    {
+      eyebrow: t("onboarding.slideGoalEyebrow"),
+      title: t("onboarding.slideGoalTitle"),
+      hero: <SuitGlyph suit="oros" size={SUIT_SIZE} />,
+      body: t("onboarding.slideGoalBody"),
+    },
+    {
+      eyebrow: t("onboarding.slideTurnEyebrow"),
+      title: t("onboarding.slideTurnTitle"),
+      hero: <SuitGlyph suit="copas" size={SUIT_SIZE} />,
+      body: t("onboarding.slideTurnBody"),
+    },
+    {
+      eyebrow: t("onboarding.slideGhnaEyebrow"),
+      title: t("onboarding.slideGhnaTitle"),
+      hero: <SuitGlyph suit="espadas" size={SUIT_SIZE} />,
+      body: t("onboarding.slideGhnaBody"),
+    },
+    {
+      eyebrow: t("onboarding.slideTutoEyebrow"),
+      title: t("onboarding.slideTutoTitle"),
+      hero: <SuitGlyph suit="bastos" size={SUIT_SIZE} />,
+      body: t("onboarding.slideTutoBody"),
+    },
+  ];
+}
 
 // Structure : slide 0 = accueil (bienvenue + intro, pas de boutons),
 // slides 1..N = INFO_SLIDES, slide finale = choix du parcours (3 boutons).
 
 export default function OnboardingScreen({ navigation }: Props) {
+  const t = useT();
+  const INFO_SLIDES = buildInfoSlides(t);
   const { width } = useWindowDimensions();
   // 1 (accueil) + INFO_SLIDES.length + 1 (choix à la fin)
   const totalSlides = 1 + INFO_SLIDES.length + 1;
@@ -225,13 +229,11 @@ export default function OnboardingScreen({ navigation }: Props) {
             <View style={styles.heroVisual}>
               <HeroCards />
             </View>
-            <Text style={styles.eyebrow}>BIENVENUE</Text>
-            <Text style={styles.title}>Touti</Text>
+            <Text style={styles.eyebrow}>{t("onboarding.welcomeEyebrow")}</Text>
+            <Text style={styles.title}>{t("onboarding.welcomeTitle")}</Text>
             <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
           </View>
-          <Text style={styles.body}>
-            Le jeu de cartes marocain. 40 cartes espagnoles, 4 joueurs en 2 équipes.
-          </Text>
+          <Text style={styles.body}>{t("onboarding.welcomeBody")}</Text>
         </View>
 
         {/* Slides 1..N : info (inchangées) */}
@@ -250,28 +252,28 @@ export default function OnboardingScreen({ navigation }: Props) {
 
         {/* Dernière slide : choix du parcours (boutons déplacés depuis slide 0) */}
         <View style={[styles.slide, { width }]}>
-          <Text style={styles.body}>Comment veux-tu commencer ?</Text>
+          <Text style={styles.body}>{t("onboarding.choicePrompt")}</Text>
           <View style={styles.choicesWrap}>
             <Pressable
               onPress={() => finish("full")}
               style={styles.choiceBtn}
             >
-              <Text style={styles.choiceLabel}>Apprendre à jouer</Text>
-              <Text style={styles.choiceSub}>Tuto jeu (1 manche) + tuto menu</Text>
+              <Text style={styles.choiceLabel}>{t("onboarding.choiceLearn")}</Text>
+              <Text style={styles.choiceSub}>{t("onboarding.choiceLearnSub")}</Text>
             </Pressable>
             <Pressable
               onPress={() => finish("menu")}
               style={[styles.choiceBtn, styles.choiceBtnSecondary]}
             >
-              <Text style={styles.choiceLabelSecondary}>Je connais le jeu</Text>
-              <Text style={styles.choiceSubSecondary}>Juste le tuto des menus</Text>
+              <Text style={styles.choiceLabelSecondary}>{t("onboarding.choiceKnow")}</Text>
+              <Text style={styles.choiceSubSecondary}>{t("onboarding.choiceKnowSub")}</Text>
             </Pressable>
             <Pressable
               onPress={() => finish("skip")}
               style={styles.choiceGhost}
               hitSlop={6}
             >
-              <Text style={styles.choiceGhostText}>Passer tout · direct à l'app</Text>
+              <Text style={styles.choiceGhostText}>{t("onboarding.choiceSkip")}</Text>
             </Pressable>
           </View>
         </View>
@@ -296,7 +298,7 @@ export default function OnboardingScreen({ navigation }: Props) {
               end={{ x: 0, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.primaryText}>Suivant</Text>
+            <Text style={styles.primaryText}>{t("common.next")}</Text>
           </Pressable>
         </View>
       )}

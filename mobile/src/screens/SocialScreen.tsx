@@ -10,14 +10,16 @@ import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useFriendsStore } from "../store/friendsStore";
 import { useAuthStore } from "../store/authStore";
 import { hapticTap, hapticSuccess, hapticError } from "../lib/haptics";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Social">;
 
 export default function SocialScreen({ navigation }: Props) {
+  const t = useT();
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const myUsername = useAuthStore((s) => s.user?.username) ?? "Joueur";
+  const myUsername = useAuthStore((s) => s.user?.username) ?? "";
   const friends = useFriendsStore((s) => s.friends);
   const incoming = useFriendsStore((s) => s.incoming);
   const outgoing = useFriendsStore((s) => s.outgoing);
@@ -41,13 +43,10 @@ export default function SocialScreen({ navigation }: Props) {
     if (res.ok) {
       setNewName("");
       hapticSuccess();
-      Alert.alert(
-        "Demande envoyée",
-        `Ta demande a été envoyée à ${newName.trim()}. Tu deviendras ami dès qu'il accepte.`,
-      );
+      Alert.alert(t("social.send"), t("social.pendingFromYou"));
     } else {
       hapticError();
-      Alert.alert("Impossible", res.error);
+      Alert.alert(t("common.error"), res.error);
     }
   };
 
@@ -67,8 +66,8 @@ export default function SocialScreen({ navigation }: Props) {
         <View style={{ height: 60 }} />
 
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>SOCIAL</Text>
-          <Text style={styles.title}>Mes amis</Text>
+          <Text style={styles.eyebrow}>{t("tabs.social").toUpperCase()}</Text>
+          <Text style={styles.title}>{t("social.title")}</Text>
         </View>
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 18 }}>
@@ -78,7 +77,7 @@ export default function SocialScreen({ navigation }: Props) {
               <TextInput
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="Pseudo exact de l'ami à ajouter…"
+                placeholder={t("social.friendUsernamePlaceholder")}
                 placeholderTextColor="rgba(245,235,214,0.4)"
                 style={styles.addInput}
                 autoCapitalize="none"
@@ -96,25 +95,23 @@ export default function SocialScreen({ navigation }: Props) {
                   end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.addBtnText}>{submitting ? "…" : "Envoyer"}</Text>
+                <Text style={styles.addBtnText}>{submitting ? "…" : t("social.send")}</Text>
               </Pressable>
             </View>
-            <Text style={styles.hint}>
-              Le pseudo est sensible à la casse · Une demande sera envoyée à l'autre joueur qui devra l'accepter
-            </Text>
+            <Text style={styles.hint}>{t("social.friendHintCaseSensitive")}</Text>
           </View>
 
           {/* Demandes reçues */}
           {incoming.length > 0 && (
             <View>
-              <Text style={styles.sectionLabel}>DEMANDES REÇUES · {incoming.length}</Text>
+              <Text style={styles.sectionLabel}>{t("social.pending").toUpperCase()} · {incoming.length}</Text>
               <View style={{ gap: 8, marginTop: 8 }}>
                 {incoming.map((f) => (
                   <View key={f.id} style={[styles.friendRow, { borderColor: `${COLORS.saffron}66` }]}>
                     <Avatar initials={f.requesterName[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.saffron} online={!!(f as any).requesterOnline} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.friendName}>{f.requesterName}</Text>
-                      <Text style={styles.friendSub}>veut être ton ami</Text>
+                      <Text style={styles.friendSub}>{t("social.pendingFromThem")}</Text>
                     </View>
                     <Pressable
                       onPress={() => { hapticSuccess(); acceptFriend(f.id); }}
@@ -137,7 +134,7 @@ export default function SocialScreen({ navigation }: Props) {
           {/* Amis confirmés */}
           {friends.length > 0 && (
             <View>
-              <Text style={styles.sectionLabel}>TES AMIS · {friends.length}</Text>
+              <Text style={styles.sectionLabel}>{t("social.title").toUpperCase()} · {friends.length}</Text>
               <View style={{ gap: 8, marginTop: 8 }}>
                 {friends.map((f) => (
                   <Pressable
@@ -150,29 +147,29 @@ export default function SocialScreen({ navigation }: Props) {
                       <Text style={styles.friendName}>{f.name}</Text>
                       <Text style={styles.friendSub}>
                         {f.online
-                          ? "En ligne"
-                          : `Ami depuis le ${new Date(f.addedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
+                          ? t("social.online")
+                          : new Date(f.addedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                       </Text>
                     </View>
                     <Text style={styles.viewArrow}>›</Text>
                   </Pressable>
                 ))}
               </View>
-              <Text style={styles.tapHint}>Tape un ami pour voir son profil</Text>
+              <Text style={styles.tapHint}>{t("profile.matchHistory")}</Text>
             </View>
           )}
 
           {/* Demandes envoyées */}
           {outgoing.length > 0 && (
             <View>
-              <Text style={styles.sectionLabel}>EN ATTENTE · {outgoing.length}</Text>
+              <Text style={styles.sectionLabel}>{t("social.pending").toUpperCase()} · {outgoing.length}</Text>
               <View style={{ gap: 8, marginTop: 8 }}>
                 {outgoing.map((f) => (
                   <View key={f.id} style={[styles.friendRow, { opacity: 0.65 }]}>
                     <Avatar initials={f.receiverName[0]?.toUpperCase() ?? "?"} size={40} color={COLORS.brass} online={!!(f as any).receiverOnline} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.friendName}>{f.receiverName}</Text>
-                      <Text style={styles.friendSub}>en attente de réponse</Text>
+                      <Text style={styles.friendSub}>{t("social.pendingFromYou")}</Text>
                     </View>
                     <Text style={{ fontSize: 18, color: "rgba(245,235,214,0.4)" }}>⏳</Text>
                   </View>
@@ -184,10 +181,8 @@ export default function SocialScreen({ navigation }: Props) {
           {friends.length === 0 && incoming.length === 0 && outgoing.length === 0 && (
             <View style={styles.emptyBlock}>
               <Text style={styles.emptyEmoji}>✾</Text>
-              <Text style={styles.emptyTitle}>Pas encore d'amis</Text>
-              <Text style={styles.emptySub}>
-                Tape le pseudo exact d'un joueur pour lui envoyer une demande. Il doit avoir un compte et accepter pour que vous deveniez amis.
-              </Text>
+              <Text style={styles.emptyTitle}>{t("social.noFriendsTitle")}</Text>
+              <Text style={styles.emptySub}>{t("social.noFriendsSub")}</Text>
             </View>
           )}
         </View>

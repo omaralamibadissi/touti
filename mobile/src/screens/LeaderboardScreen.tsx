@@ -22,6 +22,7 @@ import {
   apiIndividualRanking,
   apiPairRanking,
 } from "../net/matchesApi";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Leaderboard">;
 
@@ -29,6 +30,7 @@ type Scope = "league" | "friends" | "global";
 type Sub = "indiv" | "pairs";
 
 export default function LeaderboardScreen({ navigation, route }: Props) {
+  const t = useT();
   const initialScope: Scope = route.params?.scope ?? "global";
   const initialSub: Sub = route.params?.sub ?? "indiv";
   const [scope, setScope] = useState<Scope>(initialScope);
@@ -142,27 +144,27 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>CLASSEMENT</Text>
-          <Text style={styles.title}>Leaderboard</Text>
+          <Text style={styles.eyebrow}>{t("leaderboard.eyebrow")}</Text>
+          <Text style={styles.title}>{t("leaderboard.title")}</Text>
         </View>
       </View>
 
-      {/* Scope tabs (Ligue / Amis / Général) */}
+      {/* Scope tabs */}
       <View style={styles.scopeTabs}>
-        <ScopeBtn label="Ligue" active={scope === "league"} onPress={() => setScope("league")} />
-        <ScopeBtn label="Amis" active={scope === "friends"} onPress={() => setScope("friends")} />
-        <ScopeBtn label="Général" active={scope === "global"} onPress={() => setScope("global")} />
+        <ScopeBtn label={t("leaderboard.scopeLeague")} active={scope === "league"} onPress={() => setScope("league")} />
+        <ScopeBtn label={t("leaderboard.scopeFriends")} active={scope === "friends"} onPress={() => setScope("friends")} />
+        <ScopeBtn label={t("leaderboard.scopeGlobal")} active={scope === "global"} onPress={() => setScope("global")} />
       </View>
 
-      {/* Sub tabs (Individuel / Paires) */}
+      {/* Sub tabs */}
       <View style={styles.subTabs}>
-        <SubBtn label="Individuel" active={sub === "indiv"} onPress={() => setSub("indiv")} />
-        <SubBtn label="Paires" active={sub === "pairs"} onPress={() => setSub("pairs")} />
+        <SubBtn label={t("leaderboard.subIndiv")} active={sub === "indiv"} onPress={() => setSub("indiv")} />
+        <SubBtn label={t("leaderboard.subPairs")} active={sub === "pairs"} onPress={() => setSub("pairs")} />
       </View>
 
       <View style={styles.disclaimer}>
         <Text style={styles.disclaimerText}>
-          Seules les parties à <Text style={{ color: COLORS.saffronSoft, fontWeight: "700" }}>4 vrais joueurs</Text> comptent. Les parties contre IA n'apportent pas de points.
+          {t("leaderboard.disclaimer", { emph: t("leaderboard.disclaimerEmph") })}
         </Text>
       </View>
 
@@ -178,9 +180,9 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
         {scope === "friends" && (
           friends.length === 0 ? (
             <Empty
-              title="Pas d'amis ajoutés"
-              sub="Va dans Social pour ajouter tes potes."
-              cta="Aller dans Social"
+              title={t("leaderboard.emptyNoFriends")}
+              sub={t("leaderboard.emptyNoFriendsBody")}
+              cta={t("leaderboard.goSocial")}
               onPress={() => navigation.navigate("MainTabs", { screen: "Social" })}
             />
           ) : sub === "indiv" ? (
@@ -193,9 +195,9 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
         {scope === "league" && (
           !activeLeague ? (
             <Empty
-              title="Tu n'es dans aucune ligue"
-              sub="Crée ou rejoins une ligue pour voir un classement filtré."
-              cta="Mes ligues"
+              title={t("leaderboard.emptyNoLeague")}
+              sub={t("leaderboard.emptyNoLeagueBody")}
+              cta={t("leaderboard.myLeagues")}
               onPress={() => navigation.navigate("Leagues")}
             />
           ) : (
@@ -203,20 +205,20 @@ export default function LeaderboardScreen({ navigation, route }: Props) {
               <View style={[styles.leagueHeader, { backgroundColor: `${activeLeague.color || COLORS.teal}22`, borderColor: `${activeLeague.color || COLORS.teal}77` }]}>
                 <Text style={styles.leagueHeaderName}>{activeLeague.name}</Text>
                 <Text style={styles.leagueHeaderSub}>
-                  {activeLeague.members.length} membres · ligue active
+                  {t("leaderboard.leagueActive", { count: activeLeague.members.length })}
                 </Text>
               </View>
               {sub === "indiv" ? (
                 leagueRanking && leagueRanking.individual.length > 0 ? (
                   <IndivList list={leagueRanking.individual} onPress={handleNamePress} myName={myName} />
                 ) : (
-                  <Empty title="Aucune partie de ligue jouée" sub="Joue avec des membres de la ligue (4 humains) pour les voir ici." />
+                  <Empty title={t("leaderboard.noLeagueMatches")} sub={t("leaderboard.noLeagueMatchesBody")} />
                 )
               ) : (
                 leagueRanking && leagueRanking.pairs.length > 0 ? (
                   <PairsList list={leagueRanking.pairs} onPress={handleNamePress} />
                 ) : (
-                  <Empty title="Aucune paire de ligue" sub="Aucune paire d'humains de ta ligue encore enregistrée." />
+                  <Empty title={t("leaderboard.noLeaguePairs")} sub={t("leaderboard.noLeaguePairsBody")} />
                 )
               )}
             </View>
@@ -254,8 +256,9 @@ function IndivList({
   onPress: (name: string) => void;
   myName: string;
 }) {
+  const t = useT();
   if (list.length === 0) {
-    return <Empty title="Pas encore de classement" sub="Joue des parties à 4 humains pour voir des scores ici." />;
+    return <Empty title={t("leaderboard.emptyRanking")} sub={t("leaderboard.emptyRankingBody")} />;
   }
   return (
     <View style={{ gap: 6 }}>
@@ -275,7 +278,7 @@ function IndivList({
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
               <Text style={styles.rowName}>{p.name}</Text>
-              {p.name === myName && <Text style={styles.youTag}>VOUS</Text>}
+              {p.name === myName && <Text style={styles.youTag}>{t("common.you").toUpperCase()}</Text>}
             </View>
             <Text style={styles.rowMeta}>
               {p.games}p · {p.wins}V / {p.losses}D · {p.ratio}% · cumul {p.pointsFor}
@@ -298,8 +301,9 @@ function PairsList({
   list: PairStat[];
   onPress: (name: string) => void;
 }) {
+  const t = useT();
   if (list.length === 0) {
-    return <Empty title="Pas encore de paires" sub="Joue plusieurs parties avec les mêmes coéquipiers pour les voir ici." />;
+    return <Empty title={t("leaderboard.emptyPairs")} sub={t("leaderboard.emptyPairsBody")} />;
   }
   return (
     <View style={{ gap: 6 }}>

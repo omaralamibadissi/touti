@@ -7,15 +7,19 @@ import { COLORS, FONT_UI_BOLD } from "../theme";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../App";
 import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
+import { useT } from "../lib/i18n";
 
 type TabKey = "Home" | "Social" | "Profile" | "Settings";
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "Home", label: "Accueil" },
-  { key: "Social", label: "Social" },
-  { key: "Profile", label: "Profil" },
-  { key: "Settings", label: "Réglages" },
-];
+function useTabs(): { key: TabKey; label: string }[] {
+  const t = useT();
+  return [
+    { key: "Home", label: t("tabs.home") },
+    { key: "Social", label: t("tabs.social") },
+    { key: "Profile", label: t("tabs.profile") },
+    { key: "Settings", label: t("tabs.settings") },
+  ];
+}
 
 // Icônes Lucide (MIT) — rendu propre via multi-paths.
 function TabIcon({ tab, color }: { tab: TabKey; color: string }) {
@@ -80,6 +84,8 @@ export function BottomTabBar(props: Partial<MaterialTopTabBarProps> = {}) {
     ? (props.state.routes[props.state.index]?.name as TabKey)
     : fallbackActive;
 
+  const tabs = useTabs();
+
   return (
     <View style={styles.wrap}>
       <LinearGradient
@@ -90,18 +96,18 @@ export function BottomTabBar(props: Partial<MaterialTopTabBarProps> = {}) {
       />
       <View style={styles.topBorder} />
       <View style={styles.tabs}>
-        {TABS.map((t) => {
-          const on = active === t.key;
+        {tabs.map((tab) => {
+          const on = active === tab.key;
           return (
             <Pressable
-              key={t.key}
+              key={tab.key}
               style={styles.tab}
               onPress={() => {
-                if (!on) navigation.navigate(t.key as any);
+                if (!on) navigation.navigate(tab.key as any);
               }}
             >
-              <TabIcon tab={t.key} color={on ? COLORS.saffron : "rgba(245,235,214,0.55)"} />
-              <Text style={[styles.label, on && { color: COLORS.saffron }]}>{t.label}</Text>
+              <TabIcon tab={tab.key} color={on ? COLORS.saffron : "rgba(245,235,214,0.55)"} />
+              <Text style={[styles.label, on && { color: COLORS.saffron }]}>{tab.label}</Text>
               {on && <View style={styles.activeDot} />}
             </Pressable>
           );

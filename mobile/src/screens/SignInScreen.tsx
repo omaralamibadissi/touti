@@ -12,6 +12,7 @@ import { COLORS, FONT_DISPLAY, FONT_UI, FONT_UI_BOLD } from "../theme";
 import { ArabesqueDivider, ZelligeBg, StarBurst } from "../components/Patterns";
 import { useAuthStore } from "../store/authStore";
 import { hapticChoice, hapticError, hapticSuccess } from "../lib/haptics";
+import { useT } from "../lib/i18n";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -66,6 +67,7 @@ function FacebookLogo({ size = 20, color = "#fff" }: { size?: number; color?: st
 type Mode = "welcome" | "signin" | "signup";
 
 export default function SignInScreen() {
+  const t = useT();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [mode, setMode] = useState<Mode>("welcome");
   const [username, setUsername] = useState("");
@@ -134,36 +136,33 @@ export default function SignInScreen() {
         >
           <View style={styles.hero}>
             <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-            <Text style={styles.title}>TOUTI</Text>
-            <Text style={styles.subtitle}>LE JEU DE CARTES MAROCAIN</Text>
+            <Text style={styles.title}>{t("auth.appName").toUpperCase()}</Text>
+            <Text style={styles.subtitle}>{t("auth.subtitle")}</Text>
             <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
           </View>
 
           {mode === "welcome" && (
             <View style={styles.block}>
-              <Text style={styles.intro}>
-                Pour jouer en ligne, créer des ligues et participer à des tournois,
-                il te faut un compte.
-              </Text>
+              <Text style={styles.intro}>{t("auth.intro")}</Text>
 
               {/* OAuth providers */}
               <OAuthButton
                 provider="apple"
-                label="Continuer avec Apple"
+                label={t("auth.continueApple")}
                 renderIcon={() => <AppleLogo color="#fff" />}
                 bg="#000"
                 fg="#fff"
               />
               <OAuthButton
                 provider="google"
-                label="Continuer avec Google"
+                label={t("auth.continueGoogle")}
                 renderIcon={() => <GoogleLogo />}
                 bg="#fff"
                 fg="#3c4043"
               />
               <OAuthButton
                 provider="facebook"
-                label="Continuer avec Facebook"
+                label={t("auth.continueFacebook")}
                 renderIcon={() => <FacebookLogo color="#fff" />}
                 bg="#1877F2"
                 fg="#fff"
@@ -171,7 +170,7 @@ export default function SignInScreen() {
 
               <View style={styles.separator}>
                 <View style={styles.sepLine} />
-                <Text style={styles.sepText}>OU</Text>
+                <Text style={styles.sepText}>{t("auth.or")}</Text>
                 <View style={styles.sepLine} />
               </View>
 
@@ -184,13 +183,13 @@ export default function SignInScreen() {
                   start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.primaryText}>Créer un compte (pseudo)</Text>
+                <Text style={styles.primaryText}>{t("auth.createAccount")}</Text>
               </Pressable>
               <Pressable
                 onPress={() => { clearError(); setMode("signin"); }}
                 style={[styles.primaryBtn, styles.secondaryBtn]}
               >
-                <Text style={[styles.primaryText, { color: COLORS.cream }]}>J'ai déjà un compte</Text>
+                <Text style={[styles.primaryText, { color: COLORS.cream }]}>{t("auth.haveAccount")}</Text>
               </Pressable>
             </View>
           )}
@@ -198,15 +197,15 @@ export default function SignInScreen() {
           {(mode === "signin" || mode === "signup") && (
             <View style={styles.block}>
               <Text style={styles.formTitle}>
-                {mode === "signup" ? "Créer un compte" : "Connexion"}
+                {mode === "signup" ? t("auth.signup") : t("auth.signin")}
               </Text>
 
               <View>
-                <Text style={styles.label}>PSEUDO</Text>
+                <Text style={styles.label}>{t("auth.username")}</Text>
                 <TextInput
                   value={username}
                   onChangeText={setUsername}
-                  placeholder="ton_pseudo"
+                  placeholder={t("auth.usernamePlaceholder")}
                   placeholderTextColor="rgba(245,235,214,0.4)"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -214,44 +213,39 @@ export default function SignInScreen() {
                   style={styles.input}
                 />
                 {mode === "signup" && (
-                  <Text style={styles.hint}>
-                    3-24 caractères · lettres, chiffres, _ ou -
-                  </Text>
+                  <Text style={styles.hint}>{t("auth.usernameHint")}</Text>
                 )}
               </View>
 
               <View style={{ marginTop: 12 }}>
-                <Text style={styles.label}>MOT DE PASSE</Text>
+                <Text style={styles.label}>{t("auth.password")}</Text>
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="••••••"
+                  placeholder={t("auth.passwordPlaceholder")}
                   placeholderTextColor="rgba(245,235,214,0.4)"
                   secureTextEntry
                   autoCapitalize="none"
                   style={styles.input}
                 />
                 {mode === "signup" && (
-                  <Text style={styles.hint}>6 caractères minimum</Text>
+                  <Text style={styles.hint}>{t("auth.passwordHint")}</Text>
                 )}
               </View>
 
               {mode === "signup" && (
                 <View style={{ marginTop: 12 }}>
-                  <Text style={styles.label}>EMAIL (OPTIONNEL)</Text>
+                  <Text style={styles.label}>{t("auth.emailOptional")}</Text>
                   <TextInput
                     value={email}
                     onChangeText={setEmail}
-                    placeholder="toi@email.com"
+                    placeholder={t("auth.emailPlaceholder")}
                     placeholderTextColor="rgba(245,235,214,0.4)"
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
                     style={styles.input}
                   />
-                  <Text style={styles.hint}>
-                    Utile plus tard pour récupérer ton compte
-                  </Text>
                 </View>
               )}
 
@@ -264,21 +258,19 @@ export default function SignInScreen() {
                     {acceptedTerms && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={styles.termsText}>
-                    J'ai lu et j'accepte les{" "}
                     <Text
                       style={styles.termsLink}
                       onPress={() => navigation.navigate("Terms", { section: "terms" })}
                     >
-                      CGU
+                      {t("auth.termsLink")}
                     </Text>
-                    {" "}et la{" "}
+                    {" · "}
                     <Text
                       style={styles.termsLink}
                       onPress={() => navigation.navigate("Terms", { section: "privacy" })}
                     >
-                      politique de confidentialité
+                      {t("auth.privacyLink")}
                     </Text>
-                    .
                   </Text>
                 </Pressable>
               )}
@@ -307,7 +299,7 @@ export default function SignInScreen() {
                   <ActivityIndicator color={COLORS.terracottaDark} />
                 ) : (
                   <Text style={styles.primaryText}>
-                    {mode === "signup" ? "Créer le compte" : "Se connecter"}
+                    {mode === "signup" ? t("auth.signup") : t("auth.signin")}
                   </Text>
                 )}
               </Pressable>
@@ -320,9 +312,7 @@ export default function SignInScreen() {
                 style={{ marginTop: 14, alignItems: "center" }}
               >
                 <Text style={styles.toggleText}>
-                  {mode === "signup"
-                    ? "J'ai déjà un compte · Me connecter"
-                    : "Pas encore de compte · Créer"}
+                  {mode === "signup" ? t("auth.haveAccount") : t("auth.createAccount")}
                 </Text>
               </Pressable>
 
@@ -331,7 +321,7 @@ export default function SignInScreen() {
                 style={{ marginTop: 8, alignItems: "center" }}
               >
                 <Text style={[styles.toggleText, { fontSize: 11, opacity: 0.6 }]}>
-                  ← Retour
+                  ← {t("common.back")}
                 </Text>
               </Pressable>
             </View>

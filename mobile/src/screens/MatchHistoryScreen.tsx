@@ -8,10 +8,12 @@ import { ZelligeBg } from "../components/Patterns";
 import { useMatchHistoryStore, MatchEntry, MatchType } from "../store/matchHistoryStore";
 import { useAuthStore } from "../store/authStore";
 import { matchUserWon } from "../lib/leveling";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MatchHistory">;
 
 export default function MatchHistoryScreen({ navigation }: Props) {
+  const t = useT();
   const matches = useMatchHistoryStore((s) => s.matches);
   const hydrate = useMatchHistoryStore((s) => s.hydrate);
   const clear = useMatchHistoryStore((s) => s.clear);
@@ -28,11 +30,11 @@ export default function MatchHistoryScreen({ navigation }: Props) {
   const onClear = () => {
     if (matches.length === 0) return;
     Alert.alert(
-      "Effacer tout l'historique ?",
-      "Cette action supprime toutes les parties enregistrées.",
+      t("matchHistory.clearConfirmTitle"),
+      t("matchHistory.clearConfirmBody"),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Tout effacer", style: "destructive", onPress: clear },
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("matchHistory.clearAll"), style: "destructive", onPress: clear },
       ],
     );
   };
@@ -53,8 +55,8 @@ export default function MatchHistoryScreen({ navigation }: Props) {
           <Text style={styles.iconBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>HISTORIQUE</Text>
-          <Text style={styles.title}>Mes parties</Text>
+          <Text style={styles.eyebrow}>{t("matchHistory.eyebrow")}</Text>
+          <Text style={styles.title}>{t("matchHistory.title")}</Text>
         </View>
         {matches.length > 0 && (
           <Pressable style={styles.iconBtn} onPress={onClear}>
@@ -66,18 +68,16 @@ export default function MatchHistoryScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         {/* Stats */}
         <View style={styles.statsRow}>
-          <StatBlock label="Parties" value={String(totalPlayed)} />
-          <StatBlock label="Victoires" value={String(won)} highlight />
-          <StatBlock label="Ratio" value={`${ratio}%`} />
+          <StatBlock label={t("matchHistory.statsTotal")} value={String(totalPlayed)} />
+          <StatBlock label={t("common.victories")} value={String(won)} highlight />
+          <StatBlock label={t("matchHistory.statsRatio")} value={`${ratio}%`} />
         </View>
 
         {matches.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>✧</Text>
-            <Text style={styles.emptyTitle}>Aucune partie jouée</Text>
-            <Text style={styles.emptySub}>
-              Les parties finies s'afficheront ici (Partie rapide, Tournoi, IRL…).
-            </Text>
+            <Text style={styles.emptyTitle}>{t("matchHistory.noneTitle")}</Text>
+            <Text style={styles.emptySub}>{t("matchHistory.noneBody")}</Text>
           </View>
         ) : (
           <View style={{ gap: 8, marginTop: 16 }}>
@@ -105,10 +105,11 @@ function StatBlock({ label, value, highlight }: { label: string; value: string; 
 }
 
 function MatchRow({ match, onPress }: { match: MatchEntry; onPress: () => void }) {
+  const t = useT();
   const username = useAuthStore((s) => s.user?.username);
   const won = matchUserWon(match, username);
   const dateLabel = formatDate(match.finishedAt);
-  const typeLabel = typeName(match.type);
+  const typeLabel = typeName(match.type, t);
   return (
     <Pressable onPress={onPress} style={styles.matchRow}>
       <View style={[styles.sideBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
@@ -121,7 +122,7 @@ function MatchRow({ match, onPress }: { match: MatchEntry; onPress: () => void }
           {match.playerNames[0]} · {match.playerNames[2]} vs {match.playerNames[1]} · {match.playerNames[3]}
         </Text>
         <Text style={styles.matchMeta}>
-          {won ? "Victoire" : "Défaite"} · {dateLabel} · {match.roundsPlayed} manche{match.roundsPlayed > 1 ? "s" : ""}
+          {won ? t("matchHistory.victory") : t("matchHistory.defeat")} · {dateLabel} · {match.roundsPlayed} {match.roundsPlayed > 1 ? t("matchHistory.roundsShort") : t("matchHistory.roundShort")}
         </Text>
       </View>
       <View style={styles.scoreBox}>
@@ -134,17 +135,18 @@ function MatchRow({ match, onPress }: { match: MatchEntry; onPress: () => void }
   );
 }
 
-function typeName(t: MatchType): string {
-  if (t === "solo-ai") return "Partie rapide · IA";
-  if (t === "private") return "Partie privée";
-  if (t === "tournament") return "Tournoi";
-  if (t === "irl") return "IRL (compteur)";
-  return t;
+function typeName(type: MatchType, t: (k: string) => string): string {
+  if (type === "solo-ai") return t("matchHistory.typeSolo");
+  if (type === "private") return t("matchHistory.typePrivate");
+  if (type === "quick") return t("matchHistory.typeQuick");
+  if (type === "tournament") return t("matchHistory.typeTournament");
+  if (type === "irl") return t("matchHistory.typeIrl");
+  return type;
 }
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 const styles = StyleSheet.create({

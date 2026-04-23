@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Share, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import * as FileSystem from "expo-file-system/legacy";
@@ -13,10 +13,16 @@ import { useAuthStore } from "../store/authStore";
 import { apiExportMe } from "../net/authApi";
 import { hapticTap, hapticChoice, hapticWarning } from "../lib/haptics";
 import { isMusicEnabled, setMusicEnabled, playMenuMusic } from "../sound/soundManager";
+import { useT, useLocaleStore, type Locale } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
+const APP_VERSION = "0.1.0";
+
 export default function SettingsScreen({ navigation }: Props) {
+  const t = useT();
+  const locale = useLocaleStore((s) => s.locale);
+  const setLocale = useLocaleStore((s) => s.setLocale);
   const [sfx, setSfx] = useState(true);
   const [music, setMusicUI] = useState<boolean>(isMusicEnabled());
   const [exporting, setExporting] = useState(false);
@@ -29,7 +35,6 @@ export default function SettingsScreen({ navigation }: Props) {
   };
   const signOut = useAuthStore((s) => s.signOut);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
-  const resetOnboarding = useAuthStore((s) => s.resetOnboarding);
   const username = useAuthStore((s) => s.user?.username) ?? "user";
 
   const handleSignOut = async () => {
@@ -49,15 +54,14 @@ export default function SettingsScreen({ navigation }: Props) {
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: "application/json",
-          dialogTitle: "Mes données Touti",
+          dialogTitle: t("settings.exportData"),
           UTI: "public.json",
         });
       } else {
-        // Fallback : partage via Share API natif avec le JSON inliné
         await Share.share({ message: json });
       }
     } catch (e: any) {
-      Alert.alert("Erreur", e?.message ?? "Impossible d'exporter les données");
+      Alert.alert(t("common.error"), e?.message ?? t("settings.exportErrorBody"));
     } finally {
       setExporting(false);
     }
@@ -66,28 +70,27 @@ export default function SettingsScreen({ navigation }: Props) {
   const handleDelete = () => {
     hapticWarning();
     Alert.alert(
-      "Supprimer mon compte ?",
-      "Action définitive. Tout ton historique, ligues et statistiques seront supprimés du serveur. Tu ne pourras pas récupérer ton compte.",
+      t("settings.deleteConfirmTitle"),
+      t("settings.deleteConfirmBody"),
       [
-        { text: "Annuler", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Supprimer",
+          text: t("settings.deleteAccount"),
           style: "destructive",
           onPress: () => {
-            // Deuxième confirmation
             Alert.alert(
-              "Es-tu vraiment sûr ?",
-              "Tape le nom de ton compte pour confirmer : " + username,
+              t("settings.deleteConfirmFinalTitle"),
+              t("settings.deleteConfirmFinalBody", { username }),
               [
-                { text: "Annuler", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                  text: "OUI, SUPPRIMER DÉFINITIVEMENT",
+                  text: t("settings.deleteConfirmFinalBtn"),
                   style: "destructive",
                   onPress: async () => {
                     try {
                       await deleteAccount();
                     } catch (e: any) {
-                      Alert.alert("Erreur", e?.message ?? "Suppression impossible");
+                      Alert.alert(t("common.error"), e?.message ?? t("settings.deleteErrorBody"));
                     }
                   },
                 },
@@ -98,6 +101,24 @@ export default function SettingsScreen({ navigation }: Props) {
       ],
     );
   };
+
+  const handlePickLanguage = () => {
+    hapticTap();
+    Alert.alert(
+      t("settings.pickLanguageTitle"),
+      "",
+      [
+        { text: t("settings.langFr"), onPress: () => setLocale("fr") },
+        { text: t("settings.langEn"), onPress: () => setLocale("en") },
+        { text: t("settings.langAr"), onPress: () => setLocale("ar") },
+        { text: t("common.cancel"), style: "cancel" },
+      ],
+    );
+  };
+  const languageLabel =
+    locale === "en" ? t("settings.langEn") :
+    locale === "ar" ? t("settings.langAr") :
+    t("settings.langFr");
 
   return (
     <View style={styles.root}>
@@ -111,18 +132,21 @@ export default function SettingsScreen({ navigation }: Props) {
 
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>RÉGLAGES</Text>
-            <Text style={styles.title}>Paramètres</Text>
+            <Text style={styles.eyebrow}>{t("settings.eyebrow")}</Text>
+            <Text style={styles.title}>{t("settings.title")}</Text>
           </View>
         </View>
 
         <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-          <Group title="Le jeu">
-            <Row label="Langue" value="Français" />
-            <Row label="Dos des cartes" value="Zellige" swatchColor={COLORS.terracottaDark} />
-            <Row label="Couleur de table" value="Bois" swatchColor="#6b4126" />
+          <Group title={t("settings.groupGame")}>
             <Row
-              label="Revoir le tutoriel"
+              label={t("settings.language")}
+              value={languageLabel}
+              chevron
+              onPress={handlePickLanguage}
+            />
+            <Row
+              label={t("settings.replayTuto")}
               chevron
               last
               onPress={() => {
@@ -132,30 +156,42 @@ export default function SettingsScreen({ navigation }: Props) {
             />
           </Group>
 
-          <Group title="Son">
-            <Row label="Effets sonores" toggle toggled={sfx} onToggle={() => { hapticTap(); setSfx((v) => !v); }} />
-            <Row label="Musique" toggle toggled={music} onToggle={onToggleMusic} last />
+          <Group title={t("settings.groupSound")}>
+            <Row label={t("settings.sfx")} toggle toggled={sfx} onToggle={() => { hapticTap(); setSfx((v) => !v); }} />
+            <Row label={t("settings.music")} toggle toggled={music} onToggle={onToggleMusic} last />
           </Group>
 
-          <Group title="Compte">
-            <Row label="Notifications" chevron />
+          <Group title={t("settings.groupAccount")}>
             <Row
-              label="Confidentialité & CGU"
+              label={t("settings.notifications")}
+              chevron
+              onPress={() => {
+                hapticTap();
+                Linking.openSettings().catch(() => {
+                  Alert.alert(
+                    t("settings.notifOpenFail"),
+                    t("settings.notifOpenFailBody"),
+                  );
+                });
+              }}
+            />
+            <Row
+              label={t("settings.privacyTerms")}
               chevron
               onPress={() => navigation.navigate("Terms", { section: "privacy" })}
             />
             <Row
-              label={exporting ? "Export en cours…" : "Télécharger mes données"}
+              label={exporting ? t("settings.exportBusy") : t("settings.exportData")}
               chevron={!exporting}
               onPress={exporting ? undefined : handleExport}
             />
-            <Row label="Déconnexion" chevron onPress={handleSignOut} />
-            <Row label="Supprimer mon compte" chevron danger last onPress={handleDelete} />
+            <Row label={t("settings.signOut")} chevron onPress={handleSignOut} />
+            <Row label={t("settings.deleteAccount")} chevron danger last onPress={handleDelete} />
           </Group>
 
           <View style={styles.footer}>
-            <Text style={styles.version}>TOUTI v0.1.0</Text>
-            <Text style={styles.tagline}>Fait avec ♥ au Maroc</Text>
+            <Text style={styles.version}>{t("settings.version", { version: APP_VERSION })}</Text>
+            <Text style={styles.tagline}>{t("settings.tagline")}</Text>
           </View>
         </View>
       </ScrollView>

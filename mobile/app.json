@@ -47,7 +47,8 @@
           "color": "#E6AA44"
         }
       ],
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-localization"
     ],
     "owner": "oab10",
     "runtimeVersion": {

@@ -11,6 +11,7 @@ import { useAuthStore } from "../store/authStore";
 import { useMatchHistoryStore, type MatchEntry } from "../store/matchHistoryStore";
 import { useTournamentStore } from "../store/tournamentStore";
 import { totalXp, levelProgress, rankLabel } from "../lib/leveling";
+import { useT } from "../lib/i18n";
 
 // Tournois gagnés : tournois finis où la paire gagnante contient le joueur.
 function countTournamentsWon(
@@ -29,8 +30,9 @@ function countTournamentsWon(
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
 export default function ProfileScreen({ navigation }: Props) {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
-  const username = user?.username?.trim() || "Joueur";
+  const username = user?.username?.trim() || t("common.anonymous");
   const initials = (username[0] ?? "?").toUpperCase();
 
   const history = useMatchHistoryStore((s) => s.matches) as MatchEntry[];
@@ -120,7 +122,7 @@ export default function ProfileScreen({ navigation }: Props) {
                   <View style={[styles.xpBarFill, { width: `${Math.max(2, stats.progressRatio * 100)}%` }]} />
                 </View>
                 <Text style={styles.xpBarText}>
-                  {stats.xpIntoLevel} / {stats.xpForNextLevel} XP → niv. {stats.level + 1}
+                  {t("profile.xpLine", { into: stats.xpIntoLevel, total: stats.xpForNextLevel, next: stats.level + 1 })}
                 </Text>
               </View>
             </View>
@@ -130,37 +132,37 @@ export default function ProfileScreen({ navigation }: Props) {
         {/* Stats */}
         <View style={styles.statsCard}>
           <View style={styles.statsGrid}>
-            <StatBlock label="Parties" value={String(stats.games)} />
-            <StatBlock label="Victoires" value={String(stats.wins)} highlight />
-            <StatBlock label="Ratio" value={stats.games ? `${stats.ratio}%` : "—"} />
+            <StatBlock label={t("common.games")} value={String(stats.games)} />
+            <StatBlock label={t("common.victories")} value={String(stats.wins)} highlight />
+            <StatBlock label={t("matchHistory.statsRatio")} value={stats.games ? `${stats.ratio}%` : "—"} />
           </View>
           <View style={styles.divider} />
           <View style={styles.statsGrid}>
-            <StatBlock label="Points gagnés" value={String(stats.pointsFor)} />
-            <StatBlock label="Points perdus" value={String(stats.pointsAgainst)} />
-            <StatBlock label="Tournois gagnés" value={String(stats.tournamentsWon)} highlight />
+            <StatBlock label={t("profile.pointsFor")} value={String(stats.pointsFor)} />
+            <StatBlock label={t("profile.pointsAgainst")} value={String(stats.pointsAgainst)} />
+            <StatBlock label={t("profile.tournamentsWon")} value={String(stats.tournamentsWon)} highlight />
           </View>
         </View>
 
         {/* Parties récentes — 3 dernières réelles */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Parties récentes</Text>
+            <Text style={styles.sectionTitle}>{t("matchHistory.title")}</Text>
             {history.length > 3 && (
               <Pressable onPress={() => navigation.navigate("MatchHistory")}>
-                <Text style={styles.sectionCount}>Voir tout →</Text>
+                <Text style={styles.sectionCount}>{t("common.next")} →</Text>
               </Pressable>
             )}
           </View>
           <View style={{ gap: 6, marginTop: 4 }}>
             {recent.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>Aucune partie jouée pour l'instant</Text>
+                <Text style={styles.emptyText}>{t("profile.noMatches")}</Text>
               </View>
             ) : (
               recent.map((m) => {
                 const won = m.winnerTeam === "A";
-                const partnerName = m.playerNames[2] || "partenaire";
+                const partnerName = m.playerNames[2] || "—";
                 return (
                   <Pressable
                     key={m.id}
@@ -170,7 +172,7 @@ export default function ProfileScreen({ navigation }: Props) {
                     <View style={[styles.wonBar, { backgroundColor: won ? "#3FC26A" : "#E8553A" }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.gameTitle}>
-                        {won ? "Victoire" : "Défaite"} · avec {partnerName}
+                        {won ? t("matchHistory.victory") : t("matchHistory.defeat")} · {partnerName}
                       </Text>
                       <Text style={styles.gameSub}>
                         {formatRelativeDate(m.finishedAt)}
@@ -206,11 +208,16 @@ function formatRelativeDate(ts: number): string {
   const mins = Math.floor(diff / 60_000);
   const hours = Math.floor(mins / 60);
   const days = Math.floor(hours / 24);
-  if (mins < 1) return "à l'instant";
-  if (mins < 60) return `il y a ${mins} min`;
-  if (hours < 24) return `il y a ${hours}h`;
-  if (days < 7) return `il y a ${days}j`;
-  return new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  // Intl.RelativeTimeFormat avec la locale par défaut de l'appareil —
+  // se traduit automatiquement sans toucher à chaque string.
+  try {
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto", style: "short" });
+    if (mins < 1) return rtf.format(0, "minute");
+    if (mins < 60) return rtf.format(-mins, "minute");
+    if (hours < 24) return rtf.format(-hours, "hour");
+    if (days < 7) return rtf.format(-days, "day");
+  } catch {}
+  return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 const styles = StyleSheet.create({

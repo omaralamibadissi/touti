@@ -18,10 +18,12 @@ import { useAuthStore } from "../store/authStore";
 import { useMatchHistoryStore } from "../store/matchHistoryStore";
 import { totalXp, levelProgress } from "../lib/leveling";
 import { hapticTap } from "../lib/haptics";
+import { useT } from "../lib/i18n";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
 export default function HomeScreen({ navigation }: Props) {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
   const name = user?.username ?? "";
   const canPlay = name.length > 0;
@@ -65,9 +67,9 @@ export default function HomeScreen({ navigation }: Props) {
           <Pressable style={styles.profile} onPress={() => { hapticTap(); navigation.navigate("Profile"); }}>
             <Avatar initials={name.trim()[0]?.toUpperCase() || "?"} size={40} color={COLORS.teal} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>Salut{name.trim() ? `, ${name.trim()}` : ""}</Text>
+              <Text style={styles.greeting}>{name.trim() ? name.trim() : t("common.anonymous")}</Text>
               <View style={styles.levelRow}>
-                <Text style={styles.levelText}>NIV. {prog.level}</Text>
+                <Text style={styles.levelText}>{t("common.level").toUpperCase()} {prog.level}</Text>
                 <View style={styles.levelBarBg}>
                   <View style={[styles.levelBarFill, { width: `${Math.max(2, prog.ratio * 100)}%` }]} />
                 </View>
@@ -80,8 +82,8 @@ export default function HomeScreen({ navigation }: Props) {
         {/* Titre hero */}
         <View style={styles.hero}>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
-          <Text style={styles.title}>TOUTI</Text>
-          <Text style={styles.subtitle}>LE JEU DE CARTES MAROCAIN</Text>
+          <Text style={styles.title}>{t("home.appTitle")}</Text>
+          <Text style={styles.subtitle}>{t("auth.subtitle")}</Text>
           <ArabesqueDivider width={180} color={COLORS.saffronSoft} />
         </View>
 
@@ -89,64 +91,64 @@ export default function HomeScreen({ navigation }: Props) {
         <View style={{ paddingHorizontal: SPACING.lg, marginTop: SPACING.xl }}>
           <View style={styles.grid}>
             <ModeTile
-              fr="Solo"
-              sub="Contre 3 IA · hors-ligne"
+              fr={t("home.solo")}
+              sub={t("home.soloSub")}
               accent={COLORS.brass}
               icon="bolt"
               onPress={() => { hapticTap(); navigation.navigate("Game", { mode: "local" }); }}
             />
             <ModeTile
-              fr="Partie rapide"
-              sub="En ligne · code ou pool"
+              fr={t("home.quickMatch")}
+              sub={t("home.quickMatchSub")}
               accent={COLORS.brassDeep}
               icon="bolt"
               onPress={() => { hapticTap(); navigation.navigate("QuickMatch"); }}
             />
             <ModeTile
-              fr="Partie perso"
-              sub="Invite + bots si besoin"
+              fr={t("home.privateGame")}
+              sub={t("home.privateGameSub")}
               accent={COLORS.teal}
               icon="people"
               onPress={() => { hapticTap(); navigation.navigate("PrivateGame"); }}
             />
             <ModeTile
-              fr="Tournoi"
-              sub="Créer ou rejoindre"
+              fr={t("home.tournaments")}
+              sub={t("home.tournamentsSub")}
               accent="#8B4A7F"
               icon="trophy"
               onPress={() => { hapticTap(); navigation.navigate("TournamentHome"); }}
             />
             <ModeTile
-              fr="Mes ligues"
-              sub="Cercle de potes"
+              fr={t("home.leagues")}
+              sub={t("home.leaguesSub")}
               accent="#2E7A8C"
               icon="people"
               onPress={() => { hapticTap(); navigation.navigate("Leagues"); }}
             />
             <ModeTile
-              fr="Score"
-              sub="Compteur IRL · papier"
+              fr={t("home.scoreSheets")}
+              sub={t("home.scoreSheetsSub")}
               accent={COLORS.terracotta}
               icon="notepad"
               onPress={() => { hapticTap(); navigation.navigate("ScoreSheets"); }}
             />
             <ModeTile
-              fr="Règles"
-              sub="Apprendre le Touti"
+              fr={t("home.rules")}
+              sub={t("home.rulesSub")}
               accent="#0F5A5E"
               icon="book"
               onPress={() => { hapticTap(); navigation.navigate("Rules"); }}
             />
             <ModeTile
-              fr="Historique"
-              sub="Tes parties passées"
+              fr={t("home.history")}
+              sub={t("home.historySub")}
               accent="#8B5A12"
               icon="history"
               onPress={() => { hapticTap(); navigation.navigate("MatchHistory"); }}
             />
             <ModeTile
-              fr="Classement"
-              sub="Leaderboard global"
+              fr={t("home.leaderboard")}
+              sub={t("home.leaderboardSub")}
               accent={COLORS.brassDeep}
               icon="trophy"
               onPress={() => { hapticTap(); navigation.navigate("Leaderboard"); }}
