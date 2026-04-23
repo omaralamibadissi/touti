@@ -35,6 +35,7 @@ export interface League {
   members: LeagueMember[];
   tagline?: string;
   color?: string;
+  photo?: string; // data URL base64 JPEG
 }
 
 interface LeagueState {
@@ -57,7 +58,7 @@ interface LeagueState {
   promote: (leagueId: string, targetName: string) => Promise<void>;
   demote: (leagueId: string, targetName: string) => Promise<void>;
   kick: (leagueId: string, targetName: string) => Promise<void>;
-  update: (leagueId: string, patch: { name?: string; tagline?: string; color?: string }) => Promise<void>;
+  update: (leagueId: string, patch: { name?: string; tagline?: string; color?: string; photo?: string | null }) => Promise<void>;
   remove: (leagueId: string) => Promise<void>;
   clear: () => Promise<void>;
 }
@@ -74,6 +75,7 @@ function mapApi(l: LeagueApi): League {
     createdBy: l.createdBy,
     tagline: l.tagline,
     color: l.color,
+    photo: l.photo,
     members: l.members.map((m) => ({
       id: m.name,
       name: m.name,

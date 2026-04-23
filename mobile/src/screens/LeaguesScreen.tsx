@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Share, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Share, Alert, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -268,6 +268,9 @@ function LeagueCard({
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
+      {league.photo ? (
+        <Image source={{ uri: league.photo }} style={styles.leagueCardPhoto} resizeMode="cover" />
+      ) : null}
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={styles.leagueName}>{league.name}</Text>
@@ -361,6 +364,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
     overflow: "hidden",
+  },
+  leagueCardPhoto: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 4,
   },
   leagueName: {
     fontFamily: FONT_DISPLAY,

@@ -18,6 +18,7 @@ export interface League {
   members: LeagueMember[];
   tagline?: string;
   color?: string;
+  photo?: string; // data URL base64 JPEG — admin-only, remplace le cercle de couleur
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ function hydrateLeague(row: any): League {
     createdBy: row.created_by,
     tagline: row.tagline || undefined,
     color: row.color || undefined,
+    photo: row.photo || undefined,
     members,
   };
 }
@@ -178,7 +180,7 @@ export function isMember(leagueId: string, name: string): boolean {
 
 export function updateLeague(
   id: string,
-  patch: Partial<Pick<League, "name" | "tagline" | "color">>,
+  patch: Partial<Pick<League, "name" | "tagline" | "color" | "photo">>,
   byName: string,
 ): League | null {
   requireAdmin(id, byName);
@@ -191,6 +193,13 @@ export function updateLeague(
   }
   if (patch.tagline !== undefined) { sets.push("tagline = @tagline"); args.tagline = patch.tagline || null; }
   if (patch.color !== undefined) { sets.push("color = @color"); args.color = patch.color || null; }
+  if (patch.photo !== undefined) {
+    const p = patch.photo;
+    if (p != null && typeof p === "string" && p.length > 200_000) {
+      throw new Error("Photo trop volumineuse (max ~150KB base64)");
+    }
+    sets.push("photo = @photo"); args.photo = p && p.length > 0 ? p : null;
+  }
   if (sets.length === 0) return getLeague(id);
   db.prepare(`UPDATE leagues SET ${sets.join(", ")} WHERE id = @id`).run(args);
   return getLeague(id);

@@ -1,6 +1,6 @@
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { View, Text, StyleSheet, ScrollView, Pressable, Share, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Share, Alert, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -155,6 +155,21 @@ export default function LeagueDetailScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+        {/* Logo de la ligue */}
+        <View style={{ alignItems: "center", marginBottom: 14 }}>
+          {league.photo ? (
+            <Image
+              source={{ uri: league.photo }}
+              style={styles.leaguePhoto}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.leaguePhoto, { backgroundColor: color, alignItems: "center", justifyContent: "center" }]}>
+              <Text style={styles.leaguePhotoInitial}>{league.name[0]?.toUpperCase() ?? "?"}</Text>
+            </View>
+          )}
+        </View>
+
         {/* Code card */}
         <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>{t("tournaments.code").toUpperCase()}</Text>
@@ -301,6 +316,14 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: FONT_UI_BOLD, fontSize: 11, letterSpacing: 3, color: COLORS.brass, fontWeight: "700" },
   title: { fontFamily: FONT_DISPLAY, fontSize: 24, color: COLORS.cream, fontWeight: "700", marginTop: 2 },
 
+  leaguePhoto: {
+    width: 100, height: 100, borderRadius: 50, overflow: "hidden",
+    borderWidth: 2, borderColor: `${COLORS.brass}88`,
+  },
+  leaguePhotoInitial: {
+    fontFamily: FONT_DISPLAY, fontSize: 44, fontWeight: "800",
+    color: COLORS.cream,
+  },
   codeCard: {
     padding: 20,
     backgroundColor: "rgba(0,0,0,0.35)",

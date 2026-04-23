@@ -715,6 +715,10 @@ export default {
     tournamentSub: "Restricted to members of \"{{name}}\"",
     settingsCard: "⚙ Settings",
     settingsSub: "Edit name, color, tagline · Delete league",
+    photoActionsTitle: "League photo",
+    photoRemoveTitle: "Remove photo?",
+    photoRemoveBody: "The league will go back to the color circle.",
+    photoTapHint: "Tap to change the league photo",
   },
 
   scoreSheets: {

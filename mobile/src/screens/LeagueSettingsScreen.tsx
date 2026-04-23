@@ -5,8 +5,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, TextInput,
-  ScrollView, Alert,
+  ScrollView, Alert, Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
@@ -69,6 +71,72 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
     name.trim() !== league.name ||
     (tagline ?? "") !== (league.tagline ?? "") ||
     color !== (league.color ?? COLORS.teal);
+
+  const pickPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t("profile.photoPermTitle"), t("profile.photoPermBody"));
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (res.canceled) return;
+    const asset = res.assets?.[0];
+    if (!asset?.uri) return;
+    try {
+      const out = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 200, height: 200 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      if (!out.base64) throw new Error("no base64");
+      const dataUrl = `data:image/jpeg;base64,${out.base64}`;
+      await updateLeague(id, { photo: dataUrl });
+    } catch (e: any) {
+      Alert.alert(t("common.error"), e?.message ?? t("profile.photoFailBody"));
+    }
+  };
+
+  const removePhoto = async () => {
+    Alert.alert(
+      t("leagues.photoRemoveTitle"),
+      t("leagues.photoRemoveBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.remove"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await updateLeague(id, { photo: null });
+            } catch (e: any) {
+              Alert.alert(t("common.error"), e?.message ?? t("leagues.errorSave"));
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onLogoPress = () => {
+    if (league.photo) {
+      Alert.alert(
+        t("leagues.photoActionsTitle"),
+        undefined,
+        [
+          { text: t("profile.photoChange"), onPress: pickPhoto },
+          { text: t("common.remove"), style: "destructive", onPress: removePhoto },
+          { text: t("common.cancel"), style: "cancel" },
+        ],
+      );
+    } else {
+      pickPhoto();
+    }
+  };
 
   const onSave = async () => {
     if (!dirty || saving) return;
@@ -141,6 +209,25 @@ export default function LeagueSettingsScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
+        {/* Photo */}
+        <View style={{ alignItems: "center", gap: 10 }}>
+          <Pressable onPress={onLogoPress} hitSlop={10} style={styles.photoWrap}>
+            {league.photo ? (
+              <Image source={{ uri: league.photo }} style={styles.photo} resizeMode="cover" />
+            ) : (
+              <LinearGradient
+                colors={[color, "#000"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.photo}
+              />
+            )}
+            <View style={styles.photoEditBadge}>
+              <Text style={styles.photoEditIcon}>✎</Text>
+            </View>
+          </Pressable>
+          <Text style={styles.photoHint}>{t("leagues.photoTapHint")}</Text>
+        </View>
+
         {/* Nom */}
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>{t("leagues.nameField")}</Text>
@@ -236,6 +323,31 @@ const styles = StyleSheet.create({
     color: COLORS.saffronSoft, letterSpacing: 0.2, marginTop: 2,
   },
 
+  photoWrap: {
+    width: 110, height: 110, borderRadius: 55,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: `${COLORS.brass}88`,
+    overflow: "visible",
+  },
+  photo: {
+    width: 106, height: 106, borderRadius: 53, overflow: "hidden",
+  },
+  photoEditBadge: {
+    position: "absolute",
+    bottom: -2, right: -2,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: COLORS.saffron,
+    borderWidth: 2, borderColor: COLORS.tealDeep,
+    alignItems: "center", justifyContent: "center",
+  },
+  photoEditIcon: {
+    fontFamily: FONT_UI_BOLD, fontSize: 15, fontWeight: "800",
+    color: COLORS.terracottaDark, lineHeight: 17,
+  },
+  photoHint: {
+    fontFamily: FONT_UI, fontSize: 11,
+    color: "rgba(245,235,214,0.55)", letterSpacing: 0.5,
+  },
   field: { gap: 8 },
   fieldLabel: {
     fontFamily: FONT_UI_BOLD, fontSize: 11, letterSpacing: 1,

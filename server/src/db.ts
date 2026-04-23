@@ -258,6 +258,14 @@ try {
     db.exec(`ALTER TABLE accounts ADD COLUMN photo TEXT`);
     logger.info("[db] added accounts.photo");
   }
+  // Photo de ligue — data URL base64 (JPEG 200x200 ~40-80KB), affichée à la
+  // place du cercle de couleur. Admin-only via PATCH /leagues/:id.
+  const leagueCols = db.prepare(`PRAGMA table_info(leagues)`).all() as any[];
+  const hasLeaguePhoto = leagueCols.some((c) => c.name === "photo");
+  if (!hasLeaguePhoto) {
+    db.exec(`ALTER TABLE leagues ADD COLUMN photo TEXT`);
+    logger.info("[db] added leagues.photo");
+  }
 } catch (e: any) {
   logger.warn({ err: e?.message }, "[db] migration failed");
 }

@@ -717,6 +717,10 @@ export default {
     tournamentSub: "Réservé aux membres de \"{{name}}\"",
     settingsCard: "⚙ Paramètres",
     settingsSub: "Modifier nom, couleur, slogan · Supprimer la ligue",
+    photoActionsTitle: "Photo de la ligue",
+    photoRemoveTitle: "Retirer la photo ?",
+    photoRemoveBody: "La ligue reviendra au cercle de couleur.",
+    photoTapHint: "Tape pour changer la photo de la ligue",
   },
 
   scoreSheets: {

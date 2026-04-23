@@ -17,6 +17,7 @@ export interface LeagueApi {
   members: LeagueMemberApi[];
   tagline?: string;
   color?: string;
+  photo?: string; // data URL base64 JPEG
 }
 
 export async function apiCreateLeague(input: {
@@ -75,7 +76,7 @@ export async function apiKickMember(id: string, name: string): Promise<LeagueApi
 
 export async function apiUpdateLeague(
   id: string,
-  patch: { name?: string; tagline?: string; color?: string },
+  patch: { name?: string; tagline?: string; color?: string; photo?: string | null },
 ): Promise<LeagueApi> {
   return fetchJson(`/leagues/${encodeURIComponent(id)}`, {
     method: "PATCH",

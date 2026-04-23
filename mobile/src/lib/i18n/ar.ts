@@ -718,6 +718,10 @@ export default {
     tournamentSub: "حصري لأعضاء \"{{name}}\"",
     settingsCard: "⚙ الإعدادات",
     settingsSub: "تعديل الاسم، اللون، الشعار · حذف الرابطة",
+    photoActionsTitle: "صورة الرابطة",
+    photoRemoveTitle: "إزالة الصورة؟",
+    photoRemoveBody: "ستعود الرابطة إلى دائرة اللون.",
+    photoTapHint: "اضغط لتغيير صورة الرابطة",
   },
 
   scoreSheets: {
