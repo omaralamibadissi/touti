@@ -716,11 +716,12 @@ export function dismissGhna(state: GameState): GameState {
   return { ...state, ghnaPending: null };
 }
 
-// Le buyer autorise son partenaire à chanter. Annonce automatique de la
-// meilleure paire disponible chez le partenaire (priorité à la Ghna 40
-// en atout, sinon la 1ère de la liste). Si le partenaire n'a en réalité
-// aucune paire — cas possible en multi humain/humain — on ferme la
-// fenêtre et on set `ghnaPartnerRefused = true` pour les prochains plis.
+// Le buyer autorise son partenaire à chanter. Au lieu d'annoncer tout de
+// suite pour lui, on transfère la fenêtre au partenaire avec SES options
+// visibles (c'est sa main, il peut la voir en détail) — il choisit alors
+// la couleur à chanter via announceGhna, ou passe via dismissGhna.
+// Si le partenaire n'a en réalité aucune paire (cas théorique broken),
+// on set ghnaPartnerRefused = true et on ferme.
 export function allowPartnerSing(state: GameState, seat: Seat): GameState {
   if (!state.ghnaPending) return state;
   if (state.ghnaPending.seat !== seat) return state;
@@ -751,8 +752,7 @@ export function allowPartnerSing(state: GameState, seat: Seat): GameState {
     else if (!isTrump && canAnnounce20) partnerOptions.push({ suit, value: 20 });
   }
 
-  // Partenaire n'a finalement rien — "refuse". On le mémorise pour ne plus
-  // proposer au buyer sur les plis suivants.
+  // Partenaire n'a finalement rien — refuse. Mémorisé pour ne plus proposer.
   if (partnerOptions.length === 0) {
     return {
       ...state,
@@ -761,16 +761,16 @@ export function allowPartnerSing(state: GameState, seat: Seat): GameState {
     };
   }
 
-  // Pick la meilleure option : Ghna 40 en atout en priorité, sinon la 1ère.
-  const best = partnerOptions.find((o) => o.value === 40) ?? partnerOptions[0];
-  const team = teamOf(partner);
-  const ann: GhnaAnnouncement = { seat: partner, suit: best.suit, value: best.value };
+  // Transfert : le partenaire devient le décideur. Ses options sont
+  // visibles (c'est sa main, il les connaît). partnerCanSing=false car
+  // lui ne peut pas "reauto­riser" le buyer.
   return {
     ...state,
-    ghnaAnnounced: [...state.ghnaAnnounced, ann],
-    roundPoints: { ...state.roundPoints, [team]: state.roundPoints[team] + best.value },
-    ghnaPending: null,
-    message: `${PLAYERS[partner].name} annonce Ghna · +${best.value}`,
+    ghnaPending: {
+      seat: partner,
+      ownOptions: partnerOptions,
+      partnerCanSing: false,
+    },
   };
 }
 

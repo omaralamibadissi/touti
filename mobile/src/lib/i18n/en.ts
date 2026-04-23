@@ -345,7 +345,7 @@ export default {
     scoreHud: "Cumulative score: \"Us\" (you + partner) vs \"Them\". Only updates at the END of each round. In a real game, first to 600 wins.",
     trumpPill: "This pill shows the trump (Tronfo) when set. Currently empty — trump is decided by whoever wins the bidding.",
     bidIntro: "Bidding phase (Chra). Each player in turn: BID (70-230) · PASS · or SIGNAL (\"an Ace\" / \"a Count\").",
-    bidYourTurn: "Your turn. Your hand only has 9 points — too weak to bid. Just pass. Your partner, with a much stronger hand, will buy the bidding for you.",
+    bidYourTurn: "Your turn. Your hand is weak (9 pts) to bid — BUT you have 3 face cards (Rey, Caballo, Sota): signal \"a Count\" to tell your partner you're helping. He'll bid higher knowing you have points.",
     partnerBought: "Your partner bought the bidding! They'll now pick the trump suit based on THEIR hand. Your job is to help them score.",
     trumpSet: "Trump is set. Any trump card beats the 3 other suits. Highest trump wins the trick.",
     playIntro: "Your turn to open. Opener plays any card. The 3 others must follow suit + beat highest if they can, otherwise ruff with trump. Since your hand is weak, play a low card from a suit other than Cups — your partner will ruff with trump to win.",

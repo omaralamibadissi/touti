@@ -2875,7 +2875,6 @@ const styles = StyleSheet.create({
     padding: 20,
     width: "100%",
     maxWidth: 360,
-    alignItems: "center",
   },
   overlayEyebrow: {
     fontFamily: FONT_UI_BOLD,
@@ -2883,6 +2882,7 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     color: COLORS.brass,
     fontWeight: "700",
+    textAlign: "center",
   },
   overlayTitle: {
     fontFamily: FONT_UI_BOLD,
@@ -2891,12 +2891,14 @@ const styles = StyleSheet.create({
     color: COLORS.saffronSoft,
     marginTop: 4,
     letterSpacing: 0.3,
+    textAlign: "center",
   },
   overlaySub: {
     fontFamily: FONT_UI,
     fontSize: 12,
     color: "rgba(245,235,214,0.7)",
     marginTop: 6,
+    textAlign: "center",
   },
   overlaySection: {
     fontFamily: FONT_UI_BOLD,
@@ -2963,6 +2965,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: "rgba(232,85,58,0.6)",
     alignItems: "center",
+    alignSelf: "stretch",
   },
   passBtnText: { fontFamily: FONT_UI_BOLD, fontSize: 14, fontWeight: "700", color: "#E8553A" },
 

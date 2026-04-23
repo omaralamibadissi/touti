@@ -563,13 +563,19 @@ describe("Ghna — buyer est arbitre unique", () => {
     // Buyer n'a rien mais peut autoriser son partenaire
     expect(s.ghnaPending!.ownOptions.length).toBe(0);
     expect(s.ghnaPending!.partnerCanSing).toBe(true);
+    // Buyer autorise → ghnaPending se transfert au partenaire (seat 2)
     const s2 = allowPartnerSing(s, 0);
-    expect(s2.ghnaAnnounced.length).toBe(1);
-    expect(s2.ghnaAnnounced[0].seat).toBe(2); // = owner, pas le buyer
-    expect(s2.ghnaAnnounced[0].suit).toBe("oros");
-    expect(s2.ghnaAnnounced[0].value).toBe(20);
+    expect(s2.ghnaPending).not.toBeNull();
+    expect(s2.ghnaPending!.seat).toBe(2);
+    expect(s2.ghnaPending!.ownOptions.length).toBe(1);
+    // Partenaire annonce sa propre paire
+    const s3 = announceGhna(s2, 2, "oros");
+    expect(s3.ghnaAnnounced.length).toBe(1);
+    expect(s3.ghnaAnnounced[0].seat).toBe(2); // = owner, pas le buyer
+    expect(s3.ghnaAnnounced[0].suit).toBe("oros");
+    expect(s3.ghnaAnnounced[0].value).toBe(20);
     // points bien crédités à l'équipe A
-    expect(s2.roundPoints.A).toBeGreaterThan(0);
+    expect(s3.roundPoints.A).toBeGreaterThan(0);
   });
 
   test("seul le buyer peut annoncer (même si le partenaire envoie l'action)", () => {
@@ -640,13 +646,16 @@ describe("Ghna — buyer est arbitre unique", () => {
       trickWinnerSeat: 0,
     });
     expect(s.ghnaPending).not.toBeNull();
-    // Buyer autorise son partenaire — il chante automatiquement une de ses
-    // 2 paires (20 pts chacune, non-atout).
+    // Buyer autorise → transfert au partenaire. Le partenaire a 2 paires
+    // (oros + copas). Il choisit oros.
     s = allowPartnerSing(s, 0);
+    expect(s.ghnaPending!.seat).toBe(2);
+    expect(s.ghnaPending!.ownOptions.length).toBe(2);
+    s = announceGhna(s, 2, "oros");
     expect(s.ghnaAnnounced[0].seat).toBe(2);
     expect(s.ghnaAnnounced[0].value).toBe(20);
 
-    // Pli 2 : nouveau pli, on autorise encore le partenaire.
+    // Pli 2 : nouveau pli, on autorise encore le partenaire (il a encore copas).
     const handsRound2: [Card[], Card[], Card[], Card[]] = [
       s.hands[0],
       s.hands[1],
@@ -671,6 +680,7 @@ describe("Ghna — buyer est arbitre unique", () => {
     // Le partenaire a encore une paire dispo
     expect(s.ghnaPending!.partnerCanSing).toBe(true);
     s = allowPartnerSing(s, 0);
+    s = announceGhna(s, 2, "copas");
     expect(s.ghnaAnnounced.length).toBe(2);
 
     // Pli 3 : buyer annonce son propre 40 bastos (atout). Total prévu = 20+20+40

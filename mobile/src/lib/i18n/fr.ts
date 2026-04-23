@@ -347,7 +347,7 @@ export default {
     scoreHud: "Ici, le score cumulé : « Nous » (toi + partenaire) vs « Eux ». Il ne bouge qu'à la FIN de chaque manche, pas pendant. Dans une vraie partie, premier à 600 points gagne.",
     trumpPill: "Cette pille affiche l'atout (Tronfo) quand il est choisi. Pour l'instant vide — l'atout est décidé par celui qui gagne les enchères.",
     bidIntro: "On entre en phase d'enchères (Chra). Chaque joueur parle à son tour : MISER (70-230) · PASSER · ou SIGNALER (« un As » / « un Compte »).",
-    bidYourTurn: "À toi. Ta main fait seulement 9 pts — trop faible pour miser. Passe simplement. Ton partenaire, qui a une main bien plus forte, va acheter les enchères à ta place.",
+    bidYourTurn: "À toi. Ta main est faible (9 pts) pour miser — MAIS tu as 3 figures (Rey, Caballo, Sota) : signale « un Compte » pour dire à ton partenaire que tu l'aides. Il pourra monter plus haut en sachant que tu as du jeu.",
     partnerBought: "Ton partenaire a acheté les enchères ! Il va maintenant choisir la couleur d'atout en fonction de SA main. Toi, tu vas l'aider à faire les points.",
     trumpSet: "Voilà l'atout choisi. Toute carte d'atout bat les 3 autres couleurs. L'atout le plus fort gagne le pli.",
     playIntro: "À toi d'ouvrir le 1er pli. Règle : celui qui ouvre pose ce qu'il veut. Les 3 autres doivent suivre la couleur s'ils l'ont + monter plus fort, sinon couper à l'atout. Comme ta main est faible, joue une basse carte d'une autre couleur que Coupes — ton partenaire coupera à l'atout pour gagner.",
