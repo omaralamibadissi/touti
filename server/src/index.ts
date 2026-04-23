@@ -25,6 +25,7 @@ import * as leagueActivity from "./services/leagueActivity";
 import * as directMessages from "./services/directMessages";
 import { consume as rateConsume } from "./lib/rateLimit";
 import { verifyApple, verifyGoogle, verifyFacebook, OAuthNotConfigured } from "./services/oauth";
+import { notifyNewReport } from "./lib/mailer";
 
 // Augmente le type Request pour pouvoir y attacher l'utilisateur authentifié
 declare module "express-serve-static-core" {
@@ -682,6 +683,9 @@ app.post("/reports", requireAuth, (req, res) => {
       details: b.details,
     });
     res.json(r);
+    // Notif email async best-effort — on n'attend pas, le client a déjà
+    // sa réponse et l'email part en arrière-plan.
+    notifyNewReport(r).catch(() => {});
   } catch (e: any) {
     res.status(400).json({ error: e?.message ?? "report failed" });
   }
