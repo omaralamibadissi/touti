@@ -5,6 +5,7 @@
 import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
+import { logger } from "./lib/logger";
 
 const DB_PATH =
   process.env.DB_PATH ||
@@ -188,7 +189,7 @@ if (!row) {
 // haut. Les opérations CREATE/INSERT/DROP/RENAME sont idempotentes sur
 // une table vide.
 if (currentDbVersion < 2) {
-  console.log("[db] migrating v1 → v2 : case-sensitive usernames + friendships");
+  logger.info("[db] migrating v1 → v2 : case-sensitive usernames + friendships");
   db.exec(`
     BEGIN;
     -- Recrée accounts sans UNIQUE sur username_lower
@@ -235,22 +236,22 @@ try {
   const hasLastSeen = cols.some((c) => c.name === "last_seen_at");
   if (!hasLastSeen) {
     db.exec(`ALTER TABLE accounts ADD COLUMN last_seen_at INTEGER`);
-    console.log("[db] added accounts.last_seen_at");
+    logger.info("[db] added accounts.last_seen_at");
   }
   const hasPushToken = cols.some((c) => c.name === "push_token");
   if (!hasPushToken) {
     db.exec(`ALTER TABLE accounts ADD COLUMN push_token TEXT`);
-    console.log("[db] added accounts.push_token");
+    logger.info("[db] added accounts.push_token");
   }
   // Onboarding terminé — stocké SERVEUR pour qu'un login depuis un autre
   // device (ou un logout/login) ne refasse pas l'onboarding.
   const hasOnboardingDone = cols.some((c) => c.name === "onboarding_done");
   if (!hasOnboardingDone) {
     db.exec(`ALTER TABLE accounts ADD COLUMN onboarding_done INTEGER DEFAULT 0`);
-    console.log("[db] added accounts.onboarding_done");
+    logger.info("[db] added accounts.onboarding_done");
   }
 } catch (e: any) {
-  console.warn("[db] migration failed:", e?.message);
+  logger.warn({ err: e?.message }, "[db] migration failed");
 }
 
 // ─── Messagerie directe (DM 1-to-1 entre amis) ───────────────
@@ -368,4 +369,4 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_score_rounds_sheet ON score_rounds(sheet_id, num);
 `);
 
-console.log(`[db] SQLite opened at ${DB_PATH} (schema v${CURRENT_VERSION})`);
+logger.info({ path: DB_PATH, schemaVersion: CURRENT_VERSION }, "[db] SQLite opened");

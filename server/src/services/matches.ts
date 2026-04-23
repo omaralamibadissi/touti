@@ -1,6 +1,7 @@
 // Service matchs + classements (SQLite agrégats).
 
 import { db } from "../db";
+import { logger } from "../lib/logger";
 
 export type MatchType = "solo-ai" | "private" | "quick" | "tournament" | "irl";
 
@@ -113,7 +114,7 @@ export function recordMatch(
           },
         });
       } catch (e: any) {
-        console.warn(`[matches] failed to log league activity for ${id}:`, e?.message);
+        logger.warn({ matchId: id, err: e?.message }, "[matches] failed to log league activity");
       }
     }
   }

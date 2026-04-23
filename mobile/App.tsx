@@ -1,3 +1,8 @@
+import { initSentry } from "./src/lib/sentry";
+// Init Sentry le plus tôt possible — avant même React, pour capturer les
+// éventuelles erreurs d'import/boot.
+initSentry();
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";

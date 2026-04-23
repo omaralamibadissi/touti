@@ -1,4 +1,5 @@
 import { Room, Client } from "@colyseus/core";
+import { logger } from "../lib/logger";
 import {
   aiBid,
   aiChooseTrump,
@@ -376,7 +377,7 @@ export class GameRoom extends Room<GameState> {
         },
       ]);
     } catch (e: any) {
-      console.warn("[GameRoom] notifyFriends failed:", e?.message);
+      logger.warn({ room: this.roomId, err: e?.message }, "[GameRoom] notifyFriends failed");
     }
   }
 
@@ -630,7 +631,15 @@ export class GameRoom extends Room<GameState> {
     }
 
     this.engineState = createGame();
-    console.log(`[GameRoom ${this.roomId}] startGame phase=${this.engineState.phase} mâle=${this.engineState.bidding?.currentSeat} seatOwners=${JSON.stringify(this.seatOwners)}`);
+    logger.info(
+      {
+        room: this.roomId,
+        phase: this.engineState.phase,
+        male: this.engineState.bidding?.currentSeat,
+        seatOwners: this.seatOwners,
+      },
+      "[GameRoom] startGame",
+    );
     this.afterMutation();
   }
 
@@ -668,16 +677,18 @@ export class GameRoom extends Room<GameState> {
             this.engineState.score.B,
           );
           this.tournamentResultRecorded = true;
-          console.log(
-            `[GameRoom ${this.roomId}] tournament match auto-recorded: ${match.tournament.id}/${match.matchId}`,
+          logger.info(
+            { room: this.roomId, tournamentId: match.tournament.id, matchId: match.matchId },
+            "[GameRoom] tournament match auto-recorded",
           );
         } else {
           // Pas de match tournoi attaché → rien à enregistrer, on marque comme traité.
           this.tournamentResultRecorded = true;
         }
       } catch (e: any) {
-        console.error(
-          `[GameRoom ${this.roomId}] auto-record failed (will retry): ${e?.message}`,
+        logger.error(
+          { room: this.roomId, err: e?.message },
+          "[GameRoom] tournament auto-record failed (will retry)",
         );
         this.broadcast("error", {
           reason: "Impossible d'enregistrer le résultat du tournoi. Nouvelle tentative en cours.",
@@ -698,9 +709,12 @@ export class GameRoom extends Room<GameState> {
               this.engineState!.score.B,
             );
             this.tournamentResultRecorded = true;
-            console.log(`[GameRoom ${this.roomId}] tournament match recorded on retry`);
+            logger.info({ room: this.roomId }, "[GameRoom] tournament match recorded on retry");
           } catch (e2: any) {
-            console.error(`[GameRoom ${this.roomId}] retry also failed: ${e2?.message}`);
+            logger.error(
+              { room: this.roomId, err: e2?.message },
+              "[GameRoom] tournament retry also failed",
+            );
           }
         }, 3000);
       }
@@ -722,13 +736,21 @@ export class GameRoom extends Room<GameState> {
   // Planifie le prochain coup d'IA si le siège courant est une IA.
   private aiTimer: NodeJS.Timeout | null = null;
   private scheduleAiTick() {
-    if (!this.engineState) { console.log("[sched] no engine"); return; }
+    if (!this.engineState) { logger.debug({ room: this.roomId }, "[sched] no engine"); return; }
     const s = this.engineState;
 
-    if (s.phase === "game-end") { console.log("[sched] game-end"); return; }
+    if (s.phase === "game-end") { logger.debug({ room: this.roomId }, "[sched] game-end"); return; }
 
     const seat = this.currentDecisionSeat();
-    console.log(`[sched] phase=${s.phase} seat=${seat} owner=${seat != null ? this.seatOwners[seat] : "?"}`);
+    logger.debug(
+      {
+        room: this.roomId,
+        phase: s.phase,
+        seat,
+        owner: seat != null ? this.seatOwners[seat] : null,
+      },
+      "[sched]",
+    );
     if (seat == null) return;
     if (this.seatOwners[seat] !== "AI") return;
 
@@ -772,7 +794,15 @@ export class GameRoom extends Room<GameState> {
   private aiTick() {
     if (!this.engineState) return;
     const s = this.engineState;
-    console.log(`[aiTick] phase=${s.phase} currentSeat=${this.currentDecisionSeat()} seatOwners=${JSON.stringify(this.seatOwners)}`);
+    logger.debug(
+      {
+        room: this.roomId,
+        phase: s.phase,
+        currentSeat: this.currentDecisionSeat(),
+        seatOwners: this.seatOwners,
+      },
+      "[aiTick]",
+    );
 
     // Ghna
     if (s.ghnaPending && this.seatOwners[s.ghnaPending.seat] === "AI") {

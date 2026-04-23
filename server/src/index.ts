@@ -1,3 +1,10 @@
+// Init Sentry EN PREMIER pour capturer les erreurs dès le démarrage.
+// (Import avant tout le reste — le import-hoisting ES s'en charge, mais
+// on garde l'appel init à part pour lisibilité.)
+import { initSentry, Sentry } from "./lib/sentry";
+import { logger } from "./lib/logger";
+initSentry();
+
 import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { Server, matchMaker } from "@colyseus/core";
@@ -97,7 +104,7 @@ function rateLimit(req: Request, res: Response, next: NextFunction) {
   const now = Date.now();
   const arr = (rateLimits.get(ip) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
   if (arr.length >= RATE_LIMIT_MAX) {
-    console.warn(`[rate-limit] IP ${ip} hit limit (${arr.length} in window)`);
+    logger.warn({ ip, hits: arr.length }, "[rate-limit] IP hit limit");
     res.status(429).json({ error: "Too many requests. Wait a minute." });
     return;
   }
@@ -924,11 +931,11 @@ server.define("touti", GameRoom);
 
 // ─── Graceful shutdown ─────────────────────────────────────────────
 async function shutdown(signal: string) {
-  console.log(`[touti-server] received ${signal}, shutting down gracefully`);
+  logger.info({ signal }, "[touti-server] shutting down gracefully");
   try {
     await server.gracefullyShutdown();
   } catch (e) {
-    console.error("[touti-server] shutdown error:", e);
+    logger.error({ err: e }, "[touti-server] shutdown error");
   }
   process.exit(0);
 }
@@ -937,14 +944,19 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 // Capture les erreurs non catchées pour éviter que le process meure
 process.on("uncaughtException", (err) => {
-  console.error("[uncaughtException]", err);
+  logger.error({ err }, "[uncaughtException]");
+  Sentry.captureException(err);
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("[unhandledRejection]", reason);
+  logger.error({ reason }, "[unhandledRejection]");
+  Sentry.captureException(reason);
 });
 
 // ─── Start ─────────────────────────────────────────────────────────
 server.listen(port).then(() => {
-  console.log(`[touti-server] listening on :${port} (env=${NODE_ENV})`);
-  console.log(`[touti-server] monitor: /colyseus ${MONITOR_PASS ? "(auth)" : "(DEV — no pass)"}`);
+  logger.info({ port, env: NODE_ENV }, "[touti-server] listening");
+  logger.info(
+    { auth: MONITOR_PASS ? "on" : "off" },
+    "[touti-server] monitor /colyseus",
+  );
 });

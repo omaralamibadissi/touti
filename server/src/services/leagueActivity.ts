@@ -2,6 +2,7 @@
 
 import { db } from "../db";
 import { isMember } from "./leagues";
+import { logger } from "../lib/logger";
 
 export type LeagueActivityType =
   | "member_joined"
@@ -69,7 +70,7 @@ export function logActivity(
       Date.now(),
     );
   } catch (e: any) {
-    console.warn("[leagueActivity] log failed:", e?.message);
+    logger.warn({ err: e?.message }, "[leagueActivity] log failed");
   }
 }
 

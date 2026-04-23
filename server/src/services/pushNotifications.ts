@@ -5,6 +5,7 @@
 // Pour Expo Go, les tokens Expo fonctionnent directement.
 
 import { db } from "../db";
+import { logger } from "../lib/logger";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -36,10 +37,11 @@ export async function sendPushNotifications(messages: PushMessage[]): Promise<vo
       body: JSON.stringify(valid),
     });
     if (!res.ok) {
-      console.warn("[push] Expo API error:", res.status, await res.text().catch(() => ""));
+      const body = await res.text().catch(() => "");
+      logger.warn({ status: res.status, body }, "[push] Expo API error");
     }
   } catch (e: any) {
-    console.warn("[push] send failed:", e?.message);
+    logger.warn({ err: e?.message }, "[push] send failed");
   }
 }
 

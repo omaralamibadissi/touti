@@ -24,6 +24,7 @@
     },
     "extra": {
       "SERVER_URL": "ws://localhost:2567",
+      "SENTRY_DSN": "",
       "eas": {
         "projectId": "ce4cda81-23d1-4740-84d5-66f38dfeaf59"
       }
@@ -45,7 +46,8 @@
         {
           "color": "#E6AA44"
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "owner": "oab10",
     "runtimeVersion": {
