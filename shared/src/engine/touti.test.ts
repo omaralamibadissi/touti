@@ -560,8 +560,10 @@ describe("Ghna — buyer est arbitre unique", () => {
       trickWinnerSeat: 0,
     });
     expect(s.ghnaPending).not.toBeNull();
-    // buyer autorise la paire du partenaire
-    const s2 = announceGhna(s, 0, "oros");
+    // Buyer n'a rien mais peut autoriser son partenaire
+    expect(s.ghnaPending!.ownOptions.length).toBe(0);
+    expect(s.ghnaPending!.partnerCanSing).toBe(true);
+    const s2 = allowPartnerSing(s, 0);
     expect(s2.ghnaAnnounced.length).toBe(1);
     expect(s2.ghnaAnnounced[0].seat).toBe(2); // = owner, pas le buyer
     expect(s2.ghnaAnnounced[0].suit).toBe("oros");
