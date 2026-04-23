@@ -11,15 +11,22 @@ import { ZelligeBg } from "../components/Patterns";
 import { BottomTabBar, BOTTOM_TAB_HEIGHT } from "../components/BottomTabBar";
 import { useAuthStore } from "../store/authStore";
 import { apiExportMe } from "../net/authApi";
-import { hapticTap, hapticChoice, hapticWarning, setHapticsEnabled } from "../lib/haptics";
+import { hapticTap, hapticChoice, hapticWarning } from "../lib/haptics";
+import { isMusicEnabled, setMusicEnabled, playMenuMusic } from "../sound/soundManager";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
 export default function SettingsScreen({ navigation }: Props) {
   const [sfx, setSfx] = useState(true);
-  const [music, setMusic] = useState(true);
-  const [vib, setVib] = useState(true);
+  const [music, setMusicUI] = useState<boolean>(isMusicEnabled());
   const [exporting, setExporting] = useState(false);
+  const onToggleMusic = () => {
+    hapticTap();
+    const next = !music;
+    setMusicUI(next);
+    setMusicEnabled(next);
+    if (next) playMenuMusic().catch(() => {});
+  };
   const signOut = useAuthStore((s) => s.signOut);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const resetOnboarding = useAuthStore((s) => s.resetOnboarding);
@@ -114,7 +121,6 @@ export default function SettingsScreen({ navigation }: Props) {
             <Row label="Langue" value="Français" />
             <Row label="Dos des cartes" value="Zellige" swatchColor={COLORS.terracottaDark} />
             <Row label="Couleur de table" value="Bois" swatchColor="#6b4126" />
-            <Row label="Vitesse du jeu" value="Normale" />
             <Row
               label="Revoir le tutoriel"
               chevron
@@ -126,21 +132,9 @@ export default function SettingsScreen({ navigation }: Props) {
             />
           </Group>
 
-          <Group title="Son & Vibrations">
+          <Group title="Son">
             <Row label="Effets sonores" toggle toggled={sfx} onToggle={() => { hapticTap(); setSfx((v) => !v); }} />
-            <Row label="Musique" toggle toggled={music} onToggle={() => { hapticTap(); setMusic((v) => !v); }} />
-            <Row
-              label="Vibrations"
-              toggle
-              toggled={vib}
-              onToggle={() => {
-                const next = !vib;
-                setVib(next);
-                setHapticsEnabled(next);
-                if (next) hapticTap();
-              }}
-              last
-            />
+            <Row label="Musique" toggle toggled={music} onToggle={onToggleMusic} last />
           </Group>
 
           <Group title="Compte">

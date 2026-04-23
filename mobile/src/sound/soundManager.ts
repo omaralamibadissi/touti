@@ -115,3 +115,51 @@ export async function stopAllSounds() {
     }),
   );
 }
+
+// ─── Musique de menu ────────────────────────────────────────────────
+// Piste longue (track Desert City, Kevin MacLeod — CC-BY 3.0) jouée en
+// boucle sur les écrans menu. Arrêtée dès qu'on entre en partie.
+// La musique et les effets sonores sont deux toggles indépendants côté UI.
+
+let menuMusic: Audio.Sound | null = null;
+let musicEnabled = true;
+
+export function setMusicEnabled(v: boolean) {
+  musicEnabled = v;
+  if (!v) stopMenuMusic().catch(() => {});
+}
+export function isMusicEnabled() { return musicEnabled; }
+
+export async function playMenuMusic() {
+  if (!musicEnabled) return;
+  await ensureAudioMode();
+  try {
+    if (!menuMusic) {
+      const asset = (() => {
+        try { return require("../../assets/sounds/menu-music.mp3"); } catch { return null; }
+      })();
+      if (!asset) return; // fichier absent → no-op
+      const { sound } = await Audio.Sound.createAsync(asset, {
+        isLooping: true,
+        volume: 0.45,
+      });
+      menuMusic = sound;
+    }
+    const status = await menuMusic.getStatusAsync();
+    if (status.isLoaded && !status.isPlaying) {
+      await menuMusic.playAsync();
+    }
+  } catch {
+    // silencieux — jamais bloquer l'UI pour un problème audio
+  }
+}
+
+export async function stopMenuMusic() {
+  if (!menuMusic) return;
+  try {
+    const status = await menuMusic.getStatusAsync();
+    if (status.isLoaded && status.isPlaying) {
+      await menuMusic.pauseAsync();
+    }
+  } catch {}
+}

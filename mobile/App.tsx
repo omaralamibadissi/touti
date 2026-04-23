@@ -57,6 +57,7 @@ import PlayerProfileScreen from "./src/screens/PlayerProfileScreen";
 import MatchDetailScreen from "./src/screens/MatchDetailScreen";
 import TermsScreen from "./src/screens/TermsScreen";
 import { MenuTutorialOverlay } from "./src/components/MenuTutorialOverlay";
+import { playMenuMusic, stopMenuMusic } from "./src/sound/soundManager";
 import { COLORS } from "./src/theme";
 import { useAuthStore } from "./src/store/authStore";
 import { useNetGameStore } from "./src/store/netGameStore";
@@ -270,6 +271,29 @@ export default function App() {
     useNetGameStore.getState().tryReconnect().catch(() => {});
     useMatchHistoryStore.getState().hydrate().catch(() => {});
   }, []);
+
+  // Musique de menu : jouée sur tous les écrans SAUF Game.
+  // Écoute les changements de route : si on arrive sur Game, on pause.
+  // Sinon (Home/Social/Profile/Settings/Leagues/etc.), on lance.
+  useEffect(() => {
+    if (!user?.username) return;
+    const apply = () => {
+      if (!navigationRef.isReady()) return;
+      const r = navigationRef.getCurrentRoute();
+      if (!r) return;
+      if (r.name === "Game") {
+        stopMenuMusic().catch(() => {});
+      } else {
+        playMenuMusic().catch(() => {});
+      }
+    };
+    apply();
+    const unsub = navigationRef.addListener("state", apply);
+    return () => {
+      if (typeof unsub === "function") unsub();
+      stopMenuMusic().catch(() => {});
+    };
+  }, [user?.username]);
 
   // Post-onboarding : une fois que le stack est en état "in" et qu'on a
   // une action pendante (lancée depuis OnboardingScreen.finish), on navigue.
